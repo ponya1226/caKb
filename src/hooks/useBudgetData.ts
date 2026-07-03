@@ -9,9 +9,10 @@ import {
   saveExpense,
   saveReceiptImage,
 } from "../lib/db";
+import { findRecentCategoryForShop } from "../lib/categorySuggestion";
 import { createId } from "../lib/id";
 import { loadSettings, resetSettings, saveSettings } from "../lib/settings";
-import type { AppSettings, Category, Expense, ExpenseFormValues, ReceiptImage } from "../types";
+import type { AppSettings, Category, Expense, ExpenseFormValues, ReceiptCategorySuggestion, ReceiptImage } from "../types";
 
 type UseBudgetDataResult = {
   categories: Category[];
@@ -27,6 +28,7 @@ type UseBudgetDataResult = {
   updateSettings: (settings: AppSettings) => void;
   resetData: () => Promise<void>;
   refresh: () => Promise<void>;
+  suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
 };
 
 function createExpenseRecord(values: ExpenseFormValues, source: Expense["source"], receiptImageId?: string): Expense {
@@ -140,6 +142,11 @@ export function useBudgetData(): UseBudgetDataResult {
     setSettings(nextSettings);
   }, []);
 
+  const suggestCategoryForShop = useCallback(
+    (shopName: string) => findRecentCategoryForShop(expenses, shopName),
+    [expenses],
+  );
+
   const resetData = useCallback(async () => {
     await clearApplicationData();
     resetSettings();
@@ -162,5 +169,6 @@ export function useBudgetData(): UseBudgetDataResult {
     updateSettings,
     resetData,
     refresh,
+    suggestCategoryForShop,
   };
 }

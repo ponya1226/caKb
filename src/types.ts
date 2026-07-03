@@ -49,6 +49,11 @@ export type ReceiptParseResult = {
   amountCandidates: Array<ReceiptCandidate<number>>;
 };
 
+export type ReceiptCategorySuggestion = {
+  categoryId: string;
+  matchedShopName: string;
+};
+
 export type ExpenseFormValues = {
   date: string;
   shopName: string;
@@ -63,4 +68,5 @@ export type ReceiptDraft = {
   ocrText: string;
   parseResult: ReceiptParseResult;
   initialValues: ExpenseFormValues;
+  categorySuggestion?: ReceiptCategorySuggestion;
 };

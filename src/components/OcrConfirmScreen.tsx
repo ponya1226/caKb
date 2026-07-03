@@ -1,4 +1,4 @@
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, SkipForward } from "lucide-react";
 import { CopyTextButton } from "./CopyTextButton";
 import { ExpenseEditor } from "./ExpenseEditor";
 import type { AppSettings, Category, ExpenseFormValues, ReceiptDraft } from "../types";
@@ -7,16 +7,29 @@ type OcrConfirmScreenProps = {
   draft: ReceiptDraft;
   categories: Category[];
   settings: AppSettings;
+  queuePosition?: {
+    current: number;
+    total: number;
+  };
   onBack: () => void;
+  onSkip?: () => void;
   onSave: (values: ExpenseFormValues) => Promise<void>;
 };
 
-export function OcrConfirmScreen({ draft, categories, settings, onBack, onSave }: OcrConfirmScreenProps) {
+export function OcrConfirmScreen({ draft, categories, settings, queuePosition, onBack, onSkip, onSave }: OcrConfirmScreenProps) {
+  const suggestedCategory = draft.categorySuggestion
+    ? categories.find((category) => category.id === draft.categorySuggestion?.categoryId)
+    : undefined;
+
   return (
     <section className="screen">
       <div className="screen-heading">
         <div>
-          <p className="eyebrow">保存前確認</p>
+          <p className="eyebrow">
+            {queuePosition && queuePosition.total > 1
+              ? `保存前確認 ${queuePosition.current}/${queuePosition.total}`
+              : "保存前確認"}
+          </p>
           <h1>OCR確認</h1>
         </div>
         <button className="icon-button" type="button" onClick={onBack} aria-label="戻る">
@@ -33,7 +46,27 @@ export function OcrConfirmScreen({ draft, categories, settings, onBack, onSave }
         <span>画像保存: {settings.saveReceiptImages ? "ON" : "OFF"}</span>
       </div>
 
-      <ExpenseEditor categories={categories} initialValues={draft.initialValues} submitLabel="保存" onCancel={onBack} onSubmit={onSave} />
+      {suggestedCategory && (
+        <div className="save-mode">
+          <span>前回のカテゴリを反映: {suggestedCategory.name}</span>
+        </div>
+      )}
+
+      <ExpenseEditor
+        key={draft.imagePreviewUrl}
+        categories={categories}
+        initialValues={draft.initialValues}
+        submitLabel="保存"
+        onCancel={onBack}
+        onSubmit={onSave}
+      />
+
+      {onSkip && (
+        <button className="button button-secondary full-width" type="button" onClick={onSkip}>
+          <SkipForward size={18} aria-hidden="true" />
+          このレシートをスキップ
+        </button>
+      )}
 
       <section className="content-section">
         <div className="section-title-row">

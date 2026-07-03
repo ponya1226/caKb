@@ -15,8 +15,10 @@ export function DashboardScreen({ expenses, categories, onAddExpense }: Dashboar
   const previousMonthKey = addMonths(monthKey, -1);
   const currentMonthExpenses = expenses.filter((expense) => toMonthKey(expense.date) === monthKey);
   const previousMonthExpenses = expenses.filter((expense) => toMonthKey(expense.date) === previousMonthKey);
+  const currentMonthReceiptExpenses = currentMonthExpenses.filter((expense) => expense.source === "receipt");
   const currentTotal = currentMonthExpenses.reduce((total, expense) => total + expense.amount, 0);
   const previousTotal = previousMonthExpenses.reduce((total, expense) => total + expense.amount, 0);
+  const receiptTotal = currentMonthReceiptExpenses.reduce((total, expense) => total + expense.amount, 0);
   const monthDiff = previousTotal === 0 ? Number.NaN : ((currentTotal - previousTotal) / previousTotal) * 100;
 
   const categoryTotals = categories
@@ -62,6 +64,11 @@ export function DashboardScreen({ expenses, categories, onAddExpense }: Dashboar
         <div className="metric-panel">
           <span className="metric-label">前月比</span>
           <strong className={monthDiff > 0 ? "tone-danger" : "tone-good"}>{formatPercent(monthDiff)}</strong>
+        </div>
+        <div className="metric-panel">
+          <span className="metric-label">レシート登録分</span>
+          <strong>{formatCurrency(receiptTotal)}</strong>
+          <span className="metric-detail">{currentMonthReceiptExpenses.length}件</span>
         </div>
       </div>
 

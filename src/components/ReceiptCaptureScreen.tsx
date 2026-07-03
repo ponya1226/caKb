@@ -7,7 +7,7 @@ import { formatFileSize } from "../lib/format";
 import { runOcr } from "../lib/ocr";
 import type { OcrCropRatios } from "../lib/ocr";
 import { parseReceiptText } from "../lib/receiptParser";
-import type { OcrProgress, ReceiptCandidate, ReceiptDraft } from "../types";
+import type { OcrProgress, ReceiptCandidate, ReceiptCategorySuggestion, ReceiptDraft } from "../types";
 
 const LARGE_RECEIPT_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_COMBINED_CROP_PERCENT = 86;
@@ -15,7 +15,8 @@ const FULL_OCR_CROP: OcrCropRatios = { top: 0, right: 0, bottom: 0, left: 0 };
 const RECEIPT_BODY_CROP: OcrCropRatios = { top: 0, right: 18, bottom: 34, left: 18 };
 
 type ReceiptCaptureScreenProps = {
-  onConfirm: (draft: ReceiptDraft) => void;
+  onConfirm: (drafts: ReceiptDraft[]) => void;
+  suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
 };
 
 function CandidateButtons<T>({
@@ -67,11 +68,11 @@ function getPairedCropSide(side: keyof OcrCropRatios): keyof OcrCropRatios {
   return "left";
 }
 
-export function ReceiptCaptureScreen({ onConfirm }: ReceiptCaptureScreenProps) {
+export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop }: ReceiptCaptureScreenProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const transferredPreviewUrlRef = useRef<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [ocrText, setOcrText] = useState("");
   const [progress, setProgress] = useState<OcrProgress | null>(null);
@@ -80,8 +81,12 @@ export function ReceiptCaptureScreen({ onConfirm }: ReceiptCaptureScreenProps) {
   const [pickedDate, setPickedDate] = useState(toDateInputValue(new Date()));
   const [pickedShopName, setPickedShopName] = useState("");
   const [pickedAmount, setPickedAmount] = useState(0);
+  const [pickedCategorySuggestion, setPickedCategorySuggestion] = useState<ReceiptCategorySuggestion | null>(null);
   const [ocrCrop, setOcrCrop] = useState<OcrCropRatios>(RECEIPT_BODY_CROP);
 
+  const selectedFile = selectedFiles[0] ?? null;
+  const totalFileSize = selectedFiles.reduce((total, file) => total + file.size, 0);
+  const hasLargeSelectedFile = selectedFiles.some((file) => file.size > LARGE_RECEIPT_IMAGE_BYTES);
   const parseResult = ocrText ? parseReceiptText(ocrText) : null;
 
   useEffect(() => {
@@ -93,8 +98,8 @@ export function ReceiptCaptureScreen({ onConfirm }: ReceiptCaptureScreenProps) {
   }, [imagePreviewUrl]);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) {
       return;
     }
 
@@ -103,13 +108,40 @@ export function ReceiptCaptureScreen({ onConfirm }: ReceiptCaptureScreenProps) {
     }
 
     transferredPreviewUrlRef.current = null;
-    setSelectedFile(file);
-    setImagePreviewUrl(URL.createObjectURL(file));
+    setSelectedFiles(files);
+    setImagePreviewUrl(URL.createObjectURL(files[0]));
     setOcrText("");
     setProgress(null);
     setError(null);
+    setPickedCategorySuggestion(null);
     setOcrCrop(RECEIPT_BODY_CROP);
     event.target.value = "";
+  }
+
+  function createDraftFromOcr(file: File, imageUrl: string, text: string): ReceiptDraft {
+    const parsed = parseReceiptText(text);
+    const initialShopName = parsed.shopNameCandidates[0]?.value ?? "";
+    const categorySuggestion = suggestCategoryForShop(initialShopName);
+
+    return {
+      imageFile: file,
+      imagePreviewUrl: imageUrl,
+      ocrText: text,
+      parseResult: parsed,
+      initialValues: {
+        date: parsed.dateCandidates[0]?.value ?? toDateInputValue(new Date()),
+        shopName: initialShopName,
+        amount: parsed.amountCandidates[0]?.value ?? 0,
+        categoryId: categorySuggestion?.categoryId ?? DEFAULT_CATEGORY_ID,
+        memo: "",
+      },
+      ...(categorySuggestion ? { categorySuggestion } : {}),
+    };
+  }
+
+  function pickShopName(shopName: string) {
+    setPickedShopName(shopName);
+    setPickedCategorySuggestion(suggestCategoryForShop(shopName));
   }
 
   function handleCropChange(side: keyof OcrCropRatios, value: number) {
@@ -124,7 +156,7 @@ export function ReceiptCaptureScreen({ onConfirm }: ReceiptCaptureScreenProps) {
   }
 
   async function handleRunOcr() {
-    if (!selectedFile) {
+    if (selectedFiles.length === 0) {
       setError("画像を選択してください");
       return;
     }
@@ -134,12 +166,43 @@ export function ReceiptCaptureScreen({ onConfirm }: ReceiptCaptureScreenProps) {
     setProgress({ status: "starting", progress: 0 });
 
     try {
-      const text = await runOcr(selectedFile, setProgress, { crop: ocrCrop });
-      const parsed = parseReceiptText(text);
-      setOcrText(text);
-      setPickedDate(parsed.dateCandidates[0]?.value ?? toDateInputValue(new Date()));
-      setPickedShopName(parsed.shopNameCandidates[0]?.value ?? "");
-      setPickedAmount(parsed.amountCandidates[0]?.value ?? 0);
+      if (selectedFiles.length === 1 && selectedFile) {
+        const text = await runOcr(selectedFile, setProgress, { crop: ocrCrop });
+        const parsed = parseReceiptText(text);
+        const initialShopName = parsed.shopNameCandidates[0]?.value ?? "";
+        const categorySuggestion = suggestCategoryForShop(initialShopName);
+        setOcrText(text);
+        setPickedDate(parsed.dateCandidates[0]?.value ?? toDateInputValue(new Date()));
+        setPickedShopName(initialShopName);
+        setPickedAmount(parsed.amountCandidates[0]?.value ?? 0);
+        setPickedCategorySuggestion(categorySuggestion);
+        return;
+      }
+
+      const ocrResults: Array<{ file: File; text: string }> = [];
+      for (const [index, file] of selectedFiles.entries()) {
+        const text = await runOcr(
+          file,
+          (nextProgress) => {
+            setProgress({
+              status: `${index + 1}/${selectedFiles.length} ${nextProgress.status}`,
+              progress: (index + nextProgress.progress) / selectedFiles.length,
+            });
+          },
+          { crop: ocrCrop },
+        );
+        ocrResults.push({ file, text });
+      }
+
+      const drafts = ocrResults.map(({ file, text }, index) => {
+        const imageUrl = index === 0 && imagePreviewUrl ? imagePreviewUrl : URL.createObjectURL(file);
+        return createDraftFromOcr(file, imageUrl, text);
+      });
+
+      if (imagePreviewUrl) {
+        transferredPreviewUrlRef.current = imagePreviewUrl;
+      }
+      onConfirm(drafts);
     } catch (unknownError) {
       setError(unknownError instanceof Error ? unknownError.message : "OCRに失敗しました");
     } finally {
@@ -152,8 +215,9 @@ export function ReceiptCaptureScreen({ onConfirm }: ReceiptCaptureScreenProps) {
       return;
     }
 
+    const categorySuggestion = suggestCategoryForShop(pickedShopName) ?? pickedCategorySuggestion;
     transferredPreviewUrlRef.current = imagePreviewUrl;
-    onConfirm({
+    onConfirm([{
       imageFile: selectedFile,
       imagePreviewUrl,
       ocrText,
@@ -162,10 +226,11 @@ export function ReceiptCaptureScreen({ onConfirm }: ReceiptCaptureScreenProps) {
         date: pickedDate,
         shopName: pickedShopName,
         amount: pickedAmount,
-        categoryId: DEFAULT_CATEGORY_ID,
+        categoryId: categorySuggestion?.categoryId ?? DEFAULT_CATEGORY_ID,
         memo: "",
       },
-    });
+      ...(categorySuggestion ? { categorySuggestion } : {}),
+    }]);
   }
 
   return (
@@ -178,7 +243,7 @@ export function ReceiptCaptureScreen({ onConfirm }: ReceiptCaptureScreenProps) {
       </div>
 
       <input ref={cameraInputRef} className="visually-hidden" type="file" accept="image/*" capture="environment" onChange={handleFileChange} />
-      <input ref={uploadInputRef} className="visually-hidden" type="file" accept="image/*" onChange={handleFileChange} />
+      <input ref={uploadInputRef} className="visually-hidden" type="file" accept="image/*" multiple onChange={handleFileChange} />
 
       <div className="capture-actions">
         <button className="button button-primary" type="button" onClick={() => cameraInputRef.current?.click()}>
@@ -250,13 +315,13 @@ export function ReceiptCaptureScreen({ onConfirm }: ReceiptCaptureScreenProps) {
       )}
 
       {selectedFile && (
-        <div className={selectedFile.size > LARGE_RECEIPT_IMAGE_BYTES ? "file-size-panel warning" : "file-size-panel"}>
+        <div className={hasLargeSelectedFile ? "file-size-panel warning" : "file-size-panel"}>
           <div>
-            <strong>{selectedFile.name}</strong>
-            <span>{formatFileSize(selectedFile.size)}</span>
+            <strong>{selectedFiles.length === 1 ? selectedFile.name : `${selectedFiles.length}枚選択`}</strong>
+            <span>{formatFileSize(totalFileSize)}</span>
           </div>
-          <p>選択画像の容量を確認しています。</p>
-          {selectedFile.size > LARGE_RECEIPT_IMAGE_BYTES && (
+          <p>{selectedFiles.length === 1 ? "選択画像の容量を確認しています。" : "複数画像を順番にOCRします。"}</p>
+          {hasLargeSelectedFile && (
             <p>画像が大きいため、OCRに時間がかかる可能性があります。</p>
           )}
         </div>
@@ -265,7 +330,7 @@ export function ReceiptCaptureScreen({ onConfirm }: ReceiptCaptureScreenProps) {
       <div className="button-row">
         <button className="button button-primary" type="button" onClick={handleRunOcr} disabled={!selectedFile || isRunning}>
           <Play size={18} aria-hidden="true" />
-          {isRunning ? "OCR中" : "OCR実行"}
+          {isRunning ? "OCR中" : selectedFiles.length > 1 ? "一括OCR実行" : "OCR実行"}
         </button>
       </div>
 
@@ -283,7 +348,7 @@ export function ReceiptCaptureScreen({ onConfirm }: ReceiptCaptureScreenProps) {
       {parseResult && (
         <div className="candidate-panel">
           <CandidateButtons title="日付候補" candidates={parseResult.dateCandidates} onPick={setPickedDate} />
-          <CandidateButtons title="店舗名候補" candidates={parseResult.shopNameCandidates} onPick={setPickedShopName} />
+          <CandidateButtons title="店舗名候補" candidates={parseResult.shopNameCandidates} onPick={pickShopName} />
           <CandidateButtons title="金額候補" candidates={parseResult.amountCandidates} onPick={setPickedAmount} />
           <div className="picked-summary">
             <span>{pickedDate}</span>

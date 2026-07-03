@@ -178,4 +178,28 @@ describe("parseReceiptText", () => {
     expect(result.dateCandidates[0]?.value).toBe("2026-08-15");
     expect(result.amountCandidates[0]?.value).toBe(1234);
   });
+
+  it("skips noisy OCR header lines when ranking shop candidates", () => {
+    const result = parseReceiptText(`
+      / ナ o1 -— リー |
+      ァ テスト マーケット
+      架空 5 ら 二 上 自 店
+      東京都 サンプル 区 架空 1ー2ー3
+      電話 : 03-0000-0000 レツ
+      業者 登録 番号 T0000000000000
+      )26 年 07 月 01 日 ( 水 ) 20:31 担 当
+      "商品 A " *168
+      h 計 ( 税 抜 8%) \\446
+      消費 税 等 ( 8%) ¥35
+      = &T ¥481
+      電子決済 支 払 ¥481
+      買上 明細 は 上 記 の と お り で す 。
+      0000002026070120310000000000
+      伝票 番号 000-000-000-00
+    `);
+
+    expect(result.shopNameCandidates[0]?.value).toBe("ァ テスト マーケット");
+    expect(result.dateCandidates[0]?.value).toBe("2026-07-01");
+    expect(result.amountCandidates[0]?.value).toBe(481);
+  });
 });

@@ -185,6 +185,27 @@ function normalizeShopNameCandidate(line: string): { value: string; confidenceBo
   };
 }
 
+function isNoisyShopNameLine(line: string): boolean {
+  const compactLine = line.replace(/\s/g, "");
+  if (!compactLine) {
+    return true;
+  }
+
+  const digitCount = compactLine.match(/\d/g)?.length ?? 0;
+  if (digitCount >= 2) {
+    return true;
+  }
+
+  const symbolCount = compactLine.match(/[-―—‐|#=<>[\]{}()/\\"'“”`~^%$@!?.,:;_+*]/g)?.length ?? 0;
+  if (symbolCount / compactLine.length >= 0.25) {
+    return true;
+  }
+
+  const japaneseCount = compactLine.match(/[ぁ-んァ-ン一-龯]/g)?.length ?? 0;
+  const latinCount = compactLine.match(/[A-Za-z]/g)?.length ?? 0;
+  return latinCount > 0 && japaneseCount === 0;
+}
+
 function extractShopNameCandidates(lines: string[]): Array<ReceiptCandidate<string>> {
   const candidates = lines
     .map((line) => normalizeText(line).trim())
@@ -193,6 +214,7 @@ function extractShopNameCandidates(lines: string[]): Array<ReceiptCandidate<stri
     .filter((line) => !SHOP_EXCLUDE_PATTERN.test(line))
     .filter((line) => !/\d{1,4}\s*(?:[\/\-.年])\s*\d{1,2}/.test(line))
     .filter((line) => extractAmountsFromLine(line).length === 0)
+    .filter((line) => !isNoisyShopNameLine(line))
     .slice(0, 5)
     .map((line, index) => {
       const normalizedCandidate = normalizeShopNameCandidate(line);

@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from "react";
 import { Camera, Home, List, Plus, ReceiptText, Settings } from "lucide-react";
 import { ExpenseEditor } from "./components/ExpenseEditor";
 import { useBudgetData } from "./hooks/useBudgetData";
+import { normalizeShopNameForCategory } from "./lib/categorySuggestion";
 import type { ExpenseFormValues, ReceiptDraft } from "./types";
 
 type View = "dashboard" | "expenses" | "receipt" | "confirm" | "settings";
@@ -31,49 +32,110 @@ const navItems: Array<{ view: View; label: string; icon: typeof Home }> = [
 
 export default function App() {
   const [view, setView] = useState<View>("dashboard");
-  const [receiptDraft, setReceiptDraft] = useState<ReceiptDraft | null>(null);
+  const [receiptDrafts, setReceiptDrafts] = useState<ReceiptDraft[]>([]);
+  const [receiptBatchTotal, setReceiptBatchTotal] = useState(0);
   const [isManualQuickAddOpen, setIsManualQuickAddOpen] = useState(false);
   const budgetData = useBudgetData();
+  const receiptDraft = receiptDrafts[0] ?? null;
+  const receiptQueuePosition = receiptDraft
+    ? {
+        current: Math.max(1, receiptBatchTotal - receiptDrafts.length + 1),
+        total: receiptBatchTotal || receiptDrafts.length,
+      }
+    : null;
+
+  function revokeReceiptDraftUrls(drafts: ReceiptDraft[]) {
+    drafts.forEach((draft) => URL.revokeObjectURL(draft.imagePreviewUrl));
+  }
+
+  function applySavedCategoryToQueue(drafts: ReceiptDraft[], values: ExpenseFormValues): ReceiptDraft[] {
+    const savedShopName = normalizeShopNameForCategory(values.shopName);
+    if (!savedShopName) {
+      return drafts;
+    }
+
+    return drafts.map((draft) => {
+      if (normalizeShopNameForCategory(draft.initialValues.shopName) !== savedShopName) {
+        return draft;
+      }
+
+      return {
+        ...draft,
+        categorySuggestion: {
+          categoryId: values.categoryId,
+          matchedShopName: values.shopName,
+        },
+        initialValues: {
+          ...draft.initialValues,
+          categoryId: values.categoryId,
+        },
+      };
+    });
+  }
 
   async function handleSaveReceiptExpense(values: ExpenseFormValues) {
     if (!receiptDraft) {
       return;
     }
 
+    const remainingDrafts = applySavedCategoryToQueue(receiptDrafts.slice(1), values);
     await budgetData.addReceiptExpense(values, {
       imageBlob: receiptDraft.imageFile,
       ocrText: receiptDraft.ocrText,
     });
     URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
-    setReceiptDraft(null);
+    setReceiptDrafts(remainingDrafts);
+
+    if (remainingDrafts.length > 0) {
+      setView("confirm");
+      return;
+    }
+
+    setReceiptBatchTotal(0);
     setView("expenses");
   }
 
-  function handleReceiveDraft(draft: ReceiptDraft) {
-    if (receiptDraft?.imagePreviewUrl) {
-      URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
+  function handleReceiveDrafts(drafts: ReceiptDraft[]) {
+    if (drafts.length === 0) {
+      return;
     }
 
-    setReceiptDraft(draft);
+    revokeReceiptDraftUrls(receiptDrafts);
+    setReceiptDrafts(drafts);
+    setReceiptBatchTotal(drafts.length);
     setView("confirm");
   }
 
   function handleNavigate(nextView: View) {
-    if (view === "confirm" && receiptDraft?.imagePreviewUrl && nextView !== "confirm") {
-      URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
-      setReceiptDraft(null);
+    if (view === "confirm" && nextView !== "confirm") {
+      revokeReceiptDraftUrls(receiptDrafts);
+      setReceiptDrafts([]);
+      setReceiptBatchTotal(0);
     }
 
     setView(nextView);
   }
 
   function handleCancelReceiptConfirm() {
-    if (receiptDraft?.imagePreviewUrl) {
-      URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
+    revokeReceiptDraftUrls(receiptDrafts);
+    setReceiptDrafts([]);
+    setReceiptBatchTotal(0);
+    setView("receipt");
+  }
+
+  function handleSkipReceiptDraft() {
+    if (!receiptDraft) {
+      return;
     }
 
-    setReceiptDraft(null);
-    setView("receipt");
+    const remainingDrafts = receiptDrafts.slice(1);
+    URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
+    setReceiptDrafts(remainingDrafts);
+
+    if (remainingDrafts.length === 0) {
+      setReceiptBatchTotal(0);
+      setView("receipt");
+    }
   }
 
   if (budgetData.isLoading) {
@@ -130,14 +192,21 @@ export default function App() {
             />
           )}
 
-          {view === "receipt" && <ReceiptCaptureScreen onConfirm={handleReceiveDraft} />}
+          {view === "receipt" && (
+            <ReceiptCaptureScreen
+              onConfirm={handleReceiveDrafts}
+              suggestCategoryForShop={budgetData.suggestCategoryForShop}
+            />
+          )}
 
           {view === "confirm" && receiptDraft && (
             <OcrConfirmScreen
               draft={receiptDraft}
               categories={budgetData.categories}
               settings={budgetData.settings}
+              queuePosition={receiptQueuePosition ?? undefined}
               onBack={handleCancelReceiptConfirm}
+              onSkip={receiptDrafts.length > 1 ? handleSkipReceiptDraft : undefined}
               onSave={handleSaveReceiptExpense}
             />
           )}

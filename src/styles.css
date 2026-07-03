@@ -165,6 +165,7 @@ h3 {
 }
 
 .metric-label,
+.metric-detail,
 .subtle-text,
 .setting-row span {
   color: var(--text-muted);
@@ -774,7 +775,7 @@ textarea {
   }
 
   .metrics-grid {
-    grid-template-columns: repeat(2, minmax(220px, 1fr));
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
   }
 
   .chart-area-pie {
