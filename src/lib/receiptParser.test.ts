@@ -1,0 +1,181 @@
+import { describe, expect, it } from "vitest";
+import { parseReceiptText } from "./receiptParser";
+
+describe("parseReceiptText", () => {
+  it("extracts date, shop name, and total amount near keywords", () => {
+    const result = parseReceiptText(`
+      サンプルスーパー
+      2026/07/01
+      小計 980
+      税込合計 ¥1,058
+    `);
+
+    expect(result.dateCandidates[0]?.value).toBe("2026-07-01");
+    expect(result.shopNameCandidates[0]?.value).toBe("サンプルスーパー");
+    expect(result.amountCandidates[0]?.value).toBe(1058);
+  });
+
+  it("prioritizes amount near 合計", () => {
+    const result = parseReceiptText(`
+      テストストア
+      商品A 980
+      合計 1,280
+    `);
+
+    expect(result.amountCandidates[0]?.value).toBe(1280);
+  });
+
+  it("prioritizes amount near 税込", () => {
+    const result = parseReceiptText(`
+      テストストア
+      小計 2,000
+      税込 2,160
+    `);
+
+    expect(result.amountCandidates[0]?.value).toBe(2160);
+  });
+
+  it("prioritizes amount near 現計", () => {
+    const result = parseReceiptText(`
+      テストストア
+      商品A 1,000
+      現計 1,100
+    `);
+
+    expect(result.amountCandidates[0]?.value).toBe(1100);
+  });
+
+  it("returns fallback amount candidates when there are no amount keywords", () => {
+    const result = parseReceiptText(`
+      テストストア
+      商品A 480
+      商品B 980
+    `);
+
+    expect(result.amountCandidates.map((candidate) => candidate.value)).toEqual([980, 480]);
+  });
+
+  it("normalizes full-width numbers and Japanese date notation", () => {
+    const result = parseReceiptText(`
+      テスト薬局
+      ２０２６年７月２日
+      現計 ３,４５０円
+    `);
+
+    expect(result.dateCandidates[0]?.value).toBe("2026-07-02");
+    expect(result.amountCandidates[0]?.value).toBe(3450);
+  });
+
+  it("excludes receipt boilerplate, phone numbers, registration numbers, and total lines from shop candidates", () => {
+    const result = parseReceiptText(`
+      サンプルストア
+      レシート
+      TEL 03-1234-5678
+      登録番号 T1234567890123
+      合計 1,500
+    `);
+
+    expect(result.shopNameCandidates.map((candidate) => candidate.value)).toEqual(["サンプルストア"]);
+  });
+
+  it("returns date candidates as YYYY-MM-DD", () => {
+    const result = parseReceiptText(`
+      テストストア
+      26/8/9
+      合計 500
+    `);
+
+    expect(result.dateCandidates[0]?.value).toBe("2026-08-09");
+  });
+
+  it("does not include invalid date candidates", () => {
+    const result = parseReceiptText(`
+      テストストア
+      2026/02/31
+      2026/13/01
+      合計 500
+    `);
+
+    expect(result.dateCandidates).toEqual([]);
+  });
+
+  it("extracts candidates from noisy anonymized OCR text", () => {
+    const result = parseReceiptText(`
+      6 -— 取引
+      サン プル ス トア
+      都 サンプル 区 架空 1ー2ー3
+      電話 : 03-0000-0000 レッ “が
+      者 登録 番号 「T0000000000000
+      26 年 08 月 15 日 ( 土 ) 12:34 担 当 7
+      商 品 A *120
+      EHE UERELT *1,023
+      計 ( 税 抜 8%) \\1,143
+      肖 費 税 等 ( 8%) \\91
+      5 提 店 ¥1,234
+      税率 8X 対 象 1,234
+      内 消費 税 等 8% \\91
+      支 払 ¥1,234
+      買上 明細 は 上 記 の と お り で す 。
+    `);
+
+    expect(result.shopNameCandidates[0]?.value).toBe("サンプルストア");
+    expect(result.dateCandidates[0]?.value).toBe("2026-08-15");
+    expect(result.amountCandidates[0]?.value).toBe(1234);
+  });
+
+  it("extracts candidates from improved anonymized OCR text", () => {
+    const result = parseReceiptText(`
+      / ナ り -— の am
+      ァ サプ ルス - ト ア
+      架空 5 丁 目 店
+      東京都 サンプル 区 架空 1ー2ー3
+      電話 : 03-0000-0000 レツ“
+      業者 登録 番号 T0000000000000
+      26 年 08 月 15 日 ( 土 ) 12:34 担 当
+      "商品 A " ぇ 4 つう *120
+      =EDSUBREIAUT %1,023
+      h 計 ( 税 抜 8%) \\1,143
+      消費 税 等 ( 8%) ¥91
+      = &1 ¥1,234
+      (税率 8% 対 象 ¥1,234)
+      (内 消費 税 等 8 え \\91)
+      電子 決 済 支 払 ¥1,234
+      3 買上 明細 は 上 記 の と お り で す 。
+      *] マ ー ク は 軽減 税率 対象 で す 。
+      0000002026081512340000000000
+      “mEZ 000-000-000-000
+    `);
+
+    expect(result.shopNameCandidates[0]?.value).toBe("サンプルストア");
+    expect(result.dateCandidates[0]?.value).toBe("2026-08-15");
+    expect(result.amountCandidates[0]?.value).toBe(1234);
+  });
+
+  it("extracts candidates from high accuracy anonymized OCR text", () => {
+    const result = parseReceiptText(`
+      7 りり -— 7 a
+      x サンプ ルス トア
+      mwS TH/E
+      5 都 サンプル 区 架空 1ー2ー3
+      電話 : 03-0000-0000 レツ
+      業者 登録 番号 T0000000000000
+      26 年 08 月 15 日 ( 土 ) 12:34 責 t ル
+      商品 2 フ "2 つう *120
+      EHIUEHEALT * ク 1,023
+      計 ( 税 抜 8%) ¥1,143
+      消費 税 等 ( 8%) ¥91
+      = B1 ¥A1234
+      税率 8% 対 象 \\1,234)
+      内 消費 税 等 8% ¥91)
+      電子決済3Z 支 払 ¥1,234
+      買上 明細 は 上 記 の と お り で す 。
+      ] マ ー ク は 軽減 税率 対象 で す 。
+      0000002026081512340000000000
+      |ES  000-000-000-00
+    `);
+
+    expect(result.shopNameCandidates[0]?.value).toBe("サンプルストア");
+    expect(result.dateCandidates[0]?.value).toBe("2026-08-15");
+    expect(result.amountCandidates[0]?.value).toBe(1234);
+  });
+});
