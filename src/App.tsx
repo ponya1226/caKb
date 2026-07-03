@@ -138,6 +138,16 @@ export default function App() {
     }
   }
 
+  function handleUpdateCurrentReceiptDraft(nextDraft: ReceiptDraft) {
+    setReceiptDrafts((currentDrafts) => {
+      if (currentDrafts.length === 0) {
+        return currentDrafts;
+      }
+
+      return [nextDraft, ...currentDrafts.slice(1)];
+    });
+  }
+
   if (budgetData.isLoading) {
     return (
       <main className="app-shell center-shell">
@@ -207,6 +217,10 @@ export default function App() {
               categories={budgetData.categories}
               settings={budgetData.settings}
               queuePosition={receiptQueuePosition ?? undefined}
+              savedOcrCrop={budgetData.settings.lastOcrCrop}
+              onSaveOcrCrop={(crop) => budgetData.updateSettings({ ...budgetData.settings, lastOcrCrop: crop })}
+              onUpdateDraft={handleUpdateCurrentReceiptDraft}
+              suggestCategoryForShop={budgetData.suggestCategoryForShop}
               onBack={handleCancelReceiptConfirm}
               onSkip={receiptDrafts.length > 1 ? handleSkipReceiptDraft : undefined}
               onSave={handleSaveReceiptExpense}

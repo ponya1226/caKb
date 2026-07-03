@@ -74,5 +74,12 @@ export type ReceiptDraft = {
   ocrText: string;
   parseResult: ReceiptParseResult;
   initialValues: ExpenseFormValues;
+  ocrCrop?: {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+  };
+  ocrPresetLabel?: string;
   categorySuggestion?: ReceiptCategorySuggestion;
 };
