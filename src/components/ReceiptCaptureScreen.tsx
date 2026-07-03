@@ -1,22 +1,40 @@
-import { ChangeEvent, useEffect, useRef, useState } from "react";
-import { Camera, FileImage, Play, Send, SlidersHorizontal } from "lucide-react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Camera, FileImage, Play, Save, Send, SlidersHorizontal, Sparkles } from "lucide-react";
 import { CopyTextButton } from "./CopyTextButton";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
 import { toDateInputValue } from "../lib/date";
 import { formatFileSize } from "../lib/format";
 import { runOcr } from "../lib/ocr";
 import type { OcrCropRatios } from "../lib/ocr";
-import { parseReceiptText } from "../lib/receiptParser";
+import { parseReceiptText, scoreReceiptParseResult } from "../lib/receiptParser";
 import type { OcrProgress, ReceiptCandidate, ReceiptCategorySuggestion, ReceiptDraft } from "../types";
 
 const LARGE_RECEIPT_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_COMBINED_CROP_PERCENT = 86;
 const FULL_OCR_CROP: OcrCropRatios = { top: 0, right: 0, bottom: 0, left: 0 };
 const RECEIPT_BODY_CROP: OcrCropRatios = { top: 0, right: 18, bottom: 34, left: 18 };
+const BOTTOMLESS_OCR_CROP: OcrCropRatios = { top: 0, right: 18, bottom: 44, left: 18 };
+const CENTERED_OCR_CROP: OcrCropRatios = { top: 4, right: 22, bottom: 32, left: 22 };
+
+type OcrMode = "auto" | "manual";
+type OcrPreset = {
+  id: string;
+  label: string;
+  crop: OcrCropRatios;
+};
+
+type OcrRunResult = {
+  text: string;
+  crop: OcrCropRatios;
+  presetLabel: string;
+  score: number;
+};
 
 type ReceiptCaptureScreenProps = {
   onConfirm: (drafts: ReceiptDraft[]) => void;
   suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
+  savedOcrCrop?: OcrCropRatios;
+  onSaveOcrCrop: (crop: OcrCropRatios) => void;
 };
 
 function CandidateButtons<T>({
@@ -68,7 +86,26 @@ function getPairedCropSide(side: keyof OcrCropRatios): keyof OcrCropRatios {
   return "left";
 }
 
-export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop }: ReceiptCaptureScreenProps) {
+function isSameCrop(first: OcrCropRatios, second: OcrCropRatios): boolean {
+  return first.top === second.top && first.right === second.right && first.bottom === second.bottom && first.left === second.left;
+}
+
+function getOcrPresets(savedOcrCrop?: OcrCropRatios): OcrPreset[] {
+  const presets: OcrPreset[] = [
+    { id: "body", label: "本体", crop: RECEIPT_BODY_CROP },
+    { id: "bottomless", label: "下部除外", crop: BOTTOMLESS_OCR_CROP },
+    { id: "centered", label: "中央寄せ", crop: CENTERED_OCR_CROP },
+    { id: "full", label: "全体", crop: FULL_OCR_CROP },
+  ];
+
+  if (savedOcrCrop && presets.every((preset) => !isSameCrop(preset.crop, savedOcrCrop))) {
+    return [{ id: "last", label: "前回", crop: savedOcrCrop }, ...presets];
+  }
+
+  return presets;
+}
+
+export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedOcrCrop, onSaveOcrCrop }: ReceiptCaptureScreenProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const transferredPreviewUrlRef = useRef<string | null>(null);
@@ -82,12 +119,15 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop }: Rece
   const [pickedShopName, setPickedShopName] = useState("");
   const [pickedAmount, setPickedAmount] = useState(0);
   const [pickedCategorySuggestion, setPickedCategorySuggestion] = useState<ReceiptCategorySuggestion | null>(null);
-  const [ocrCrop, setOcrCrop] = useState<OcrCropRatios>(RECEIPT_BODY_CROP);
+  const [ocrMode, setOcrMode] = useState<OcrMode>("auto");
+  const [ocrCrop, setOcrCrop] = useState<OcrCropRatios>(savedOcrCrop ?? RECEIPT_BODY_CROP);
+  const [selectedPresetLabel, setSelectedPresetLabel] = useState<string | null>(null);
 
   const selectedFile = selectedFiles[0] ?? null;
   const totalFileSize = selectedFiles.reduce((total, file) => total + file.size, 0);
   const hasLargeSelectedFile = selectedFiles.some((file) => file.size > LARGE_RECEIPT_IMAGE_BYTES);
   const parseResult = ocrText ? parseReceiptText(ocrText) : null;
+  const ocrPresets = useMemo(() => getOcrPresets(savedOcrCrop), [savedOcrCrop]);
 
   useEffect(() => {
     return () => {
@@ -114,7 +154,9 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop }: Rece
     setProgress(null);
     setError(null);
     setPickedCategorySuggestion(null);
-    setOcrCrop(RECEIPT_BODY_CROP);
+    setOcrMode("auto");
+    setOcrCrop(savedOcrCrop ?? RECEIPT_BODY_CROP);
+    setSelectedPresetLabel(null);
     event.target.value = "";
   }
 
@@ -145,6 +187,8 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop }: Rece
   }
 
   function handleCropChange(side: keyof OcrCropRatios, value: number) {
+    setOcrMode("manual");
+    setSelectedPresetLabel("手動");
     setOcrCrop((currentCrop) => {
       const pairedSide = getPairedCropSide(side);
       const maxValue = Math.max(0, MAX_COMBINED_CROP_PERCENT - currentCrop[pairedSide]);
@@ -153,6 +197,68 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop }: Rece
         [side]: Math.min(value, maxValue),
       };
     });
+  }
+
+  function applyPreset(preset: OcrPreset) {
+    setOcrMode("manual");
+    setSelectedPresetLabel(preset.label);
+    setOcrCrop(preset.crop);
+  }
+
+  function applyAutoMode() {
+    setOcrMode("auto");
+    setSelectedPresetLabel(null);
+    setOcrCrop(savedOcrCrop ?? RECEIPT_BODY_CROP);
+  }
+
+  async function runSingleOcr(
+    file: File,
+    crop: OcrCropRatios,
+    presetLabel: string,
+    onProgress: (progress: OcrProgress) => void,
+  ): Promise<OcrRunResult> {
+    const text = await runOcr(file, onProgress, { crop });
+    const parsed = parseReceiptText(text);
+    return {
+      text,
+      crop,
+      presetLabel,
+      score: scoreReceiptParseResult(parsed),
+    };
+  }
+
+  async function runOcrWithCurrentMode(
+    file: File,
+    onProgress: (progress: OcrProgress) => void,
+  ): Promise<OcrRunResult> {
+    if (ocrMode === "manual") {
+      return runSingleOcr(file, ocrCrop, selectedPresetLabel ?? "手動", onProgress);
+    }
+
+    let bestResult: OcrRunResult | null = null;
+    for (const [index, preset] of ocrPresets.entries()) {
+      const result = await runSingleOcr(
+        file,
+        preset.crop,
+        preset.label,
+        (nextProgress) => {
+          onProgress({
+            status: `${preset.label} ${nextProgress.status}`,
+            progress: (index + nextProgress.progress) / ocrPresets.length,
+          });
+        },
+      );
+
+      if (!bestResult || result.score > bestResult.score) {
+        bestResult = result;
+      }
+    }
+
+    if (!bestResult) {
+      throw new Error("OCR候補を作成できませんでした");
+    }
+
+    return bestResult;
   }
 
   async function handleRunOcr() {
@@ -167,21 +273,24 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop }: Rece
 
     try {
       if (selectedFiles.length === 1 && selectedFile) {
-        const text = await runOcr(selectedFile, setProgress, { crop: ocrCrop });
-        const parsed = parseReceiptText(text);
+        const ocrResult = await runOcrWithCurrentMode(selectedFile, setProgress);
+        const parsed = parseReceiptText(ocrResult.text);
         const initialShopName = parsed.shopNameCandidates[0]?.value ?? "";
         const categorySuggestion = suggestCategoryForShop(initialShopName);
-        setOcrText(text);
+        setOcrText(ocrResult.text);
         setPickedDate(parsed.dateCandidates[0]?.value ?? toDateInputValue(new Date()));
         setPickedShopName(initialShopName);
         setPickedAmount(parsed.amountCandidates[0]?.value ?? 0);
         setPickedCategorySuggestion(categorySuggestion);
+        setOcrCrop(ocrResult.crop);
+        setSelectedPresetLabel(ocrResult.presetLabel);
+        onSaveOcrCrop(ocrResult.crop);
         return;
       }
 
       const ocrResults: Array<{ file: File; text: string }> = [];
       for (const [index, file] of selectedFiles.entries()) {
-        const text = await runOcr(
+        const ocrResult = await runOcrWithCurrentMode(
           file,
           (nextProgress) => {
             setProgress({
@@ -189,9 +298,11 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop }: Rece
               progress: (index + nextProgress.progress) / selectedFiles.length,
             });
           },
-          { crop: ocrCrop },
         );
-        ocrResults.push({ file, text });
+        ocrResults.push({ file, text: ocrResult.text });
+        setOcrCrop(ocrResult.crop);
+        setSelectedPresetLabel(ocrResult.presetLabel);
+        onSaveOcrCrop(ocrResult.crop);
       }
 
       const drafts = ocrResults.map(({ file, text }, index) => {
@@ -276,15 +387,36 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop }: Rece
           <div className="section-title-row">
             <h2>OCR範囲</h2>
             <div className="preset-actions">
-              <button className="button button-secondary button-compact" type="button" onClick={() => setOcrCrop(RECEIPT_BODY_CROP)}>
-                <SlidersHorizontal size={16} aria-hidden="true" />
-                本体
+              <button className={ocrMode === "auto" ? "button button-primary button-compact" : "button button-secondary button-compact"} type="button" onClick={applyAutoMode}>
+                <Sparkles size={16} aria-hidden="true" />
+                自動
               </button>
-              <button className="button button-secondary button-compact" type="button" onClick={() => setOcrCrop(FULL_OCR_CROP)}>
-                全体
+              {ocrPresets.map((preset) => (
+                <button
+                  className={
+                    ocrMode === "manual" && selectedPresetLabel === preset.label
+                      ? "button button-primary button-compact"
+                      : "button button-secondary button-compact"
+                  }
+                  key={preset.id}
+                  type="button"
+                  onClick={() => applyPreset(preset)}
+                >
+                  {preset.id === "body" && <SlidersHorizontal size={16} aria-hidden="true" />}
+                  {preset.label}
+                </button>
+              ))}
+              <button className="button button-secondary button-compact" type="button" onClick={() => onSaveOcrCrop(ocrCrop)}>
+                <Save size={16} aria-hidden="true" />
+                既定にする
               </button>
             </div>
           </div>
+          <p className="subtle-text">
+            {ocrMode === "auto"
+              ? "複数の範囲を試して、候補が最も揃う結果を使います。"
+              : `使用範囲: ${selectedPresetLabel ?? "手動"}`}
+          </p>
           <div className="crop-control-grid">
             {[
               ["上", "top"],

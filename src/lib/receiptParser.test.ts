@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseReceiptText } from "./receiptParser";
+import { parseReceiptText, scoreReceiptParseResult } from "./receiptParser";
 
 describe("parseReceiptText", () => {
   it("extracts date, shop name, and total amount near keywords", () => {
@@ -201,5 +201,19 @@ describe("parseReceiptText", () => {
     expect(result.shopNameCandidates[0]?.value).toBe("ァ テスト マーケット");
     expect(result.dateCandidates[0]?.value).toBe("2026-07-01");
     expect(result.amountCandidates[0]?.value).toBe(481);
+  });
+
+  it("scores parse results with date, shop, and amount candidates higher", () => {
+    const weakResult = parseReceiptText(`
+      / ノイズ 1 |
+      商品 A 120
+    `);
+    const strongResult = parseReceiptText(`
+      テストマーケット
+      2026 年 07 月 01 日
+      合計 ¥481
+    `);
+
+    expect(scoreReceiptParseResult(strongResult)).toBeGreaterThan(scoreReceiptParseResult(weakResult));
   });
 });

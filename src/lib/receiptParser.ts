@@ -243,3 +243,12 @@ export function parseReceiptText(text: string): ReceiptParseResult {
     amountCandidates: extractAmountCandidates(lines),
   };
 }
+
+export function scoreReceiptParseResult(result: ReceiptParseResult): number {
+  const dateScore = result.dateCandidates[0]?.confidence ?? 0;
+  const shopScore = result.shopNameCandidates[0]?.confidence ?? 0;
+  const amountScore = result.amountCandidates[0]?.confidence ?? 0;
+  const amountDiversityScore = Math.min(result.amountCandidates.length, 3) * 0.04;
+
+  return dateScore * 0.32 + shopScore * 0.24 + amountScore * 0.4 + amountDiversityScore;
+}

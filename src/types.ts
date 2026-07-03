@@ -29,6 +29,12 @@ export type ReceiptImage = {
 
 export type AppSettings = {
   saveReceiptImages: boolean;
+  lastOcrCrop?: {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+  };
 };
 
 export type OcrProgress = {

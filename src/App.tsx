@@ -196,6 +196,8 @@ export default function App() {
             <ReceiptCaptureScreen
               onConfirm={handleReceiveDrafts}
               suggestCategoryForShop={budgetData.suggestCategoryForShop}
+              savedOcrCrop={budgetData.settings.lastOcrCrop}
+              onSaveOcrCrop={(crop) => budgetData.updateSettings({ ...budgetData.settings, lastOcrCrop: crop })}
             />
           )}
 
