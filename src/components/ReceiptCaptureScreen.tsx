@@ -227,10 +227,6 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
           },
         );
         ocrResults.push({ file, result: ocrResult });
-        setOcrCrop(ocrResult.crop);
-        setSelectedPresetLabel(ocrResult.presetLabel);
-        setOcrPreprocess(ocrResult.preprocess);
-        onSaveOcrCrop(ocrResult.crop);
       }
 
       const drafts = ocrResults.map(({ file, result }, index) => {

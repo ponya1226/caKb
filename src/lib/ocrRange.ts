@@ -54,14 +54,18 @@ export function getPairedCropSide(side: keyof OcrCropRatios): keyof OcrCropRatio
   return "left";
 }
 
-export function getOcrPresets(savedOcrCrop?: OcrCropRatios): OcrPreset[] {
-  const presets: OcrPreset[] = [
+function getBaseOcrPresets(): OcrPreset[] {
+  return [
     { id: "document", label: "用紙補正", crop: FULL_OCR_CROP, preprocess: true },
     { id: "document-body", label: "本体補正", crop: RECEIPT_BODY_CROP, preprocess: true },
     { id: "document-bottomless", label: "下部除外補正", crop: BOTTOMLESS_OCR_CROP, preprocess: true },
     { id: "body", label: "本体", crop: RECEIPT_BODY_CROP },
     { id: "full", label: "全体", crop: FULL_OCR_CROP },
   ];
+}
+
+export function getOcrPresets(savedOcrCrop?: OcrCropRatios): OcrPreset[] {
+  const presets = getBaseOcrPresets();
 
   if (savedOcrCrop && presets.every((preset) => !isSameCrop(preset.crop, savedOcrCrop))) {
     return [
@@ -112,7 +116,7 @@ export async function runOcrWithRangeMode(
     return runSingleOcr(image, options.crop, options.presetLabel ?? "手動", Boolean(options.preprocess), options.onProgress);
   }
 
-  const presets = getOcrPresets(options.savedOcrCrop);
+  const presets = getBaseOcrPresets();
   let bestResult: OcrRunResult | null = null;
 
   for (const [index, preset] of presets.entries()) {
