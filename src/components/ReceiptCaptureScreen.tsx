@@ -148,15 +148,15 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
 
   function applyManualCrop(nextCrop: OcrCropRatios) {
     setOcrMode("manual");
-    setOcrPreprocess(false);
-    setSelectedPresetLabel("手動");
+    setOcrPreprocess(true);
+    setSelectedPresetLabel("手動補正");
     setOcrCrop(nextCrop);
   }
 
   function handleCropChange(side: keyof OcrCropRatios, value: number) {
     setOcrMode("manual");
-    setOcrPreprocess(false);
-    setSelectedPresetLabel("手動");
+    setOcrPreprocess(true);
+    setSelectedPresetLabel("手動補正");
     setOcrCrop((currentCrop) => {
       const pairedSide = getPairedCropSide(side);
       const maxValue = Math.max(0, MAX_COMBINED_CROP_PERCENT - currentCrop[pairedSide]);
@@ -189,8 +189,8 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     return runOcrWithRangeMode(file, {
       mode: useVisibleCropOnly ? "manual" : ocrMode,
       crop: ocrCrop,
-      presetLabel: useVisibleCropOnly ? selectedPresetLabel ?? "選択範囲" : selectedPresetLabel,
-      preprocess: ocrPreprocess,
+      presetLabel: useVisibleCropOnly ? selectedPresetLabel ?? "選択範囲補正" : selectedPresetLabel,
+      preprocess: useVisibleCropOnly ? true : ocrPreprocess,
       savedOcrCrop,
       onProgress,
     });
@@ -349,7 +349,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
               ? "複数選択では、表示中の範囲をすべての画像に適用します。"
               : ocrMode === "auto"
               ? "複数の範囲を試して、候補が最も揃う結果を使います。"
-              : `使用範囲: ${selectedPresetLabel ?? "手動"}`}
+              : `使用範囲: ${selectedPresetLabel ?? "手動補正"}`}
           </p>
           <div className="crop-control-grid">
             {[

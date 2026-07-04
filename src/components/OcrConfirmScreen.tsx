@@ -72,15 +72,15 @@ export function OcrConfirmScreen({
 
   function applyManualCrop(nextCrop: OcrCropRatios) {
     setOcrMode("manual");
-    setOcrPreprocess(false);
-    setSelectedPresetLabel("手動");
+    setOcrPreprocess(true);
+    setSelectedPresetLabel("手動補正");
     setOcrCrop(nextCrop);
   }
 
   function handleCropChange(side: keyof OcrCropRatios, value: number) {
     setOcrMode("manual");
-    setOcrPreprocess(false);
-    setSelectedPresetLabel("手動");
+    setOcrPreprocess(true);
+    setSelectedPresetLabel("手動補正");
     setOcrCrop((currentCrop) => {
       const pairedSide = getPairedCropSide(side);
       const maxValue = Math.max(0, MAX_COMBINED_CROP_PERCENT - currentCrop[pairedSide]);
@@ -219,7 +219,7 @@ export function OcrConfirmScreen({
         <p className="subtle-text">
           {ocrMode === "auto"
             ? "確認中の1枚だけ複数の範囲で再OCRします。"
-            : `使用範囲: ${selectedPresetLabel ?? "手動"}`}
+            : `使用範囲: ${selectedPresetLabel ?? "手動補正"}`}
         </p>
         <div className="crop-control-grid">
           {[

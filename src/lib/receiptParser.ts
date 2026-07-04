@@ -4,7 +4,7 @@ const FINAL_AMOUNT_KEYWORD_PATTERN =
   /(合\s*計|現\s*計|お\s*買\s*上\s*計|お\s*買\s*い\s*上\s*げ\s*計|総\s*合\s*計|請\s*求|支\s*払|お\s*支\s*払|Pay\s*Pay|y\s*Pay|計\s*$)/i;
 const SUPPORTING_AMOUNT_KEYWORD_PATTERN = /(税\s*込|小\s*計|消\s*費\s*税)/;
 const SHOP_EXCLUDE_PATTERN = /(領収|レシート|明細|登録番号|TEL|電話|合計|税込|小計|現計|釣|お預|クレジット|ポイント)/i;
-const MONEY_AMOUNT_PATTERN = /¥\s*[%A-Za-z]*\s*[\dOo〇○][\dOo〇○,\s.．()[\]（）]{0,14}(?:円)?/g;
+const MONEY_AMOUNT_PATTERN = /¥\s*[%A-Za-z]*\s*[\dOo〇○Cc¢][\dOo〇○Cc¢,\s.．()[\]（）]{0,14}(?:円)?/g;
 const PLAIN_AMOUNT_PATTERN = /[\d][\d,\s]{1,12}(?:円)?/g;
 
 function normalizeText(value: string): string {
@@ -16,7 +16,7 @@ function normalizeText(value: string): string {
 
 function normalizeAmountText(value: string): string {
   return normalizeText(value)
-    .replace(/[Oo〇○]/g, "0")
+    .replace(/[Oo〇○Cc¢]/g, "0")
     .replace(/[．]/g, ".")
     .replace(/[（）]/g, (char) => (char === "（" ? "(" : ")"));
 }
