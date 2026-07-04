@@ -243,7 +243,11 @@ export default function App() {
               expenses={budgetData.expenses}
               categories={budgetData.categories}
               settings={budgetData.settings}
+              storageHealth={budgetData.storageHealth}
               onUpdateSettings={budgetData.updateSettings}
+              onImportBackup={budgetData.importBackup}
+              onRequestPersistentStorage={budgetData.requestPersistentStorage}
+              onRefreshStorageHealth={budgetData.refreshStorageHealth}
               onResetData={budgetData.resetData}
             />
           )}

@@ -480,6 +480,49 @@ textarea {
   background: #fef2f2;
 }
 
+.inline-status {
+  padding: 10px 12px;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.status-card {
+  display: grid;
+  gap: 6px;
+  min-height: 88px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.status-card svg {
+  color: var(--primary);
+}
+
+.status-card span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.status-card strong {
+  overflow-wrap: anywhere;
+  font-size: 0.96rem;
+}
+
+.storage-note {
+  margin-top: 12px;
+}
+
 .receipt-preview {
   position: relative;
   overflow: hidden;
@@ -956,7 +999,8 @@ textarea {
 @media (max-width: 420px) {
   .metrics-grid,
   .expense-item,
-  .picked-summary {
+  .picked-summary,
+  .status-grid {
     grid-template-columns: 1fr;
   }
 

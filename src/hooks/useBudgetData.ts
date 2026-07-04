@@ -5,6 +5,7 @@ import {
   deleteExpense as deleteExpenseRecord,
   getCategories,
   getExpenses,
+  importApplicationData,
   initializeDatabase,
   saveExpense,
   saveReceiptImage,
@@ -12,12 +13,24 @@ import {
 import { findRecentCategoryForShop } from "../lib/categorySuggestion";
 import { createId } from "../lib/id";
 import { loadSettings, resetSettings, saveSettings } from "../lib/settings";
-import type { AppSettings, Category, Expense, ExpenseFormValues, ReceiptCategorySuggestion, ReceiptImage } from "../types";
+import { checkStorageHealth, requestPersistentStorage as requestBrowserPersistentStorage } from "../lib/storageHealth";
+import type {
+  AppSettings,
+  BackupData,
+  BackupImportMode,
+  Category,
+  Expense,
+  ExpenseFormValues,
+  ReceiptCategorySuggestion,
+  ReceiptImage,
+  StorageHealth,
+} from "../types";
 
 type UseBudgetDataResult = {
   categories: Category[];
   expenses: Expense[];
   settings: AppSettings;
+  storageHealth: StorageHealth | null;
   isLoading: boolean;
   error: string | null;
   categoryMap: Map<string, Category>;
@@ -26,6 +39,9 @@ type UseBudgetDataResult = {
   updateExpense: (expense: Expense, values: ExpenseFormValues) => Promise<void>;
   removeExpense: (expense: Expense) => Promise<void>;
   updateSettings: (settings: AppSettings) => void;
+  importBackup: (backup: BackupData, mode: BackupImportMode) => Promise<void>;
+  requestPersistentStorage: () => Promise<boolean>;
+  refreshStorageHealth: () => Promise<void>;
   resetData: () => Promise<void>;
   refresh: () => Promise<void>;
   suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
@@ -52,6 +68,7 @@ export function useBudgetData(): UseBudgetDataResult {
   const [categories, setCategories] = useState<Category[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
+  const [storageHealth, setStorageHealth] = useState<StorageHealth | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,13 +77,17 @@ export function useBudgetData(): UseBudgetDataResult {
     const [nextCategories, nextExpenses] = await Promise.all([getCategories(), getExpenses()]);
     setCategories(nextCategories);
     setExpenses(nextExpenses);
+    setStorageHealth(await checkStorageHealth(nextExpenses));
   }, []);
 
   useEffect(() => {
     let isActive = true;
 
     initializeDatabase()
-      .then(() => refresh())
+      .then(async () => {
+        await requestBrowserPersistentStorage();
+        await refresh();
+      })
       .catch((unknownError) => {
         if (isActive) {
           setError(unknownError instanceof Error ? unknownError.message : "データの読み込みに失敗しました");
@@ -142,6 +163,26 @@ export function useBudgetData(): UseBudgetDataResult {
     setSettings(nextSettings);
   }, []);
 
+  const importBackup = useCallback(
+    async (backup: BackupData, mode: BackupImportMode) => {
+      await importApplicationData(backup.expenses, backup.categories, mode);
+      saveSettings(backup.settings);
+      setSettings(backup.settings);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const refreshStorageHealth = useCallback(async () => {
+    setStorageHealth(await checkStorageHealth(expenses));
+  }, [expenses]);
+
+  const requestPersistentStorage = useCallback(async () => {
+    const granted = await requestBrowserPersistentStorage();
+    setStorageHealth(await checkStorageHealth(expenses));
+    return granted;
+  }, [expenses]);
+
   const suggestCategoryForShop = useCallback(
     (shopName: string) => findRecentCategoryForShop(expenses, shopName),
     [expenses],
@@ -159,6 +200,7 @@ export function useBudgetData(): UseBudgetDataResult {
     categories,
     expenses,
     settings,
+    storageHealth,
     isLoading,
     error,
     categoryMap,
@@ -167,6 +209,9 @@ export function useBudgetData(): UseBudgetDataResult {
     updateExpense,
     removeExpense,
     updateSettings,
+    importBackup,
+    requestPersistentStorage,
+    refreshStorageHealth,
     resetData,
     refresh,
     suggestCategoryForShop,

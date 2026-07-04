@@ -1,20 +1,119 @@
-import { Download, RefreshCw, ToggleLeft, ToggleRight, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Database, Download, FileJson, RefreshCw, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Upload } from "lucide-react";
+import { buildBackupJson, downloadJson, parseBackupJson } from "../lib/backup";
 import { buildExpensesCsv, downloadCsv } from "../lib/csv";
-import { currentMonthKey } from "../lib/date";
-import type { AppSettings, Category, Expense } from "../types";
+import { currentMonthKey, formatMonthLabel } from "../lib/date";
+import { formatFileSize } from "../lib/format";
+import type { AppSettings, BackupImportMode, Category, Expense, StorageHealth } from "../types";
 
 type SettingsScreenProps = {
   expenses: Expense[];
   categories: Category[];
   settings: AppSettings;
+  storageHealth: StorageHealth | null;
   onUpdateSettings: (settings: AppSettings) => void;
+  onImportBackup: (backup: ReturnType<typeof parseBackupJson>, mode: BackupImportMode) => Promise<void>;
+  onRequestPersistentStorage: () => Promise<boolean>;
+  onRefreshStorageHealth: () => Promise<void>;
   onResetData: () => Promise<void>;
 };
 
-export function SettingsScreen({ expenses, categories, settings, onUpdateSettings, onResetData }: SettingsScreenProps) {
-  function handleExport() {
+function formatOptionalFileSize(bytes: number | undefined): string {
+  return typeof bytes === "number" ? formatFileSize(bytes) : "不明";
+}
+
+function formatMonthRange(storageHealth: StorageHealth | null): string {
+  if (!storageHealth || storageHealth.monthCount === 0) {
+    return "データなし";
+  }
+
+  if (storageHealth.oldestMonth === storageHealth.latestMonth && storageHealth.oldestMonth) {
+    return formatMonthLabel(storageHealth.oldestMonth);
+  }
+
+  return `${storageHealth.oldestMonth ? formatMonthLabel(storageHealth.oldestMonth) : "不明"} - ${storageHealth.latestMonth ? formatMonthLabel(storageHealth.latestMonth) : "不明"}`;
+}
+
+function formatIndexedDbStatus(storageHealth: StorageHealth | null): string {
+  if (!storageHealth) {
+    return "未確認";
+  }
+
+  return storageHealth.indexedDbAvailable ? "利用可" : "利用不可";
+}
+
+function formatPersistentStorageStatus(storageHealth: StorageHealth | null): string {
+  if (!storageHealth) {
+    return "未確認";
+  }
+
+  if (!storageHealth.persistentStorageSupported) {
+    return "非対応";
+  }
+
+  return storageHealth.persistentStorageGranted ? "有効" : "未許可";
+}
+
+export function SettingsScreen({
+  expenses,
+  categories,
+  settings,
+  storageHealth,
+  onUpdateSettings,
+  onImportBackup,
+  onRequestPersistentStorage,
+  onRefreshStorageHealth,
+  onResetData,
+}: SettingsScreenProps) {
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [importMode, setImportMode] = useState<BackupImportMode>("append");
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  function handleExportCsv() {
     const csv = buildExpensesCsv(expenses, categories);
     downloadCsv(`kakeibo-expenses-${currentMonthKey()}.csv`, csv);
+  }
+
+  function handleExportJson() {
+    const json = buildBackupJson(expenses, categories, settings);
+    downloadJson(`kakeibo-backup-${currentMonthKey()}.json`, json);
+  }
+
+  function handleSelectImportFile(mode: BackupImportMode) {
+    const message =
+      mode === "replace"
+        ? "現在の支出・カテゴリ・設定をバックアップ内容で置き換えます。実行しますか？"
+        : "バックアップ内の支出・カテゴリ・設定を現在のデータに追加します。実行しますか？";
+
+    if (!window.confirm(message)) {
+      return;
+    }
+
+    setImportMode(mode);
+    importInputRef.current?.click();
+  }
+
+  async function handleImportFile(file: File | undefined) {
+    if (!file) {
+      return;
+    }
+
+    try {
+      const backup = parseBackupJson(await file.text());
+      await onImportBackup(backup, importMode);
+      setStatusMessage(importMode === "replace" ? "バックアップで置き換えました" : "バックアップを追加しました");
+    } catch (unknownError) {
+      setStatusMessage(unknownError instanceof Error ? unknownError.message : "バックアップの読み込みに失敗しました");
+    } finally {
+      if (importInputRef.current) {
+        importInputRef.current.value = "";
+      }
+    }
+  }
+
+  async function handleRequestPersistentStorage() {
+    const granted = await onRequestPersistentStorage();
+    setStatusMessage(granted ? "永続保存を有効にしました" : "永続保存を有効にできませんでした。ブラウザ設定を確認してください");
   }
 
   async function handleReset() {
@@ -23,6 +122,7 @@ export function SettingsScreen({ expenses, categories, settings, onUpdateSetting
     }
 
     await onResetData();
+    setStatusMessage("データを初期化しました");
   }
 
   return (
@@ -33,6 +133,56 @@ export function SettingsScreen({ expenses, categories, settings, onUpdateSetting
           <h1>設定</h1>
         </div>
       </div>
+
+      {statusMessage && <div className="inline-status">{statusMessage}</div>}
+
+      <section className="content-section">
+        <div className="section-title-row">
+          <h2>保存状態</h2>
+          <button className="icon-button small" type="button" onClick={onRefreshStorageHealth} aria-label="保存状態を更新">
+            <RefreshCw size={18} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="status-grid">
+          <div className="status-card">
+            <Database size={20} aria-hidden="true" />
+            <span>IndexedDB</span>
+            <strong>{formatIndexedDbStatus(storageHealth)}</strong>
+          </div>
+          <div className="status-card">
+            <ShieldCheck size={20} aria-hidden="true" />
+            <span>永続保存</span>
+            <strong>{formatPersistentStorageStatus(storageHealth)}</strong>
+          </div>
+          <div className="status-card">
+            <span>支出件数</span>
+            <strong>{storageHealth?.expenseCount ?? expenses.length}件</strong>
+          </div>
+          <div className="status-card">
+            <span>保存期間</span>
+            <strong>{formatMonthRange(storageHealth)}</strong>
+          </div>
+          <div className="status-card">
+            <span>使用量</span>
+            <strong>{formatOptionalFileSize(storageHealth?.usageBytes)}</strong>
+          </div>
+          <div className="status-card">
+            <span>推定上限</span>
+            <strong>{formatOptionalFileSize(storageHealth?.quotaBytes)}</strong>
+          </div>
+        </div>
+
+        <p className="subtle-text storage-note">
+          同じブラウザ・同じURLではIndexedDBに保存されます。プライベートブラウズ、サイトデータ削除、端末容量不足では消える場合があります。
+        </p>
+
+        {!storageHealth?.persistentStorageGranted && storageHealth?.persistentStorageSupported && (
+          <button className="button button-secondary full-width" type="button" onClick={handleRequestPersistentStorage}>
+            永続保存をリクエスト
+          </button>
+        )}
+      </section>
 
       <div className="settings-list">
         <article className="setting-row">
@@ -50,9 +200,24 @@ export function SettingsScreen({ expenses, categories, settings, onUpdateSetting
           </button>
         </article>
 
-        <button className="setting-action" type="button" onClick={handleExport}>
+        <button className="setting-action" type="button" onClick={handleExportCsv}>
           <Download size={20} aria-hidden="true" />
           CSVエクスポート
+        </button>
+
+        <button className="setting-action" type="button" onClick={handleExportJson}>
+          <FileJson size={20} aria-hidden="true" />
+          JSONバックアップ
+        </button>
+
+        <button className="setting-action" type="button" onClick={() => handleSelectImportFile("append")}>
+          <Upload size={20} aria-hidden="true" />
+          JSONから追加復元
+        </button>
+
+        <button className="setting-action" type="button" onClick={() => handleSelectImportFile("replace")}>
+          <Upload size={20} aria-hidden="true" />
+          JSONで置き換え復元
         </button>
 
         <button className="setting-action danger" type="button" onClick={handleReset}>
@@ -65,6 +230,14 @@ export function SettingsScreen({ expenses, categories, settings, onUpdateSetting
           再読み込み
         </button>
       </div>
+
+      <input
+        ref={importInputRef}
+        className="visually-hidden"
+        type="file"
+        accept="application/json,.json"
+        onChange={(event) => handleImportFile(event.target.files?.[0])}
+      />
     </section>
   );
 }

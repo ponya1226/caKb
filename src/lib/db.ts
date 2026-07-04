@@ -1,5 +1,5 @@
 import { DEFAULT_CATEGORIES } from "../constants/categories";
-import type { Category, Expense, ReceiptImage } from "../types";
+import type { BackupImportMode, Category, Expense, ReceiptImage } from "../types";
 
 const DB_NAME = "local-kakeibo-pwa";
 const DB_VERSION = 1;
@@ -139,6 +139,31 @@ export async function deleteExpense(id: string): Promise<void> {
 
 export async function saveReceiptImage(receiptImage: ReceiptImage): Promise<void> {
   await putRecord("receiptImages", receiptImage);
+}
+
+export async function importApplicationData(
+  expenses: Expense[],
+  categories: Category[],
+  mode: BackupImportMode,
+): Promise<void> {
+  const db = await openDatabase();
+  const transaction = db.transaction(["expenses", "categories", "receiptImages"], "readwrite");
+  const done = transactionDone(transaction);
+  const expenseStore = transaction.objectStore("expenses");
+  const categoryStore = transaction.objectStore("categories");
+  const receiptImageStore = transaction.objectStore("receiptImages");
+  const nextCategories = categories.length > 0 ? categories : DEFAULT_CATEGORIES;
+
+  if (mode === "replace") {
+    expenseStore.clear();
+    categoryStore.clear();
+    receiptImageStore.clear();
+  }
+
+  nextCategories.forEach((category) => categoryStore.put(category));
+  expenses.forEach((expense) => expenseStore.put(expense));
+
+  await done;
 }
 
 export async function clearApplicationData(): Promise<void> {

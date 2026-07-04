@@ -37,6 +37,30 @@ export type AppSettings = {
   };
 };
 
+export type StorageHealth = {
+  indexedDbAvailable: boolean;
+  persistentStorageSupported: boolean;
+  persistentStorageGranted: boolean;
+  usageBytes?: number;
+  quotaBytes?: number;
+  expenseCount: number;
+  monthCount: number;
+  oldestMonth?: string;
+  latestMonth?: string;
+  checkedAt: string;
+};
+
+export type BackupData = {
+  app: "caKb";
+  version: 1;
+  exportedAt: string;
+  expenses: Expense[];
+  categories: Category[];
+  settings: AppSettings;
+};
+
+export type BackupImportMode = "append" | "replace";
+
 export type OcrProgress = {
   status: string;
   progress: number;
