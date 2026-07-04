@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Play, Save, SkipForward, SlidersHorizontal, Sparkles } from "lucide-react";
 import { CopyTextButton } from "./CopyTextButton";
 import { ExpenseEditor } from "./ExpenseEditor";
+import { OcrCropPreview } from "./OcrCropPreview";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
 import type { OcrCropRatios } from "../lib/ocr";
 import {
@@ -68,6 +69,13 @@ export function OcrConfirmScreen({
     setError(null);
     setIsRunning(false);
   }, [draft.imagePreviewUrl, draft.ocrCrop, draft.ocrPresetLabel, draft.ocrPreprocess, savedOcrCrop]);
+
+  function applyManualCrop(nextCrop: OcrCropRatios) {
+    setOcrMode("manual");
+    setOcrPreprocess(false);
+    setSelectedPresetLabel("手動");
+    setOcrCrop(nextCrop);
+  }
 
   function handleCropChange(side: keyof OcrCropRatios, value: number) {
     setOcrMode("manual");
@@ -159,18 +167,13 @@ export function OcrConfirmScreen({
         </button>
       </div>
 
-      <div className="receipt-preview compact crop-preview">
-        <img src={draft.imagePreviewUrl} alt="確認中のレシート" />
-        <span
-          className="ocr-crop-frame"
-          style={{
-            top: `${ocrCrop.top}%`,
-            right: `${ocrCrop.right}%`,
-            bottom: `${ocrCrop.bottom}%`,
-            left: `${ocrCrop.left}%`,
-          }}
-        />
-      </div>
+      <OcrCropPreview
+        imageSrc={draft.imagePreviewUrl}
+        imageAlt="確認中のレシート"
+        crop={ocrCrop}
+        compact
+        onCropChange={applyManualCrop}
+      />
 
       <div className="save-mode">
         <Save size={18} aria-hidden="true" />

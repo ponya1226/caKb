@@ -1,6 +1,7 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, FileImage, Play, Save, Send, SlidersHorizontal, Sparkles } from "lucide-react";
 import { CopyTextButton } from "./CopyTextButton";
+import { OcrCropPreview } from "./OcrCropPreview";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
 import { toDateInputValue } from "../lib/date";
 import { formatFileSize } from "../lib/format";
@@ -143,6 +144,13 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   function pickShopName(shopName: string) {
     setPickedShopName(shopName);
     setPickedCategorySuggestion(suggestCategoryForShop(shopName));
+  }
+
+  function applyManualCrop(nextCrop: OcrCropRatios) {
+    setOcrMode("manual");
+    setOcrPreprocess(false);
+    setSelectedPresetLabel("手動");
+    setOcrCrop(nextCrop);
   }
 
   function handleCropChange(side: keyof OcrCropRatios, value: number) {
@@ -295,18 +303,12 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       </div>
 
       {imagePreviewUrl && (
-        <div className="receipt-preview crop-preview">
-          <img src={imagePreviewUrl} alt="選択したレシート" />
-          <span
-            className="ocr-crop-frame"
-            style={{
-              top: `${ocrCrop.top}%`,
-              right: `${ocrCrop.right}%`,
-              bottom: `${ocrCrop.bottom}%`,
-              left: `${ocrCrop.left}%`,
-            }}
-          />
-        </div>
+        <OcrCropPreview
+          imageSrc={imagePreviewUrl}
+          imageAlt="選択したレシート"
+          crop={ocrCrop}
+          onCropChange={applyManualCrop}
+        />
       )}
 
       {selectedFile && (
