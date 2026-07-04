@@ -184,11 +184,12 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   async function runOcrWithCurrentMode(
     file: File,
     onProgress: (progress: OcrProgress) => void,
+    useVisibleCropOnly = false,
   ): Promise<OcrRunResult> {
     return runOcrWithRangeMode(file, {
-      mode: ocrMode,
+      mode: useVisibleCropOnly ? "manual" : ocrMode,
       crop: ocrCrop,
-      presetLabel: selectedPresetLabel,
+      presetLabel: useVisibleCropOnly ? selectedPresetLabel ?? "選択範囲" : selectedPresetLabel,
       preprocess: ocrPreprocess,
       savedOcrCrop,
       onProgress,
@@ -233,6 +234,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
               progress: (index + nextProgress.progress) / selectedFiles.length,
             });
           },
+          true,
         );
         ocrResults.push({ file, result: ocrResult });
       }
@@ -343,7 +345,9 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
             </div>
           </div>
           <p className="subtle-text">
-            {ocrMode === "auto"
+            {selectedFiles.length > 1
+              ? "複数選択では、表示中の範囲をすべての画像に適用します。"
+              : ocrMode === "auto"
               ? "複数の範囲を試して、候補が最も揃う結果を使います。"
               : `使用範囲: ${selectedPresetLabel ?? "手動"}`}
           </p>

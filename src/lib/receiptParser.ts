@@ -4,12 +4,21 @@ const FINAL_AMOUNT_KEYWORD_PATTERN =
   /(合\s*計|現\s*計|お\s*買\s*上\s*計|お\s*買\s*い\s*上\s*げ\s*計|総\s*合\s*計|請\s*求|支\s*払|お\s*支\s*払|Pay\s*Pay|y\s*Pay|計\s*$)/i;
 const SUPPORTING_AMOUNT_KEYWORD_PATTERN = /(税\s*込|小\s*計|消\s*費\s*税)/;
 const SHOP_EXCLUDE_PATTERN = /(領収|レシート|明細|登録番号|TEL|電話|合計|税込|小計|現計|釣|お預|クレジット|ポイント)/i;
+const MONEY_AMOUNT_PATTERN = /¥\s*[%A-Za-z]*\s*[\dOo〇○][\dOo〇○,\s.．()[\]（）]{0,14}(?:円)?/g;
+const PLAIN_AMOUNT_PATTERN = /[\d][\d,\s]{1,12}(?:円)?/g;
 
 function normalizeText(value: string): string {
   return value
     .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
     .replace(/[，、]/g, ",")
     .replace(/[\\￥]/g, "¥");
+}
+
+function normalizeAmountText(value: string): string {
+  return normalizeText(value)
+    .replace(/[Oo〇○]/g, "0")
+    .replace(/[．]/g, ".")
+    .replace(/[（）]/g, (char) => (char === "（" ? "(" : ")"));
 }
 
 function uniqueCandidates<T>(candidates: Array<ReceiptCandidate<T>>): Array<ReceiptCandidate<T>> {
@@ -85,7 +94,12 @@ function extractDateCandidates(lines: string[]): Array<ReceiptCandidate<string>>
 }
 
 function parseAmountValue(value: string): number | null {
-  const normalized = normalizeText(value).replace(/[^\d]/g, "");
+  const amountText = normalizeAmountText(value);
+  const commaMatch = amountText.match(/(\d{1,3})\s*,\s*([\d()[\]]{1,3})/);
+  const normalized = commaMatch
+    ? `${commaMatch[1]}${commaMatch[2].replace(/[^\d]/g, "").padEnd(3, "0")}`
+    : amountText.replace(/[^\d]/g, "");
+
   if (!normalized) {
     return null;
   }
@@ -98,13 +112,27 @@ function parseAmountValue(value: string): number | null {
   return amount;
 }
 
+function isPlainAmountMatchSkippable(line: string, match: RegExpMatchArray): boolean {
+  const index = match.index ?? 0;
+  const token = match[0];
+  const before = line[index - 1] ?? "";
+  const after = line[index + token.length] ?? "";
+
+  return after === "%" || /[A-Za-z]/.test(before);
+}
+
 function extractAmountsFromLine(line: string): number[] {
   const normalizedLine = normalizeText(line);
-  const matches = normalizedLine.match(/(?:¥\s*)?[\d][\d,\s]{1,12}(?:円)?/g) ?? [];
-  return matches
-    .map(parseAmountValue)
+  const moneyMatches = Array.from(normalizedLine.matchAll(MONEY_AMOUNT_PATTERN));
+  const plainMatches = Array.from(normalizedLine.matchAll(PLAIN_AMOUNT_PATTERN)).filter(
+    (match) => !isPlainAmountMatchSkippable(normalizedLine, match),
+  );
+
+  return [...moneyMatches, ...plainMatches]
+    .map((match) => parseAmountValue(match[0]))
     .filter((amount): amount is number => amount !== null)
-    .filter((amount) => amount >= 10);
+    .filter((amount) => amount >= 10)
+    .filter((amount, index, amounts) => amounts.indexOf(amount) === index);
 }
 
 function getAmountConfidence(line: string): number {
@@ -128,7 +156,7 @@ function getAmountConfidence(line: string): number {
 }
 
 function shouldSkipFallbackAmountLine(line: string): boolean {
-  return /(電話|TEL|登録番号|伝票番号|No\.?|#|\d{1,4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日)/i.test(line);
+  return /(電話|TEL|登録番号|伝票番号|No\.?|#|都|道|府|県|市|区|町|丁目|番地|住所|\d{2,4}-\d{2,4}-\d{3,4}|\d{1,4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日)/i.test(line);
 }
 
 function extractAmountCandidates(lines: string[]): Array<ReceiptCandidate<number>> {
@@ -142,10 +170,11 @@ function extractAmountCandidates(lines: string[]): Array<ReceiptCandidate<number
     }
 
     const hasKeyword = FINAL_AMOUNT_KEYWORD_PATTERN.test(line) || SUPPORTING_AMOUNT_KEYWORD_PATTERN.test(line);
-    const confidence = hasKeyword ? getAmountConfidence(line) : 0.45;
-    const target = hasKeyword ? keywordCandidates : fallbackCandidates;
+    const hasMoneySymbol = /¥/.test(normalizeText(line));
+    const confidence = hasKeyword ? getAmountConfidence(line) : hasMoneySymbol ? 0.72 : 0.45;
+    const target = hasKeyword || hasMoneySymbol ? keywordCandidates : fallbackCandidates;
 
-    if (!hasKeyword && shouldSkipFallbackAmountLine(line)) {
+    if (!hasKeyword && !hasMoneySymbol && shouldSkipFallbackAmountLine(line)) {
       return;
     }
 

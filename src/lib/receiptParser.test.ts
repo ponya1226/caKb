@@ -55,6 +55,23 @@ describe("parseReceiptText", () => {
     expect(result.amountCandidates.map((candidate) => candidate.value)).toEqual([980, 480]);
   });
 
+  it("prioritizes yen-marked amounts over phone-like numbers in noisy OCR text", () => {
+    const result = parseReceiptText(`
+      サンプルティー店
+      架空県架空市中央区
+      架空町4丁目267-21F
+      000-0000-1580
+      2026年04月05日(日)      16:37
+      DECAF SAMPLE TB10        ¥1, 000
+      =8           ¥% 1.. 0 0
+      8%内税対象額    ¥1, 0(
+      お預り                       ¥1, 0(
+    `);
+
+    expect(result.amountCandidates[0]?.value).toBe(1000);
+    expect(result.amountCandidates.map((candidate) => candidate.value)).not.toContain(1580);
+  });
+
   it("normalizes full-width numbers and Japanese date notation", () => {
     const result = parseReceiptText(`
       テスト薬局
