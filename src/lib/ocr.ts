@@ -39,6 +39,7 @@ const OCR_TARGET_WIDTH = 1500;
 const OCR_MAX_SCALE = 3;
 const OCR_MAX_HEIGHT = 5200;
 const TEXT_REGION_MIN_RATIO = 0.18;
+const DETECTED_CROP_MAX_COMBINED_PERCENT = 86;
 
 function hasCrop(crop?: OcrCropRatios): crop is OcrCropRatios {
   return Boolean(crop && (crop.top > 0 || crop.right > 0 || crop.bottom > 0 || crop.left > 0));
@@ -414,6 +415,61 @@ function getPreprocessRegion(canvas: HTMLCanvasElement): ImageRegion {
       width: canvas.width,
       height: canvas.height,
     };
+}
+
+function constrainCropPair(first: number, second: number): [number, number] {
+  const total = first + second;
+  if (total <= DETECTED_CROP_MAX_COMBINED_PERCENT) {
+    return [first, second];
+  }
+
+  const scale = DETECTED_CROP_MAX_COMBINED_PERCENT / total;
+  return [Math.round(first * scale), Math.round(second * scale)];
+}
+
+function toDetectedCropRatios(region: ImageRegion, imageWidth: number, imageHeight: number): OcrCropRatios {
+  const left = Math.max(0, Math.min(100, Math.round((region.x / imageWidth) * 100)));
+  const top = Math.max(0, Math.min(100, Math.round((region.y / imageHeight) * 100)));
+  const right = Math.max(0, Math.min(100, Math.round(((imageWidth - region.x - region.width) / imageWidth) * 100)));
+  const bottom = Math.max(0, Math.min(100, Math.round(((imageHeight - region.y - region.height) / imageHeight) * 100)));
+  const [nextLeft, nextRight] = constrainCropPair(left, right);
+  const [nextTop, nextBottom] = constrainCropPair(top, bottom);
+
+  return {
+    top: nextTop,
+    right: nextRight,
+    bottom: nextBottom,
+    left: nextLeft,
+  };
+}
+
+export async function detectOcrCrop(image: File | Blob): Promise<OcrCropRatios | null> {
+  if (typeof document === "undefined" || typeof window === "undefined") {
+    return null;
+  }
+
+  const decodedImage = await decodeImage(image);
+
+  try {
+    const canvas = createCanvas(decodedImage.width, decodedImage.height);
+    if (!canvas) {
+      return null;
+    }
+
+    const context = getContext(canvas);
+    if (!context) {
+      return null;
+    }
+
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, decodedImage.width, decodedImage.height);
+    decodedImage.draw(context, 0, 0, decodedImage.width, decodedImage.height);
+
+    const region = detectPaperRegion(canvas) ?? detectTextRegion(canvas);
+    return region ? toDetectedCropRatios(region, canvas.width, canvas.height) : null;
+  } finally {
+    decodedImage.close();
+  }
 }
 
 function enhanceForOcr(canvas: HTMLCanvasElement): void {

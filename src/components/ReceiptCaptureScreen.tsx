@@ -1,11 +1,11 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, FileImage, Play, Save, Send, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Camera, Copy, FileImage, Play, Save, Send, SlidersHorizontal, Sparkles } from "lucide-react";
 import { CopyTextButton } from "./CopyTextButton";
 import { OcrCropPreview } from "./OcrCropPreview";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
 import { toDateInputValue } from "../lib/date";
 import { formatFileSize } from "../lib/format";
-import type { OcrCropRatios } from "../lib/ocr";
+import { detectOcrCrop, type OcrCropRatios } from "../lib/ocr";
 import {
   getOcrPresets,
   getPairedCropSide,
@@ -18,6 +18,18 @@ import { parseReceiptText } from "../lib/receiptParser";
 import type { OcrProgress, ReceiptCandidate, ReceiptCategorySuggestion, ReceiptDraft } from "../types";
 
 const LARGE_RECEIPT_IMAGE_BYTES = 5 * 1024 * 1024;
+
+type ReceiptCropStatus = "detecting" | "detected" | "fallback" | "manual" | "preset" | "auto";
+
+type ReceiptSelection = {
+  file: File;
+  previewUrl: string;
+  crop: OcrCropRatios;
+  mode: OcrMode;
+  presetLabel: string | null;
+  preprocess: boolean;
+  cropStatus: ReceiptCropStatus;
+};
 
 type ReceiptCaptureScreenProps = {
   onConfirm: (drafts: ReceiptDraft[]) => void;
@@ -62,9 +74,10 @@ function CandidateButtons<T>({
 export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedOcrCrop, onSaveOcrCrop }: ReceiptCaptureScreenProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
-  const transferredPreviewUrlRef = useRef<string | null>(null);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const transferredPreviewUrlsRef = useRef<Set<string>>(new Set());
+  const receiptSelectionsRef = useRef<ReceiptSelection[]>([]);
+  const [receiptSelections, setReceiptSelections] = useState<ReceiptSelection[]>([]);
+  const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const [ocrText, setOcrText] = useState("");
   const [progress, setProgress] = useState<OcrProgress | null>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -73,24 +86,111 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   const [pickedShopName, setPickedShopName] = useState("");
   const [pickedAmount, setPickedAmount] = useState(0);
   const [pickedCategorySuggestion, setPickedCategorySuggestion] = useState<ReceiptCategorySuggestion | null>(null);
-  const [ocrMode, setOcrMode] = useState<OcrMode>("auto");
-  const [ocrCrop, setOcrCrop] = useState<OcrCropRatios>(savedOcrCrop ?? RECEIPT_BODY_CROP);
-  const [selectedPresetLabel, setSelectedPresetLabel] = useState<string | null>(null);
-  const [ocrPreprocess, setOcrPreprocess] = useState(false);
 
-  const selectedFile = selectedFiles[0] ?? null;
+  const selectedReceipt = receiptSelections[selectedFileIndex] ?? null;
+  const selectedFiles = receiptSelections.map((selection) => selection.file);
+  const selectedFile = selectedReceipt?.file ?? null;
+  const imagePreviewUrl = selectedReceipt?.previewUrl ?? null;
+  const ocrMode = selectedReceipt?.mode ?? "auto";
+  const ocrCrop = selectedReceipt?.crop ?? savedOcrCrop ?? RECEIPT_BODY_CROP;
+  const selectedPresetLabel = selectedReceipt?.presetLabel ?? null;
   const totalFileSize = selectedFiles.reduce((total, file) => total + file.size, 0);
   const hasLargeSelectedFile = selectedFiles.some((file) => file.size > LARGE_RECEIPT_IMAGE_BYTES);
+  const isDetectingCrop = receiptSelections.some((selection) => selection.cropStatus === "detecting");
   const parseResult = ocrText ? parseReceiptText(ocrText) : null;
   const ocrPresets = useMemo(() => getOcrPresets(savedOcrCrop), [savedOcrCrop]);
 
   useEffect(() => {
+    receiptSelectionsRef.current = receiptSelections;
+  }, [receiptSelections]);
+
+  useEffect(() => {
     return () => {
-      if (imagePreviewUrl && transferredPreviewUrlRef.current !== imagePreviewUrl) {
-        URL.revokeObjectURL(imagePreviewUrl);
-      }
+      revokeSelectionUrls(receiptSelectionsRef.current);
     };
-  }, [imagePreviewUrl]);
+  }, []);
+
+  function revokeSelectionUrls(selections: ReceiptSelection[]) {
+    selections.forEach((selection) => {
+      if (!transferredPreviewUrlsRef.current.has(selection.previewUrl)) {
+        URL.revokeObjectURL(selection.previewUrl);
+      }
+    });
+  }
+
+  function markPreviewUrlsTransferred(selections: ReceiptSelection[]) {
+    selections.forEach((selection) => {
+      transferredPreviewUrlsRef.current.add(selection.previewUrl);
+    });
+  }
+
+  function createReceiptSelection(file: File): ReceiptSelection {
+    return {
+      file,
+      previewUrl: URL.createObjectURL(file),
+      crop: savedOcrCrop ?? RECEIPT_BODY_CROP,
+      mode: "manual",
+      presetLabel: "自動検出中",
+      preprocess: true,
+      cropStatus: "detecting",
+    };
+  }
+
+  function updateReceiptSelection(index: number, updater: (selection: ReceiptSelection) => ReceiptSelection) {
+    setReceiptSelections((currentSelections) =>
+      currentSelections.map((selection, selectionIndex) => (
+        selectionIndex === index ? updater(selection) : selection
+      )),
+    );
+  }
+
+  function updateSelectedReceipt(updater: (selection: ReceiptSelection) => ReceiptSelection) {
+    updateReceiptSelection(selectedFileIndex, updater);
+  }
+
+  async function detectCropForSelections(selections: ReceiptSelection[]) {
+    for (const selection of selections) {
+      const detectedCrop = await detectOcrCrop(selection.file).catch(() => null);
+      setReceiptSelections((currentSelections) =>
+        currentSelections.map((currentSelection) => {
+          if (currentSelection.previewUrl !== selection.previewUrl || currentSelection.cropStatus !== "detecting") {
+            return currentSelection;
+          }
+
+          if (!detectedCrop) {
+            return {
+              ...currentSelection,
+              presetLabel: "既定補正",
+              cropStatus: "fallback",
+            };
+          }
+
+          return {
+            ...currentSelection,
+            crop: detectedCrop,
+            presetLabel: "自動検出補正",
+            cropStatus: "detected",
+          };
+        }),
+      );
+    }
+  }
+
+  function getCropDescription(selection: ReceiptSelection): string {
+    if (selection.cropStatus === "detecting") {
+      return "画像の用紙範囲を検出しています。";
+    }
+
+    if (selection.mode === "auto") {
+      return "複数の範囲を試して、候補が最も揃う結果を使います。";
+    }
+
+    if (receiptSelections.length > 1) {
+      return `画像ごとにOCR範囲を保持しています。使用範囲: ${selection.presetLabel ?? "手動補正"}`;
+    }
+
+    return `使用範囲: ${selection.presetLabel ?? "手動補正"}`;
+  }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
@@ -98,22 +198,18 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       return;
     }
 
-    if (imagePreviewUrl) {
-      URL.revokeObjectURL(imagePreviewUrl);
-    }
+    revokeSelectionUrls(receiptSelections);
+    transferredPreviewUrlsRef.current = new Set();
+    const nextSelections = files.map(createReceiptSelection);
 
-    transferredPreviewUrlRef.current = null;
-    setSelectedFiles(files);
-    setImagePreviewUrl(URL.createObjectURL(files[0]));
+    setReceiptSelections(nextSelections);
+    setSelectedFileIndex(0);
     setOcrText("");
     setProgress(null);
     setError(null);
     setPickedCategorySuggestion(null);
-    setOcrMode("auto");
-    setOcrCrop(savedOcrCrop ?? RECEIPT_BODY_CROP);
-    setSelectedPresetLabel(null);
-    setOcrPreprocess(false);
     event.target.value = "";
+    void detectCropForSelections(nextSelections);
   }
 
   function createDraftFromOcr(file: File, imageUrl: string, ocrResult: OcrRunResult): ReceiptDraft {
@@ -147,50 +243,83 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   }
 
   function applyManualCrop(nextCrop: OcrCropRatios) {
-    setOcrMode("manual");
-    setOcrPreprocess(true);
-    setSelectedPresetLabel("手動補正");
-    setOcrCrop(nextCrop);
+    updateSelectedReceipt((selection) => ({
+      ...selection,
+      mode: "manual",
+      preprocess: true,
+      presetLabel: "手動補正",
+      crop: nextCrop,
+      cropStatus: "manual",
+    }));
   }
 
   function handleCropChange(side: keyof OcrCropRatios, value: number) {
-    setOcrMode("manual");
-    setOcrPreprocess(true);
-    setSelectedPresetLabel("手動補正");
-    setOcrCrop((currentCrop) => {
+    updateSelectedReceipt((selection) => {
       const pairedSide = getPairedCropSide(side);
-      const maxValue = Math.max(0, MAX_COMBINED_CROP_PERCENT - currentCrop[pairedSide]);
+      const maxValue = Math.max(0, MAX_COMBINED_CROP_PERCENT - selection.crop[pairedSide]);
       return {
-        ...currentCrop,
-        [side]: Math.min(value, maxValue),
+        ...selection,
+        mode: "manual",
+        preprocess: true,
+        presetLabel: "手動補正",
+        crop: {
+          ...selection.crop,
+          [side]: Math.min(value, maxValue),
+        },
+        cropStatus: "manual",
       };
     });
   }
 
   function applyPreset(preset: OcrPreset) {
-    setOcrMode("manual");
-    setSelectedPresetLabel(preset.label);
-    setOcrPreprocess(Boolean(preset.preprocess));
-    setOcrCrop(preset.crop);
+    updateSelectedReceipt((selection) => ({
+      ...selection,
+      mode: "manual",
+      presetLabel: preset.label,
+      preprocess: Boolean(preset.preprocess),
+      crop: preset.crop,
+      cropStatus: "preset",
+    }));
   }
 
   function applyAutoMode() {
-    setOcrMode("auto");
-    setSelectedPresetLabel(null);
-    setOcrPreprocess(false);
-    setOcrCrop(savedOcrCrop ?? RECEIPT_BODY_CROP);
+    updateSelectedReceipt((selection) => ({
+      ...selection,
+      mode: "auto",
+      presetLabel: null,
+      preprocess: false,
+      crop: savedOcrCrop ?? RECEIPT_BODY_CROP,
+      cropStatus: "auto",
+    }));
   }
 
-  async function runOcrWithCurrentMode(
-    file: File,
+  function applySelectedCropToAll() {
+    if (!selectedReceipt) {
+      return;
+    }
+
+    setReceiptSelections((currentSelections) =>
+      currentSelections.map((selection) => ({
+        ...selection,
+        mode: "manual",
+        presetLabel: selectedReceipt.presetLabel ?? "共通範囲補正",
+        preprocess: true,
+        crop: selectedReceipt.crop,
+        cropStatus: "manual",
+      })),
+    );
+  }
+
+  async function runOcrForSelection(
+    selection: ReceiptSelection,
     onProgress: (progress: OcrProgress) => void,
-    useVisibleCropOnly = false,
+    forceRange = false,
   ): Promise<OcrRunResult> {
-    return runOcrWithRangeMode(file, {
-      mode: useVisibleCropOnly ? "manual" : ocrMode,
-      crop: ocrCrop,
-      presetLabel: useVisibleCropOnly ? selectedPresetLabel ?? "選択範囲補正" : selectedPresetLabel,
-      preprocess: useVisibleCropOnly ? true : ocrPreprocess,
+    return runOcrWithRangeMode(selection.file, {
+      mode: forceRange ? "manual" : selection.mode,
+      crop: selection.crop,
+      presetLabel: forceRange ? selection.presetLabel ?? "選択範囲補正" : selection.presetLabel,
+      preprocess: selection.preprocess,
       savedOcrCrop,
       onProgress,
     });
@@ -207,8 +336,8 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     setProgress({ status: "starting", progress: 0 });
 
     try {
-      if (selectedFiles.length === 1 && selectedFile) {
-        const ocrResult = await runOcrWithCurrentMode(selectedFile, setProgress);
+      if (receiptSelections.length === 1 && selectedReceipt) {
+        const ocrResult = await runOcrForSelection(selectedReceipt, setProgress);
         const parsed = parseReceiptText(ocrResult.text);
         const initialShopName = parsed.shopNameCandidates[0]?.value ?? "";
         const categorySuggestion = suggestCategoryForShop(initialShopName);
@@ -217,36 +346,37 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
         setPickedShopName(initialShopName);
         setPickedAmount(parsed.amountCandidates[0]?.value ?? 0);
         setPickedCategorySuggestion(categorySuggestion);
-        setOcrCrop(ocrResult.crop);
-        setSelectedPresetLabel(ocrResult.presetLabel);
-        setOcrPreprocess(ocrResult.preprocess);
+        updateReceiptSelection(selectedFileIndex, (selection) => ({
+          ...selection,
+          crop: ocrResult.crop,
+          presetLabel: ocrResult.presetLabel,
+          preprocess: ocrResult.preprocess,
+          cropStatus: ocrResult.presetLabel === "自動" ? "auto" : selection.cropStatus,
+        }));
         onSaveOcrCrop(ocrResult.crop);
         return;
       }
 
-      const ocrResults: Array<{ file: File; result: OcrRunResult }> = [];
-      for (const [index, file] of selectedFiles.entries()) {
-        const ocrResult = await runOcrWithCurrentMode(
-          file,
+      const ocrResults: Array<{ selection: ReceiptSelection; result: OcrRunResult }> = [];
+      for (const [index, selection] of receiptSelections.entries()) {
+        const ocrResult = await runOcrForSelection(
+          selection,
           (nextProgress) => {
             setProgress({
-              status: `${index + 1}/${selectedFiles.length} ${nextProgress.status}`,
-              progress: (index + nextProgress.progress) / selectedFiles.length,
+              status: `${index + 1}/${receiptSelections.length} ${nextProgress.status}`,
+              progress: (index + nextProgress.progress) / receiptSelections.length,
             });
           },
           true,
         );
-        ocrResults.push({ file, result: ocrResult });
+        ocrResults.push({ selection, result: ocrResult });
       }
 
-      const drafts = ocrResults.map(({ file, result }, index) => {
-        const imageUrl = index === 0 && imagePreviewUrl ? imagePreviewUrl : URL.createObjectURL(file);
-        return createDraftFromOcr(file, imageUrl, result);
-      });
+      const drafts = ocrResults.map(({ selection, result }) =>
+        createDraftFromOcr(selection.file, selection.previewUrl, result),
+      );
 
-      if (imagePreviewUrl) {
-        transferredPreviewUrlRef.current = imagePreviewUrl;
-      }
+      markPreviewUrlsTransferred(receiptSelections);
       onConfirm(drafts);
     } catch (unknownError) {
       setError(unknownError instanceof Error ? unknownError.message : "OCRに失敗しました");
@@ -256,20 +386,20 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   }
 
   function handleConfirm() {
-    if (!selectedFile || !imagePreviewUrl || !parseResult) {
+    if (!selectedReceipt || !parseResult) {
       return;
     }
 
     const categorySuggestion = suggestCategoryForShop(pickedShopName) ?? pickedCategorySuggestion;
-    transferredPreviewUrlRef.current = imagePreviewUrl;
+    markPreviewUrlsTransferred([selectedReceipt]);
     onConfirm([{
-      imageFile: selectedFile,
-      imagePreviewUrl,
+      imageFile: selectedReceipt.file,
+      imagePreviewUrl: selectedReceipt.previewUrl,
       ocrText,
       parseResult,
-      ocrCrop,
-      ocrPresetLabel: selectedPresetLabel ?? undefined,
-      ocrPreprocess,
+      ocrCrop: selectedReceipt.crop,
+      ocrPresetLabel: selectedReceipt.presetLabel ?? undefined,
+      ocrPreprocess: selectedReceipt.preprocess,
       initialValues: {
         date: pickedDate,
         shopName: pickedShopName,
@@ -304,6 +434,22 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
         </button>
       </div>
 
+      {receiptSelections.length > 1 && (
+        <div className="receipt-selection-strip" aria-label="選択画像">
+          {receiptSelections.map((selection, index) => (
+            <button
+              className={index === selectedFileIndex ? "receipt-selection-chip active" : "receipt-selection-chip"}
+              key={selection.previewUrl}
+              type="button"
+              onClick={() => setSelectedFileIndex(index)}
+            >
+              <img src={selection.previewUrl} alt={`${index + 1}枚目のレシート`} />
+              <span>{index + 1}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {imagePreviewUrl && (
         <OcrCropPreview
           imageSrc={imagePreviewUrl}
@@ -323,6 +469,12 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
                 <Sparkles size={16} aria-hidden="true" />
                 自動
               </button>
+              {receiptSelections.length > 1 && (
+                <button className="button button-secondary button-compact" type="button" onClick={applySelectedCropToAll}>
+                  <Copy size={16} aria-hidden="true" />
+                  全画像に適用
+                </button>
+              )}
               {ocrPresets.map((preset) => (
                 <button
                   className={
@@ -345,11 +497,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
             </div>
           </div>
           <p className="subtle-text">
-            {selectedFiles.length > 1
-              ? "複数選択では、表示中の範囲をすべての画像に適用します。"
-              : ocrMode === "auto"
-              ? "複数の範囲を試して、候補が最も揃う結果を使います。"
-              : `使用範囲: ${selectedPresetLabel ?? "手動補正"}`}
+            {selectedReceipt ? getCropDescription(selectedReceipt) : ""}
           </p>
           <div className="crop-control-grid">
             {[
@@ -394,9 +542,9 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       )}
 
       <div className="button-row">
-        <button className="button button-primary" type="button" onClick={handleRunOcr} disabled={!selectedFile || isRunning}>
+        <button className="button button-primary" type="button" onClick={handleRunOcr} disabled={!selectedFile || isRunning || isDetectingCrop}>
           <Play size={18} aria-hidden="true" />
-          {isRunning ? "OCR中" : selectedFiles.length > 1 ? "一括OCR実行" : "OCR実行"}
+          {isDetectingCrop ? "範囲検出中" : isRunning ? "OCR中" : selectedFiles.length > 1 ? "一括OCR実行" : "OCR実行"}
         </button>
       </div>
 
