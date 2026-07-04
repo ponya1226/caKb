@@ -40,6 +40,7 @@ const OCR_MAX_SCALE = 3;
 const OCR_MAX_HEIGHT = 5200;
 const TEXT_REGION_MIN_RATIO = 0.18;
 const DETECTED_CROP_MAX_COMBINED_PERCENT = 86;
+const DETECTED_CROP_MAX_HEIGHT_PERCENT = 72;
 
 function hasCrop(crop?: OcrCropRatios): crop is OcrCropRatios {
   return Boolean(crop && (crop.top > 0 || crop.right > 0 || crop.bottom > 0 || crop.left > 0));
@@ -427,13 +428,23 @@ function constrainCropPair(first: number, second: number): [number, number] {
   return [Math.round(first * scale), Math.round(second * scale)];
 }
 
+function trimDetectedCropTail(top: number, bottom: number): [number, number] {
+  const height = 100 - top - bottom;
+  if (height <= DETECTED_CROP_MAX_HEIGHT_PERCENT) {
+    return [top, bottom];
+  }
+
+  return [top, bottom + height - DETECTED_CROP_MAX_HEIGHT_PERCENT];
+}
+
 function toDetectedCropRatios(region: ImageRegion, imageWidth: number, imageHeight: number): OcrCropRatios {
   const left = Math.max(0, Math.min(100, Math.round((region.x / imageWidth) * 100)));
   const top = Math.max(0, Math.min(100, Math.round((region.y / imageHeight) * 100)));
   const right = Math.max(0, Math.min(100, Math.round(((imageWidth - region.x - region.width) / imageWidth) * 100)));
   const bottom = Math.max(0, Math.min(100, Math.round(((imageHeight - region.y - region.height) / imageHeight) * 100)));
   const [nextLeft, nextRight] = constrainCropPair(left, right);
-  const [nextTop, nextBottom] = constrainCropPair(top, bottom);
+  const [heightLimitedTop, heightLimitedBottom] = trimDetectedCropTail(top, bottom);
+  const [nextTop, nextBottom] = constrainCropPair(heightLimitedTop, heightLimitedBottom);
 
   return {
     top: nextTop,
