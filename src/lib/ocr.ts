@@ -1,4 +1,4 @@
-import { recognize } from "tesseract.js";
+import { createWorker, OEM, PSM } from "tesseract.js";
 import type { OcrProgress } from "../types";
 
 type TesseractLog = {
@@ -33,6 +33,7 @@ type ImageRegion = {
 };
 
 const MIN_REMAINING_CROP_RATIO = 0.08;
+const PAPER_REGION_ANALYSIS_WIDTH = 520;
 const TEXT_REGION_ANALYSIS_WIDTH = 900;
 const OCR_TARGET_WIDTH = 1500;
 const OCR_MAX_SCALE = 3;
@@ -180,6 +181,171 @@ function isTextPixel(data: Uint8ClampedArray, index: number): boolean {
   return gray < 115 || (gray < 150 && spread > 40);
 }
 
+function isPaperPixel(data: Uint8ClampedArray, index: number): boolean {
+  const red = data[index];
+  const green = data[index + 1];
+  const blue = data[index + 2];
+  const brightness = red * 0.299 + green * 0.587 + blue * 0.114;
+  const spread = Math.max(red, green, blue) - Math.min(red, green, blue);
+  const darkest = Math.min(red, green, blue);
+
+  return brightness >= 166 && darkest >= 136 && spread <= 72;
+}
+
+function toSourceRegion(
+  bounds: { left: number; top: number; right: number; bottom: number },
+  sourceWidth: number,
+  sourceHeight: number,
+  analysisWidth: number,
+  analysisHeight: number,
+  paddingRatio: number,
+): ImageRegion {
+  const width = bounds.right - bounds.left + 1;
+  const height = bounds.bottom - bounds.top + 1;
+  const xPadding = Math.max(2, Math.round(width * paddingRatio));
+  const yPadding = Math.max(2, Math.round(height * paddingRatio));
+  const left = Math.max(0, bounds.left - xPadding);
+  const top = Math.max(0, bounds.top - yPadding);
+  const right = Math.min(analysisWidth - 1, bounds.right + xPadding);
+  const bottom = Math.min(analysisHeight - 1, bounds.bottom + yPadding);
+  const scaleX = sourceWidth / analysisWidth;
+  const scaleY = sourceHeight / analysisHeight;
+  const x = Math.max(0, Math.floor(left * scaleX));
+  const y = Math.max(0, Math.floor(top * scaleY));
+  const sourceRight = Math.min(sourceWidth, Math.ceil((right + 1) * scaleX));
+  const sourceBottom = Math.min(sourceHeight, Math.ceil((bottom + 1) * scaleY));
+
+  return {
+    x,
+    y,
+    width: Math.max(1, sourceRight - x),
+    height: Math.max(1, sourceBottom - y),
+  };
+}
+
+function detectPaperRegion(canvas: HTMLCanvasElement): ImageRegion | null {
+  const analysisWidth = Math.min(PAPER_REGION_ANALYSIS_WIDTH, canvas.width);
+  const analysisHeight = Math.max(1, Math.round((canvas.height * analysisWidth) / canvas.width));
+  const analysisCanvas = createCanvas(analysisWidth, analysisHeight);
+
+  if (!analysisCanvas) {
+    return null;
+  }
+
+  const analysisContext = getContext(analysisCanvas);
+  if (!analysisContext) {
+    return null;
+  }
+
+  analysisContext.fillStyle = "#000000";
+  analysisContext.fillRect(0, 0, analysisWidth, analysisHeight);
+  analysisContext.drawImage(canvas, 0, 0, analysisWidth, analysisHeight);
+
+  const imageData = analysisContext.getImageData(0, 0, analysisWidth, analysisHeight);
+  const pixelCount = analysisWidth * analysisHeight;
+  const mask = new Uint8Array(pixelCount);
+  const visited = new Uint8Array(pixelCount);
+
+  for (let index = 0; index < pixelCount; index += 1) {
+    mask[index] = isPaperPixel(imageData.data, index * 4) ? 1 : 0;
+  }
+
+  const queue = new Int32Array(pixelCount);
+  let best: { left: number; top: number; right: number; bottom: number; area: number; score: number } | null = null;
+
+  for (let startIndex = 0; startIndex < pixelCount; startIndex += 1) {
+    if (visited[startIndex] || !mask[startIndex]) {
+      continue;
+    }
+
+    let queueStart = 0;
+    let queueEnd = 0;
+    let area = 0;
+    let left = analysisWidth;
+    let right = 0;
+    let top = analysisHeight;
+    let bottom = 0;
+    visited[startIndex] = 1;
+    queue[queueEnd] = startIndex;
+    queueEnd += 1;
+
+    while (queueStart < queueEnd) {
+      const currentIndex = queue[queueStart];
+      queueStart += 1;
+      const x = currentIndex % analysisWidth;
+      const y = Math.floor(currentIndex / analysisWidth);
+      area += 1;
+      left = Math.min(left, x);
+      right = Math.max(right, x);
+      top = Math.min(top, y);
+      bottom = Math.max(bottom, y);
+
+      if (x > 0) {
+        const nextIndex = currentIndex - 1;
+        if (!visited[nextIndex] && mask[nextIndex]) {
+          visited[nextIndex] = 1;
+          queue[queueEnd] = nextIndex;
+          queueEnd += 1;
+        }
+      }
+      if (x < analysisWidth - 1) {
+        const nextIndex = currentIndex + 1;
+        if (!visited[nextIndex] && mask[nextIndex]) {
+          visited[nextIndex] = 1;
+          queue[queueEnd] = nextIndex;
+          queueEnd += 1;
+        }
+      }
+      if (y > 0) {
+        const nextIndex = currentIndex - analysisWidth;
+        if (!visited[nextIndex] && mask[nextIndex]) {
+          visited[nextIndex] = 1;
+          queue[queueEnd] = nextIndex;
+          queueEnd += 1;
+        }
+      }
+      if (y < analysisHeight - 1) {
+        const nextIndex = currentIndex + analysisWidth;
+        if (!visited[nextIndex] && mask[nextIndex]) {
+          visited[nextIndex] = 1;
+          queue[queueEnd] = nextIndex;
+          queueEnd += 1;
+        }
+      }
+    }
+
+    const componentWidth = right - left + 1;
+    const componentHeight = bottom - top + 1;
+    const widthRatio = componentWidth / analysisWidth;
+    const heightRatio = componentHeight / analysisHeight;
+    const areaRatio = area / pixelCount;
+    const aspectRatio = componentHeight / Math.max(1, componentWidth);
+    const centerX = (left + right) / 2 / analysisWidth;
+    const centerScore = 1 - Math.min(0.6, Math.abs(centerX - 0.5) * 1.8);
+    const isUsefulReceiptShape =
+      areaRatio >= 0.05 &&
+      widthRatio >= 0.16 &&
+      widthRatio <= 0.86 &&
+      heightRatio >= 0.34 &&
+      aspectRatio >= 1.1;
+
+    if (!isUsefulReceiptShape) {
+      continue;
+    }
+
+    const score = area * centerScore * (1 + heightRatio) * Math.min(2.2, aspectRatio);
+    if (!best || score > best.score) {
+      best = { left, top, right, bottom, area, score };
+    }
+  }
+
+  if (!best) {
+    return null;
+  }
+
+  return toSourceRegion(best, canvas.width, canvas.height, analysisWidth, analysisHeight, 0.025);
+}
+
 function detectTextRegion(canvas: HTMLCanvasElement): ImageRegion | null {
   const analysisWidth = Math.min(TEXT_REGION_ANALYSIS_WIDTH, canvas.width);
   const analysisHeight = Math.max(1, Math.round((canvas.height * analysisWidth) / canvas.width));
@@ -238,6 +404,16 @@ function detectTextRegion(canvas: HTMLCanvasElement): ImageRegion | null {
     width: Math.max(1, right - x),
     height: Math.max(1, bottom - y),
   };
+}
+
+function getPreprocessRegion(canvas: HTMLCanvasElement): ImageRegion {
+  return detectPaperRegion(canvas) ??
+    detectTextRegion(canvas) ?? {
+      x: 0,
+      y: 0,
+      width: canvas.width,
+      height: canvas.height,
+    };
 }
 
 function enhanceForOcr(canvas: HTMLCanvasElement): void {
@@ -324,13 +500,7 @@ async function preprocessImageForOcr(image: File | Blob): Promise<File | Blob> {
     sourceContext.fillRect(0, 0, decodedImage.width, decodedImage.height);
     decodedImage.draw(sourceContext, 0, 0, decodedImage.width, decodedImage.height);
 
-    const detectedRegion = detectTextRegion(sourceCanvas);
-    const sourceRegion = detectedRegion ?? {
-      x: 0,
-      y: 0,
-      width: decodedImage.width,
-      height: decodedImage.height,
-    };
+    const sourceRegion = getPreprocessRegion(sourceCanvas);
     const scaleByWidth = OCR_TARGET_WIDTH / sourceRegion.width;
     const scaleByHeight = OCR_MAX_HEIGHT / sourceRegion.height;
     const scale = Math.max(1, Math.min(OCR_MAX_SCALE, scaleByWidth, scaleByHeight));
@@ -386,7 +556,7 @@ export async function runOcr(
     progress: 0,
   });
   const imageForOcr = options.preprocess ? await preprocessImageForOcr(croppedImage) : croppedImage;
-  const result = await recognize(imageForOcr, "jpn+eng", {
+  const worker = await createWorker("jpn+eng", OEM.LSTM_ONLY, {
     logger: (message: TesseractLog) => {
       onProgress?.({
         status: message.status ?? "processing",
@@ -395,5 +565,15 @@ export async function runOcr(
     },
   });
 
-  return result.data.text.trim();
+  try {
+    await worker.setParameters({
+      tessedit_pageseg_mode: options.preprocess ? PSM.SINGLE_BLOCK : PSM.AUTO,
+      preserve_interword_spaces: "1",
+      user_defined_dpi: "300",
+    });
+    const result = await worker.recognize(imageForOcr);
+    return result.data.text.trim();
+  } finally {
+    await worker.terminate();
+  }
 }

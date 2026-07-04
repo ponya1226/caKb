@@ -74,6 +74,18 @@ export function getOcrPresets(savedOcrCrop?: OcrCropRatios): OcrPreset[] {
   return presets;
 }
 
+function scoreOcrTextQuality(text: string, preprocess: boolean): number {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const excessiveLinePenalty = Math.min(0.18, Math.max(0, lines.length - 42) * 0.01);
+  const excessiveCharPenalty = Math.min(0.18, Math.max(0, text.length - 1800) / 9000);
+  const preprocessBonus = preprocess ? 0.03 : 0;
+
+  return preprocessBonus - excessiveLinePenalty - excessiveCharPenalty;
+}
+
 async function runSingleOcr(
   image: File | Blob,
   crop: OcrCropRatios,
@@ -88,7 +100,7 @@ async function runSingleOcr(
     crop,
     presetLabel,
     preprocess,
-    score: scoreReceiptParseResult(parsed),
+    score: scoreReceiptParseResult(parsed) + scoreOcrTextQuality(text, preprocess),
   };
 }
 
