@@ -5,7 +5,7 @@ import { OcrCropPreview } from "./OcrCropPreview";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
 import { toDateInputValue } from "../lib/date";
 import { formatFileSize } from "../lib/format";
-import { detectOcrCrop, type OcrCropRatios } from "../lib/ocr";
+import { detectOcrCrop, type OcrCropRatios, type OcrPreprocessMode } from "../lib/ocr";
 import {
   getOcrPresets,
   getPairedCropSide,
@@ -28,6 +28,7 @@ type ReceiptSelection = {
   mode: OcrMode;
   presetLabel: string | null;
   preprocess: boolean;
+  preprocessMode: OcrPreprocessMode;
   cropStatus: ReceiptCropStatus;
 };
 
@@ -75,10 +76,13 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const transferredPreviewUrlsRef = useRef<Set<string>>(new Set());
+  const transferredOcrImageUrlsRef = useRef<Set<string>>(new Set());
   const receiptSelectionsRef = useRef<ReceiptSelection[]>([]);
+  const ocrImagePreviewUrlRef = useRef<string | null>(null);
   const [receiptSelections, setReceiptSelections] = useState<ReceiptSelection[]>([]);
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
   const [ocrText, setOcrText] = useState("");
+  const [ocrImagePreviewUrl, setOcrImagePreviewUrl] = useState<string | null>(null);
   const [progress, setProgress] = useState<OcrProgress | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,8 +109,13 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   }, [receiptSelections]);
 
   useEffect(() => {
+    ocrImagePreviewUrlRef.current = ocrImagePreviewUrl;
+  }, [ocrImagePreviewUrl]);
+
+  useEffect(() => {
     return () => {
       revokeSelectionUrls(receiptSelectionsRef.current);
+      revokeOcrImagePreviewUrl(ocrImagePreviewUrlRef.current);
     };
   }, []);
 
@@ -124,6 +133,25 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     });
   }
 
+  function revokeOcrImagePreviewUrl(url: string | null | undefined) {
+    if (url && !transferredOcrImageUrlsRef.current.has(url)) {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  function setCurrentOcrImagePreviewUrl(url: string | null | undefined) {
+    revokeOcrImagePreviewUrl(ocrImagePreviewUrl);
+    setOcrImagePreviewUrl(url ?? null);
+  }
+
+  function markOcrImageUrlsTransferred(urls: Array<string | undefined>) {
+    urls.forEach((url) => {
+      if (url) {
+        transferredOcrImageUrlsRef.current.add(url);
+      }
+    });
+  }
+
   function createReceiptSelection(file: File): ReceiptSelection {
     return {
       file,
@@ -132,6 +160,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       mode: "manual",
       presetLabel: "自動検出中",
       preprocess: true,
+      preprocessMode: "contrast",
       cropStatus: "detecting",
     };
   }
@@ -199,12 +228,15 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     }
 
     revokeSelectionUrls(receiptSelections);
+    revokeOcrImagePreviewUrl(ocrImagePreviewUrl);
     transferredPreviewUrlsRef.current = new Set();
+    transferredOcrImageUrlsRef.current = new Set();
     const nextSelections = files.map(createReceiptSelection);
 
     setReceiptSelections(nextSelections);
     setSelectedFileIndex(0);
     setOcrText("");
+    setOcrImagePreviewUrl(null);
     setProgress(null);
     setError(null);
     setPickedCategorySuggestion(null);
@@ -221,11 +253,13 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     return {
       imageFile: file,
       imagePreviewUrl: imageUrl,
+      ...(ocrResult.ocrImagePreviewUrl ? { ocrImagePreviewUrl: ocrResult.ocrImagePreviewUrl } : {}),
       ocrText: text,
       parseResult: parsed,
       ocrCrop: ocrResult.crop,
       ocrPresetLabel: ocrResult.presetLabel,
       ocrPreprocess: ocrResult.preprocess,
+      ocrPreprocessMode: ocrResult.preprocessMode,
       initialValues: {
         date: parsed.dateCandidates[0]?.value ?? toDateInputValue(new Date()),
         shopName: initialShopName,
@@ -247,6 +281,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       ...selection,
       mode: "manual",
       preprocess: true,
+      preprocessMode: "contrast",
       presetLabel: "手動補正",
       crop: nextCrop,
       cropStatus: "manual",
@@ -261,6 +296,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
         ...selection,
         mode: "manual",
         preprocess: true,
+        preprocessMode: "contrast",
         presetLabel: "手動補正",
         crop: {
           ...selection.crop,
@@ -277,6 +313,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       mode: "manual",
       presetLabel: preset.label,
       preprocess: Boolean(preset.preprocess),
+      preprocessMode: preset.preprocessMode ?? "contrast",
       crop: preset.crop,
       cropStatus: "preset",
     }));
@@ -288,6 +325,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       mode: "auto",
       presetLabel: null,
       preprocess: false,
+      preprocessMode: "contrast",
       crop: savedOcrCrop ?? RECEIPT_BODY_CROP,
       cropStatus: "auto",
     }));
@@ -304,6 +342,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
         mode: "manual",
         presetLabel: selectedReceipt.presetLabel ?? "共通範囲補正",
         preprocess: true,
+        preprocessMode: selectedReceipt.preprocessMode,
         crop: selectedReceipt.crop,
         cropStatus: "manual",
       })),
@@ -320,6 +359,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       crop: selection.crop,
       presetLabel: forceRange ? selection.presetLabel ?? "選択範囲補正" : selection.presetLabel,
       preprocess: selection.preprocess,
+      preprocessMode: selection.preprocessMode,
       savedOcrCrop,
       onProgress,
     });
@@ -342,6 +382,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
         const initialShopName = parsed.shopNameCandidates[0]?.value ?? "";
         const categorySuggestion = suggestCategoryForShop(initialShopName);
         setOcrText(ocrResult.text);
+        setCurrentOcrImagePreviewUrl(ocrResult.ocrImagePreviewUrl);
         setPickedDate(parsed.dateCandidates[0]?.value ?? toDateInputValue(new Date()));
         setPickedShopName(initialShopName);
         setPickedAmount(parsed.amountCandidates[0]?.value ?? 0);
@@ -351,6 +392,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
           crop: ocrResult.crop,
           presetLabel: ocrResult.presetLabel,
           preprocess: ocrResult.preprocess,
+          preprocessMode: ocrResult.preprocessMode,
           cropStatus: ocrResult.presetLabel === "自動" ? "auto" : selection.cropStatus,
         }));
         onSaveOcrCrop(ocrResult.crop);
@@ -377,6 +419,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       );
 
       markPreviewUrlsTransferred(receiptSelections);
+      markOcrImageUrlsTransferred(drafts.map((draft) => draft.ocrImagePreviewUrl));
       onConfirm(drafts);
     } catch (unknownError) {
       setError(unknownError instanceof Error ? unknownError.message : "OCRに失敗しました");
@@ -392,14 +435,17 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
 
     const categorySuggestion = suggestCategoryForShop(pickedShopName) ?? pickedCategorySuggestion;
     markPreviewUrlsTransferred([selectedReceipt]);
+    markOcrImageUrlsTransferred([ocrImagePreviewUrl ?? undefined]);
     onConfirm([{
       imageFile: selectedReceipt.file,
       imagePreviewUrl: selectedReceipt.previewUrl,
+      ...(ocrImagePreviewUrl ? { ocrImagePreviewUrl } : {}),
       ocrText,
       parseResult,
       ocrCrop: selectedReceipt.crop,
       ocrPresetLabel: selectedReceipt.presetLabel ?? undefined,
       ocrPreprocess: selectedReceipt.preprocess,
+      ocrPreprocessMode: selectedReceipt.preprocessMode,
       initialValues: {
         date: pickedDate,
         shopName: pickedShopName,
@@ -584,6 +630,13 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
           </div>
           <pre className="ocr-text">{ocrText}</pre>
         </section>
+      )}
+
+      {ocrImagePreviewUrl && (
+        <details className="content-section ocr-debug-panel">
+          <summary>補正画像を確認</summary>
+          <img src={ocrImagePreviewUrl} alt="OCRに渡した補正後画像" />
+        </details>
       )}
     </section>
   );

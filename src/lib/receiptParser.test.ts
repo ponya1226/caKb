@@ -72,6 +72,19 @@ describe("parseReceiptText", () => {
     expect(result.amountCandidates.map((candidate) => candidate.value)).not.toContain(1580);
   });
 
+  it("prioritizes payment amount when a total line is truncated", () => {
+    const result = parseReceiptText(`
+      サンプルコンビニ
+      小計 (税抜 8%)     ¥44
+      消費税等 (8%)      ¥3
+      合計               ¥48
+      電子決済支払       ¥481
+      買上明細は上記のとおりです
+    `);
+
+    expect(result.amountCandidates[0]?.value).toBe(481);
+  });
+
   it("normalizes full-width numbers and Japanese date notation", () => {
     const result = parseReceiptText(`
       テスト薬局

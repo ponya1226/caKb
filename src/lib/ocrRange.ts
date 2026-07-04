@@ -1,6 +1,6 @@
 import type { OcrProgress } from "../types";
-import { runOcr } from "./ocr";
-import type { OcrCropRatios } from "./ocr";
+import { runOcrDetailed } from "./ocr";
+import type { OcrCropRatios, OcrPreprocessMode } from "./ocr";
 import { BOTTOMLESS_OCR_CROP, FULL_OCR_CROP, RECEIPT_BODY_CROP } from "./ocrCrop";
 import { parseReceiptText, scoreReceiptParseResult } from "./receiptParser";
 
@@ -19,6 +19,7 @@ export type OcrPreset = {
   label: string;
   crop: OcrCropRatios;
   preprocess?: boolean;
+  preprocessMode?: OcrPreprocessMode;
 };
 
 export type OcrRunResult = {
@@ -26,6 +27,8 @@ export type OcrRunResult = {
   crop: OcrCropRatios;
   presetLabel: string;
   preprocess: boolean;
+  preprocessMode: OcrPreprocessMode;
+  ocrImagePreviewUrl?: string;
   score: number;
 };
 
@@ -34,6 +37,7 @@ type RunOcrWithRangeModeOptions = {
   crop: OcrCropRatios;
   presetLabel: string | null;
   preprocess?: boolean;
+  preprocessMode?: OcrPreprocessMode;
   savedOcrCrop?: OcrCropRatios;
   onProgress: (progress: OcrProgress) => void;
 };
@@ -44,9 +48,11 @@ export function isSameCrop(first: OcrCropRatios, second: OcrCropRatios): boolean
 
 function getBaseOcrPresets(): OcrPreset[] {
   return [
-    { id: "document", label: "用紙補正", crop: FULL_OCR_CROP, preprocess: true },
-    { id: "document-body", label: "本体補正", crop: RECEIPT_BODY_CROP, preprocess: true },
-    { id: "document-bottomless", label: "下部除外補正", crop: BOTTOMLESS_OCR_CROP, preprocess: true },
+    { id: "document", label: "用紙補正", crop: FULL_OCR_CROP, preprocess: true, preprocessMode: "contrast" },
+    { id: "document-binary", label: "二値化補正", crop: FULL_OCR_CROP, preprocess: true, preprocessMode: "binary" },
+    { id: "document-bold", label: "太字補正", crop: FULL_OCR_CROP, preprocess: true, preprocessMode: "bold" },
+    { id: "document-body", label: "本体補正", crop: RECEIPT_BODY_CROP, preprocess: true, preprocessMode: "contrast" },
+    { id: "document-bottomless", label: "下部除外補正", crop: BOTTOMLESS_OCR_CROP, preprocess: true, preprocessMode: "bold" },
     { id: "body", label: "本体", crop: RECEIPT_BODY_CROP },
     { id: "full", label: "全体", crop: FULL_OCR_CROP },
   ];
@@ -57,7 +63,7 @@ export function getOcrPresets(savedOcrCrop?: OcrCropRatios): OcrPreset[] {
 
   if (savedOcrCrop && presets.every((preset) => !isSameCrop(preset.crop, savedOcrCrop))) {
     return [
-      { id: "last-document", label: "前回補正", crop: savedOcrCrop, preprocess: true },
+      { id: "last-document", label: "前回補正", crop: savedOcrCrop, preprocess: true, preprocessMode: "contrast" },
       { id: "last", label: "前回", crop: savedOcrCrop },
       ...presets,
     ];
@@ -83,17 +89,27 @@ async function runSingleOcr(
   crop: OcrCropRatios,
   presetLabel: string,
   preprocess: boolean,
+  preprocessMode: OcrPreprocessMode,
   onProgress: (progress: OcrProgress) => void,
 ): Promise<OcrRunResult> {
-  const text = await runOcr(image, onProgress, { crop, preprocess });
+  const result = await runOcrDetailed(image, onProgress, { crop, preprocess, preprocessMode });
+  const text = result.text;
   const parsed = parseReceiptText(text);
   return {
     text,
     crop,
     presetLabel,
     preprocess,
+    preprocessMode,
+    ...(result.imagePreviewUrl ? { ocrImagePreviewUrl: result.imagePreviewUrl } : {}),
     score: scoreReceiptParseResult(parsed) + scoreOcrTextQuality(text, preprocess),
   };
+}
+
+function revokeOcrImagePreview(result: OcrRunResult | null): void {
+  if (result?.ocrImagePreviewUrl) {
+    URL.revokeObjectURL(result.ocrImagePreviewUrl);
+  }
 }
 
 export async function runOcrWithRangeMode(
@@ -101,7 +117,14 @@ export async function runOcrWithRangeMode(
   options: RunOcrWithRangeModeOptions,
 ): Promise<OcrRunResult> {
   if (options.mode === "manual") {
-    return runSingleOcr(image, options.crop, options.presetLabel ?? "手動", Boolean(options.preprocess), options.onProgress);
+    return runSingleOcr(
+      image,
+      options.crop,
+      options.presetLabel ?? "手動",
+      Boolean(options.preprocess),
+      options.preprocessMode ?? "contrast",
+      options.onProgress,
+    );
   }
 
   const presets = getBaseOcrPresets();
@@ -113,6 +136,7 @@ export async function runOcrWithRangeMode(
       preset.crop,
       preset.label,
       Boolean(preset.preprocess),
+      preset.preprocessMode ?? "contrast",
       (nextProgress) => {
         options.onProgress({
           status: `${preset.label} ${nextProgress.status}`,
@@ -122,7 +146,10 @@ export async function runOcrWithRangeMode(
     );
 
     if (!bestResult || result.score > bestResult.score) {
+      revokeOcrImagePreview(bestResult);
       bestResult = result;
+    } else {
+      revokeOcrImagePreview(result);
     }
   }
 

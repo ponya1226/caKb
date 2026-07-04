@@ -13,15 +13,34 @@ export type OcrCropRatios = {
   left: number;
 };
 
+export type OcrPreprocessMode = "contrast" | "binary" | "bold";
+
 type RunOcrOptions = {
   crop?: OcrCropRatios;
   preprocess?: boolean;
+  preprocessMode?: OcrPreprocessMode;
+  includeImagePreview?: boolean;
+};
+
+export type RunOcrResult = {
+  text: string;
+  imagePreviewUrl?: string;
 };
 
 type DrawableImage = {
   width: number;
   height: number;
-  draw: (context: CanvasRenderingContext2D, sourceX: number, sourceY: number, sourceWidth: number, sourceHeight: number) => void;
+  draw: (
+    context: CanvasRenderingContext2D,
+    sourceX: number,
+    sourceY: number,
+    sourceWidth: number,
+    sourceHeight: number,
+    destX?: number,
+    destY?: number,
+    destWidth?: number,
+    destHeight?: number,
+  ) => void;
   close: () => void;
 };
 
@@ -35,12 +54,13 @@ type ImageRegion = {
 const MIN_REMAINING_CROP_RATIO = 0.08;
 const PAPER_REGION_ANALYSIS_WIDTH = 520;
 const TEXT_REGION_ANALYSIS_WIDTH = 900;
-const OCR_TARGET_WIDTH = 1500;
-const OCR_MAX_SCALE = 3;
-const OCR_MAX_HEIGHT = 5200;
+const OCR_TARGET_WIDTH = 1800;
+const OCR_MAX_SCALE = 4;
+const OCR_MAX_HEIGHT = 6500;
 const TEXT_REGION_MIN_RATIO = 0.18;
 const DETECTED_CROP_MAX_COMBINED_PERCENT = 86;
 const DETECTED_CROP_MAX_HEIGHT_PERCENT = 72;
+const OCR_PADDING_PX = 48;
 
 function hasCrop(crop?: OcrCropRatios): crop is OcrCropRatios {
   return Boolean(crop && (crop.top > 0 || crop.right > 0 || crop.bottom > 0 || crop.left > 0));
@@ -56,8 +76,8 @@ async function decodeImage(image: Blob): Promise<DrawableImage> {
     return {
       width: bitmap.width,
       height: bitmap.height,
-      draw: (context, sourceX, sourceY, sourceWidth, sourceHeight) => {
-        context.drawImage(bitmap, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
+      draw: (context, sourceX, sourceY, sourceWidth, sourceHeight, destX = 0, destY = 0, destWidth = sourceWidth, destHeight = sourceHeight) => {
+        context.drawImage(bitmap, sourceX, sourceY, sourceWidth, sourceHeight, destX, destY, destWidth, destHeight);
       },
       close: () => bitmap.close(),
     };
@@ -74,8 +94,8 @@ async function decodeImage(image: Blob): Promise<DrawableImage> {
   return {
     width: imageElement.naturalWidth,
     height: imageElement.naturalHeight,
-    draw: (context, sourceX, sourceY, sourceWidth, sourceHeight) => {
-      context.drawImage(imageElement, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
+    draw: (context, sourceX, sourceY, sourceWidth, sourceHeight, destX = 0, destY = 0, destWidth = sourceWidth, destHeight = sourceHeight) => {
+      context.drawImage(imageElement, sourceX, sourceY, sourceWidth, sourceHeight, destX, destY, destWidth, destHeight);
     },
     close: () => URL.revokeObjectURL(imageUrl),
   };
@@ -483,7 +503,101 @@ export async function detectOcrCrop(image: File | Blob): Promise<OcrCropRatios |
   }
 }
 
-function enhanceForOcr(canvas: HTMLCanvasElement): void {
+function clampColor(value: number): number {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function getGray(data: Uint8ClampedArray, index: number): number {
+  return data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114;
+}
+
+function calculateOtsuThreshold(data: Uint8ClampedArray): number {
+  const histogram = new Uint32Array(256);
+  const pixelCount = data.length / 4;
+  let total = 0;
+
+  for (let index = 0; index < data.length; index += 4) {
+    const gray = Math.round(getGray(data, index));
+    histogram[gray] += 1;
+    total += gray;
+  }
+
+  let backgroundWeight = 0;
+  let backgroundSum = 0;
+  let bestVariance = -1;
+  let bestThreshold = 150;
+
+  for (let threshold = 0; threshold < histogram.length; threshold += 1) {
+    backgroundWeight += histogram[threshold];
+    if (backgroundWeight === 0) {
+      continue;
+    }
+
+    const foregroundWeight = pixelCount - backgroundWeight;
+    if (foregroundWeight === 0) {
+      break;
+    }
+
+    backgroundSum += threshold * histogram[threshold];
+    const backgroundMean = backgroundSum / backgroundWeight;
+    const foregroundMean = (total - backgroundSum) / foregroundWeight;
+    const variance = backgroundWeight * foregroundWeight * (backgroundMean - foregroundMean) ** 2;
+
+    if (variance > bestVariance) {
+      bestVariance = variance;
+      bestThreshold = threshold;
+    }
+  }
+
+  return Math.max(105, Math.min(190, bestThreshold));
+}
+
+function sharpenImageData(imageData: ImageData): void {
+  const { data, width, height } = imageData;
+  const source = new Uint8ClampedArray(data);
+
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const index = (y * width + x) * 4;
+      for (let channel = 0; channel < 3; channel += 1) {
+        const center = source[index + channel] * 5;
+        const top = source[((y - 1) * width + x) * 4 + channel];
+        const bottom = source[((y + 1) * width + x) * 4 + channel];
+        const left = source[(y * width + x - 1) * 4 + channel];
+        const right = source[(y * width + x + 1) * 4 + channel];
+        data[index + channel] = clampColor(center - top - bottom - left - right);
+      }
+    }
+  }
+}
+
+function thickenBlackPixels(imageData: ImageData): void {
+  const { data, width, height } = imageData;
+  const source = new Uint8ClampedArray(data);
+
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const index = (y * width + x) * 4;
+      if (source[index] > 80) {
+        continue;
+      }
+
+      [
+        index - 4,
+        index + 4,
+        index - width * 4,
+        index + width * 4,
+      ].forEach((nextIndex) => {
+        data[nextIndex] = 0;
+        data[nextIndex + 1] = 0;
+        data[nextIndex + 2] = 0;
+        data[nextIndex + 3] = 255;
+      });
+    }
+  }
+}
+
+function enhanceForOcr(canvas: HTMLCanvasElement, mode: OcrPreprocessMode): void {
   const context = getContext(canvas);
   if (!context) {
     return;
@@ -491,11 +605,32 @@ function enhanceForOcr(canvas: HTMLCanvasElement): void {
 
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
   const { data } = imageData;
+  sharpenImageData(imageData);
+
+  if (mode === "binary" || mode === "bold") {
+    const threshold = calculateOtsuThreshold(data);
+
+    for (let index = 0; index < data.length; index += 4) {
+      const gray = getGray(data, index);
+      const value = gray < threshold ? 0 : 255;
+      data[index] = value;
+      data[index + 1] = value;
+      data[index + 2] = value;
+      data[index + 3] = 255;
+    }
+
+    if (mode === "bold") {
+      thickenBlackPixels(imageData);
+    }
+
+    context.putImageData(imageData, 0, 0);
+    return;
+  }
 
   for (let index = 0; index < data.length; index += 4) {
-    const gray = data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114;
-    const contrasted = Math.round((gray - 128) * 1.55 + 150);
-    const value = Math.max(0, Math.min(255, contrasted));
+    const gray = getGray(data, index);
+    const contrasted = Math.round((gray - 128) * 1.75 + 154);
+    const value = clampColor(contrasted);
     const normalized = value > 238 ? 255 : value < 34 ? 0 : value;
 
     data[index] = normalized;
@@ -505,6 +640,41 @@ function enhanceForOcr(canvas: HTMLCanvasElement): void {
   }
 
   context.putImageData(imageData, 0, 0);
+}
+
+async function addWhitePadding(image: Blob): Promise<Blob> {
+  const decodedImage = await decodeImage(image);
+
+  try {
+    const outputWidth = decodedImage.width + OCR_PADDING_PX * 2;
+    const outputHeight = decodedImage.height + OCR_PADDING_PX * 2;
+    const canvas = createCanvas(outputWidth, outputHeight);
+    if (!canvas) {
+      return image;
+    }
+
+    const context = getContext(canvas);
+    if (!context) {
+      return image;
+    }
+
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, outputWidth, outputHeight);
+    decodedImage.draw(
+      context,
+      0,
+      0,
+      decodedImage.width,
+      decodedImage.height,
+      OCR_PADDING_PX,
+      OCR_PADDING_PX,
+      decodedImage.width,
+      decodedImage.height,
+    );
+    return canvasToBlob(canvas, image);
+  } finally {
+    decodedImage.close();
+  }
 }
 
 async function cropImageForOcr(image: File | Blob, crop?: OcrCropRatios): Promise<File | Blob> {
@@ -545,7 +715,7 @@ async function cropImageForOcr(image: File | Blob, crop?: OcrCropRatios): Promis
   }
 }
 
-async function preprocessImageForOcr(image: File | Blob): Promise<File | Blob> {
+async function preprocessImageForOcr(image: File | Blob, mode: OcrPreprocessMode): Promise<File | Blob> {
   if (typeof document === "undefined" || typeof window === "undefined") {
     return image;
   }
@@ -599,11 +769,61 @@ async function preprocessImageForOcr(image: File | Blob): Promise<File | Blob> {
       outputWidth,
       outputHeight,
     );
-    enhanceForOcr(outputCanvas);
+    enhanceForOcr(outputCanvas, mode);
 
-    return canvasToBlob(outputCanvas, image);
+    const enhancedImage = await canvasToBlob(outputCanvas, image);
+    return addWhitePadding(enhancedImage);
   } finally {
     decodedImage.close();
+  }
+}
+
+export async function runOcrDetailed(
+  image: File | Blob,
+  onProgress?: (progress: OcrProgress) => void,
+  options: RunOcrOptions = {},
+): Promise<RunOcrResult> {
+  onProgress?.({
+    status: hasCrop(options.crop) ? "OCR範囲を準備中" : "starting",
+    progress: 0,
+  });
+
+  const croppedImage = await cropImageForOcr(image, options.crop);
+  const preprocessMode = options.preprocessMode ?? "contrast";
+  onProgress?.({
+    status: options.preprocess ? "OCR画像を補正中" : "OCR画像を準備中",
+    progress: 0,
+  });
+  const imageForOcr = options.preprocess ? await preprocessImageForOcr(croppedImage, preprocessMode) : await addWhitePadding(croppedImage);
+  const imagePreviewUrl = options.includeImagePreview === false ? undefined : URL.createObjectURL(imageForOcr);
+  let worker: Awaited<ReturnType<typeof createWorker>> | null = null;
+
+  try {
+    worker = await createWorker("jpn+eng", OEM.LSTM_ONLY, {
+      logger: (message: TesseractLog) => {
+        onProgress?.({
+          status: message.status ?? "processing",
+          progress: message.progress ?? 0,
+        });
+      },
+    });
+    await worker.setParameters({
+      tessedit_pageseg_mode: options.preprocess ? PSM.SINGLE_BLOCK : PSM.AUTO,
+      preserve_interword_spaces: "1",
+      user_defined_dpi: "300",
+    });
+    const result = await worker.recognize(imageForOcr);
+    return {
+      text: result.data.text.trim(),
+      ...(imagePreviewUrl ? { imagePreviewUrl } : {}),
+    };
+  } catch (error) {
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
+    throw error;
+  } finally {
+    await worker?.terminate();
   }
 }
 
@@ -612,35 +832,6 @@ export async function runOcr(
   onProgress?: (progress: OcrProgress) => void,
   options: RunOcrOptions = {},
 ): Promise<string> {
-  onProgress?.({
-    status: hasCrop(options.crop) ? "OCR範囲を準備中" : "starting",
-    progress: 0,
-  });
-
-  const croppedImage = await cropImageForOcr(image, options.crop);
-  onProgress?.({
-    status: options.preprocess ? "OCR画像を補正中" : "OCR画像を準備中",
-    progress: 0,
-  });
-  const imageForOcr = options.preprocess ? await preprocessImageForOcr(croppedImage) : croppedImage;
-  const worker = await createWorker("jpn+eng", OEM.LSTM_ONLY, {
-    logger: (message: TesseractLog) => {
-      onProgress?.({
-        status: message.status ?? "processing",
-        progress: message.progress ?? 0,
-      });
-    },
-  });
-
-  try {
-    await worker.setParameters({
-      tessedit_pageseg_mode: options.preprocess ? PSM.SINGLE_BLOCK : PSM.AUTO,
-      preserve_interword_spaces: "1",
-      user_defined_dpi: "300",
-    });
-    const result = await worker.recognize(imageForOcr);
-    return result.data.text.trim();
-  } finally {
-    await worker.terminate();
-  }
+  const result = await runOcrDetailed(image, onProgress, { ...options, includeImagePreview: false });
+  return result.text;
 }

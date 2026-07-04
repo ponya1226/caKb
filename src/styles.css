@@ -621,6 +621,22 @@ textarea {
   content: "閉じる";
 }
 
+.ocr-debug-panel summary {
+  color: #334155;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.ocr-debug-panel img {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
 .preset-actions {
   display: flex;
   flex-wrap: wrap;

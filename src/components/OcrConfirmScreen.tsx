@@ -4,7 +4,7 @@ import { CopyTextButton } from "./CopyTextButton";
 import { ExpenseEditor } from "./ExpenseEditor";
 import { OcrCropPreview } from "./OcrCropPreview";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
-import type { OcrCropRatios } from "../lib/ocr";
+import type { OcrCropRatios, OcrPreprocessMode } from "../lib/ocr";
 import {
   getOcrPresets,
   getPairedCropSide,
@@ -34,6 +34,14 @@ type OcrConfirmScreenProps = {
   onSave: (values: ExpenseFormValues) => Promise<void>;
 };
 
+function normalizeOcrPreprocessMode(mode: string | undefined): OcrPreprocessMode {
+  if (mode === "binary" || mode === "bold" || mode === "contrast") {
+    return mode;
+  }
+
+  return "contrast";
+}
+
 export function OcrConfirmScreen({
   draft,
   categories,
@@ -51,6 +59,7 @@ export function OcrConfirmScreen({
   const [ocrCrop, setOcrCrop] = useState<OcrCropRatios>(draft.ocrCrop ?? savedOcrCrop ?? RECEIPT_BODY_CROP);
   const [selectedPresetLabel, setSelectedPresetLabel] = useState<string | null>(draft.ocrPresetLabel ?? null);
   const [ocrPreprocess, setOcrPreprocess] = useState(draft.ocrPreprocess ?? false);
+  const [ocrPreprocessMode, setOcrPreprocessMode] = useState<OcrPreprocessMode>(normalizeOcrPreprocessMode(draft.ocrPreprocessMode));
   const [progress, setProgress] = useState<OcrProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -65,14 +74,16 @@ export function OcrConfirmScreen({
     setOcrCrop(draft.ocrCrop ?? savedOcrCrop ?? RECEIPT_BODY_CROP);
     setSelectedPresetLabel(draft.ocrPresetLabel ?? null);
     setOcrPreprocess(draft.ocrPreprocess ?? false);
+    setOcrPreprocessMode(normalizeOcrPreprocessMode(draft.ocrPreprocessMode));
     setProgress(null);
     setError(null);
     setIsRunning(false);
-  }, [draft.imagePreviewUrl, draft.ocrCrop, draft.ocrPresetLabel, draft.ocrPreprocess, savedOcrCrop]);
+  }, [draft.imagePreviewUrl, draft.ocrCrop, draft.ocrPresetLabel, draft.ocrPreprocess, draft.ocrPreprocessMode, savedOcrCrop]);
 
   function applyManualCrop(nextCrop: OcrCropRatios) {
     setOcrMode("manual");
     setOcrPreprocess(true);
+    setOcrPreprocessMode("contrast");
     setSelectedPresetLabel("手動補正");
     setOcrCrop(nextCrop);
   }
@@ -80,6 +91,7 @@ export function OcrConfirmScreen({
   function handleCropChange(side: keyof OcrCropRatios, value: number) {
     setOcrMode("manual");
     setOcrPreprocess(true);
+    setOcrPreprocessMode("contrast");
     setSelectedPresetLabel("手動補正");
     setOcrCrop((currentCrop) => {
       const pairedSide = getPairedCropSide(side);
@@ -95,6 +107,7 @@ export function OcrConfirmScreen({
     setOcrMode("manual");
     setSelectedPresetLabel(preset.label);
     setOcrPreprocess(Boolean(preset.preprocess));
+    setOcrPreprocessMode(preset.preprocessMode ?? "contrast");
     setOcrCrop(preset.crop);
   }
 
@@ -102,6 +115,7 @@ export function OcrConfirmScreen({
     setOcrMode("auto");
     setSelectedPresetLabel(null);
     setOcrPreprocess(false);
+    setOcrPreprocessMode("contrast");
     setOcrCrop(savedOcrCrop ?? RECEIPT_BODY_CROP);
   }
 
@@ -116,6 +130,7 @@ export function OcrConfirmScreen({
         crop: ocrCrop,
         presetLabel: selectedPresetLabel,
         preprocess: ocrPreprocess,
+        preprocessMode: ocrPreprocessMode,
         savedOcrCrop,
         onProgress: setProgress,
       });
@@ -129,6 +144,8 @@ export function OcrConfirmScreen({
         ocrCrop: ocrResult.crop,
         ocrPresetLabel: ocrResult.presetLabel,
         ocrPreprocess: ocrResult.preprocess,
+        ocrPreprocessMode: ocrResult.preprocessMode,
+        ...(ocrResult.ocrImagePreviewUrl ? { ocrImagePreviewUrl: ocrResult.ocrImagePreviewUrl } : {}),
         initialValues: {
           ...draft.initialValues,
           date: parsed.dateCandidates[0]?.value ?? draft.initialValues.date ?? toDateInputValue(new Date()),
@@ -142,6 +159,10 @@ export function OcrConfirmScreen({
       setOcrCrop(ocrResult.crop);
       setSelectedPresetLabel(ocrResult.presetLabel);
       setOcrPreprocess(ocrResult.preprocess);
+      setOcrPreprocessMode(ocrResult.preprocessMode);
+      if (draft.ocrImagePreviewUrl && draft.ocrImagePreviewUrl !== ocrResult.ocrImagePreviewUrl) {
+        URL.revokeObjectURL(draft.ocrImagePreviewUrl);
+      }
       onSaveOcrCrop(ocrResult.crop);
       onUpdateDraft(nextDraft);
     } catch (unknownError) {
@@ -286,6 +307,13 @@ export function OcrConfirmScreen({
         </div>
         <pre className="ocr-text">{draft.ocrText}</pre>
       </section>
+
+      {draft.ocrImagePreviewUrl && (
+        <details className="content-section ocr-debug-panel">
+          <summary>補正画像を確認</summary>
+          <img src={draft.ocrImagePreviewUrl} alt="OCRに渡した補正後画像" />
+        </details>
+      )}
     </section>
   );
 }

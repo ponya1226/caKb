@@ -71,6 +71,7 @@ export type ExpenseFormValues = {
 export type ReceiptDraft = {
   imageFile: File;
   imagePreviewUrl: string;
+  ocrImagePreviewUrl?: string;
   ocrText: string;
   parseResult: ReceiptParseResult;
   initialValues: ExpenseFormValues;
@@ -82,5 +83,6 @@ export type ReceiptDraft = {
   };
   ocrPresetLabel?: string;
   ocrPreprocess?: boolean;
+  ocrPreprocessMode?: string;
   categorySuggestion?: ReceiptCategorySuggestion;
 };

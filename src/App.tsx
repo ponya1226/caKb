@@ -45,7 +45,12 @@ export default function App() {
     : null;
 
   function revokeReceiptDraftUrls(drafts: ReceiptDraft[]) {
-    drafts.forEach((draft) => URL.revokeObjectURL(draft.imagePreviewUrl));
+    drafts.forEach((draft) => {
+      URL.revokeObjectURL(draft.imagePreviewUrl);
+      if (draft.ocrImagePreviewUrl) {
+        URL.revokeObjectURL(draft.ocrImagePreviewUrl);
+      }
+    });
   }
 
   function applySavedCategoryToQueue(drafts: ReceiptDraft[], values: ExpenseFormValues): ReceiptDraft[] {
@@ -84,6 +89,9 @@ export default function App() {
       ocrText: receiptDraft.ocrText,
     });
     URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
+    if (receiptDraft.ocrImagePreviewUrl) {
+      URL.revokeObjectURL(receiptDraft.ocrImagePreviewUrl);
+    }
     setReceiptDrafts(remainingDrafts);
 
     if (remainingDrafts.length > 0) {
@@ -130,6 +138,9 @@ export default function App() {
 
     const remainingDrafts = receiptDrafts.slice(1);
     URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
+    if (receiptDraft.ocrImagePreviewUrl) {
+      URL.revokeObjectURL(receiptDraft.ocrImagePreviewUrl);
+    }
     setReceiptDrafts(remainingDrafts);
 
     if (remainingDrafts.length === 0) {
