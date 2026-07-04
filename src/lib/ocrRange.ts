@@ -1,7 +1,8 @@
 import type { OcrProgress } from "../types";
-import { runOcrDetailed } from "./ocr";
+import type { OcrProvider, OcrTextBlock } from "../types";
 import type { OcrCropRatios, OcrPreprocessMode } from "./ocr";
 import { BOTTOMLESS_OCR_CROP, FULL_OCR_CROP, RECEIPT_BODY_CROP } from "./ocrCrop";
+import { runOcrProvider } from "./ocrProviders";
 import { parseReceiptText, scoreReceiptParseResult } from "./receiptParser";
 
 export {
@@ -23,22 +24,27 @@ export type OcrPreset = {
 };
 
 export type OcrRunResult = {
+  provider: OcrProvider;
   text: string;
   crop: OcrCropRatios;
   presetLabel: string;
   preprocess: boolean;
   preprocessMode: OcrPreprocessMode;
   ocrImagePreviewUrl?: string;
+  confidence?: number;
+  blocks?: OcrTextBlock[];
   score: number;
 };
 
 type RunOcrWithRangeModeOptions = {
+  provider?: OcrProvider;
   mode: OcrMode;
   crop: OcrCropRatios;
   presetLabel: string | null;
   preprocess?: boolean;
   preprocessMode?: OcrPreprocessMode;
   savedOcrCrop?: OcrCropRatios;
+  googleVisionProxyUrl?: string | null;
   onProgress: (progress: OcrProgress) => void;
 };
 
@@ -92,16 +98,25 @@ async function runSingleOcr(
   preprocessMode: OcrPreprocessMode,
   onProgress: (progress: OcrProgress) => void,
 ): Promise<OcrRunResult> {
-  const result = await runOcrDetailed(image, onProgress, { crop, preprocess, preprocessMode });
+  const result = await runOcrProvider(image, {
+    provider: "localTesseract",
+    crop,
+    preprocess,
+    preprocessMode,
+    onProgress,
+  });
   const text = result.text;
   const parsed = parseReceiptText(text);
   return {
+    provider: result.provider,
     text,
     crop,
     presetLabel,
     preprocess,
     preprocessMode,
     ...(result.imagePreviewUrl ? { ocrImagePreviewUrl: result.imagePreviewUrl } : {}),
+    ...(typeof result.confidence === "number" ? { confidence: result.confidence } : {}),
+    ...(result.blocks ? { blocks: result.blocks } : {}),
     score: scoreReceiptParseResult(parsed) + scoreOcrTextQuality(text, preprocess),
   };
 }
@@ -116,6 +131,26 @@ export async function runOcrWithRangeMode(
   image: File | Blob,
   options: RunOcrWithRangeModeOptions,
 ): Promise<OcrRunResult> {
+  if (options.provider === "googleVision") {
+    const result = await runOcrProvider(image, {
+      provider: "googleVision",
+      googleVisionProxyUrl: options.googleVisionProxyUrl,
+      onProgress: options.onProgress,
+    });
+    const parsed = parseReceiptText(result.text);
+    return {
+      provider: result.provider,
+      text: result.text,
+      crop: options.crop,
+      presetLabel: "Google Vision",
+      preprocess: false,
+      preprocessMode: options.preprocessMode ?? "contrast",
+      ...(typeof result.confidence === "number" ? { confidence: result.confidence } : {}),
+      ...(result.blocks ? { blocks: result.blocks } : {}),
+      score: scoreReceiptParseResult(parsed) + scoreOcrTextQuality(result.text, false),
+    };
+  }
+
   if (options.mode === "manual") {
     return runSingleOcr(
       image,

@@ -1,5 +1,5 @@
 import { createWorker, OEM, PSM } from "tesseract.js";
-import type { OcrProgress } from "../types";
+import type { OcrProgress, OcrResult } from "../types";
 
 type TesseractLog = {
   status?: string;
@@ -22,8 +22,7 @@ type RunOcrOptions = {
   includeImagePreview?: boolean;
 };
 
-export type RunOcrResult = {
-  text: string;
+export type RunOcrResult = OcrResult & {
   imagePreviewUrl?: string;
 };
 
@@ -814,6 +813,7 @@ export async function runOcrDetailed(
     });
     const result = await worker.recognize(imageForOcr);
     return {
+      provider: "localTesseract",
       text: result.data.text.trim(),
       ...(imagePreviewUrl ? { imagePreviewUrl } : {}),
     };

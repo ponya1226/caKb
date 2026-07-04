@@ -114,6 +114,18 @@ UI変更では次を手動確認する。
 
 軽微な文言修正、局所的なbug fix、テスト追加だけならADRは不要です。
 
+## Google Vision OCR Exception
+
+Google Vision OCR is an explicitly allowed optional external OCR Provider for this project. It must be used only through a self-owned proxy such as `server/google-vision-proxy/`; the frontend must not call Google Vision directly.
+
+- Do not commit API keys, service account keys, tokens, passwords, or secrets.
+- Do not commit `.env`; `.env.example` is allowed.
+- Do not log receipt images, image base64, OCR full text, or expense data in the proxy.
+- Do not persist uploaded receipt images on the proxy.
+- Keep Tesseract.js available as `localTesseract` fallback.
+- External OCR use must be visible to the user before sending an image.
+- Adding other external services, sync, login, or paid APIs still requires explicit user approval and an ADR.
+
 ## Prohibited Actions
 
 - 有料APIを導入する。

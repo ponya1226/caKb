@@ -5,6 +5,7 @@ import { ExpenseEditor } from "./ExpenseEditor";
 import { OcrCropPreview } from "./OcrCropPreview";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
 import type { OcrCropRatios, OcrPreprocessMode } from "../lib/ocr";
+import { getOcrProviderLabel } from "../lib/ocrProviders";
 import {
   getOcrPresets,
   getPairedCropSide,
@@ -145,6 +146,8 @@ export function OcrConfirmScreen({
         ocrPresetLabel: ocrResult.presetLabel,
         ocrPreprocess: ocrResult.preprocess,
         ocrPreprocessMode: ocrResult.preprocessMode,
+        ocrProvider: ocrResult.provider,
+        ...(ocrResult.blocks ? { ocrBlocks: ocrResult.blocks } : {}),
         ...(ocrResult.ocrImagePreviewUrl ? { ocrImagePreviewUrl: ocrResult.ocrImagePreviewUrl } : {}),
         initialValues: {
           ...draft.initialValues,
@@ -199,6 +202,10 @@ export function OcrConfirmScreen({
       <div className="save-mode">
         <Save size={18} aria-hidden="true" />
         <span>画像保存: {settings.saveReceiptImages ? "ON" : "OFF"}</span>
+      </div>
+
+      <div className="save-mode">
+        <span>読み取り方式: {getOcrProviderLabel(draft.ocrProvider)}</span>
       </div>
 
       {suggestedCategory && (

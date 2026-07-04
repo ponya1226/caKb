@@ -283,6 +283,24 @@ h3 {
   gap: 10px;
 }
 
+.provider-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.privacy-note {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  color: #0c4a6e;
+  background: #f0f9ff;
+  font-size: 0.86rem;
+}
+
 .receipt-selection-strip {
   display: flex;
   gap: 8px;
@@ -1006,6 +1024,7 @@ textarea {
   .metrics-grid,
   .expense-item,
   .picked-summary,
+  .provider-selector,
   .status-grid {
     grid-template-columns: 1fr;
   }

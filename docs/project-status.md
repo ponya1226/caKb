@@ -4,6 +4,13 @@ Last Updated: 2026-07-04
 
 ## Implemented
 
+- Google Vision OCR ProviderのPhase 1追加
+- OCR Provider抽象化: localTesseract / googleVision
+- Google Vision Proxy呼び出しクライアント
+- Google Vision Proxyサンプル実装
+- レシート登録画面のOCR方式選択と外部送信注意表示
+- OCR確認画面の読み取り方式表示
+
 - ダッシュボードの対象月選択と過去月集計表示
 - IndexedDB保存状態、永続保存許可、概算使用量、支出件数、保存期間の設定画面表示
 - Storage Persistence APIによる永続保存リクエスト
@@ -65,6 +72,9 @@ Last Updated: 2026-07-04
 - 定期支出
 
 ## Technical Debt
+
+- Google Vision利用にはProxy運用、Google Cloud認証情報管理、API課金、CORS制御、将来のレート制限が必要。
+- Google Vision ProxyサンプルはPhase 1用途。実運用ではCloud Run設定、予算アラート、リクエスト制限、監査方針を別途整備する必要がある。
 
 - ブラウザのプライベートモード、サイトデータ削除、端末容量不足によるIndexedDB削除はアプリだけでは完全に防げない。
 - JSONバックアップは支出、カテゴリ、設定のみ対象。レシート画像Blobは容量が大きくなるため対象外。

@@ -6,6 +6,7 @@ import { DEFAULT_CATEGORY_ID } from "../constants/categories";
 import { toDateInputValue } from "../lib/date";
 import { formatFileSize } from "../lib/format";
 import { detectOcrCrop, type OcrCropRatios, type OcrPreprocessMode } from "../lib/ocr";
+import { getOcrProviderLabel, isGoogleVisionProviderConfigured } from "../lib/ocrProviders";
 import {
   getOcrPresets,
   getPairedCropSide,
@@ -15,7 +16,7 @@ import {
 } from "../lib/ocrRange";
 import type { OcrMode, OcrPreset, OcrRunResult } from "../lib/ocrRange";
 import { parseReceiptText } from "../lib/receiptParser";
-import type { OcrProgress, ReceiptCandidate, ReceiptCategorySuggestion, ReceiptDraft } from "../types";
+import type { OcrProgress, OcrProvider, ReceiptCandidate, ReceiptCategorySuggestion, ReceiptDraft } from "../types";
 
 const LARGE_RECEIPT_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -90,6 +91,9 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   const [pickedShopName, setPickedShopName] = useState("");
   const [pickedAmount, setPickedAmount] = useState(0);
   const [pickedCategorySuggestion, setPickedCategorySuggestion] = useState<ReceiptCategorySuggestion | null>(null);
+  const [ocrProvider, setOcrProvider] = useState<OcrProvider>("localTesseract");
+  const [lastOcrProvider, setLastOcrProvider] = useState<OcrProvider>("localTesseract");
+  const [lastOcrBlocks, setLastOcrBlocks] = useState<ReceiptDraft["ocrBlocks"]>(undefined);
 
   const selectedReceipt = receiptSelections[selectedFileIndex] ?? null;
   const selectedFiles = receiptSelections.map((selection) => selection.file);
@@ -103,6 +107,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   const isDetectingCrop = receiptSelections.some((selection) => selection.cropStatus === "detecting");
   const parseResult = ocrText ? parseReceiptText(ocrText) : null;
   const ocrPresets = useMemo(() => getOcrPresets(savedOcrCrop), [savedOcrCrop]);
+  const isGoogleVisionAvailable = isGoogleVisionProviderConfigured();
 
   useEffect(() => {
     receiptSelectionsRef.current = receiptSelections;
@@ -111,6 +116,12 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   useEffect(() => {
     ocrImagePreviewUrlRef.current = ocrImagePreviewUrl;
   }, [ocrImagePreviewUrl]);
+
+  useEffect(() => {
+    if (!isGoogleVisionAvailable && ocrProvider === "googleVision") {
+      setOcrProvider("localTesseract");
+    }
+  }, [isGoogleVisionAvailable, ocrProvider]);
 
   useEffect(() => {
     return () => {
@@ -237,6 +248,8 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     setSelectedFileIndex(0);
     setOcrText("");
     setOcrImagePreviewUrl(null);
+    setLastOcrProvider("localTesseract");
+    setLastOcrBlocks(undefined);
     setProgress(null);
     setError(null);
     setPickedCategorySuggestion(null);
@@ -254,6 +267,8 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       imageFile: file,
       imagePreviewUrl: imageUrl,
       ...(ocrResult.ocrImagePreviewUrl ? { ocrImagePreviewUrl: ocrResult.ocrImagePreviewUrl } : {}),
+      ocrProvider: ocrResult.provider,
+      ...(ocrResult.blocks ? { ocrBlocks: ocrResult.blocks } : {}),
       ocrText: text,
       parseResult: parsed,
       ocrCrop: ocrResult.crop,
@@ -352,9 +367,11 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   async function runOcrForSelection(
     selection: ReceiptSelection,
     onProgress: (progress: OcrProgress) => void,
+    provider: OcrProvider,
     forceRange = false,
   ): Promise<OcrRunResult> {
     return runOcrWithRangeMode(selection.file, {
+      provider,
       mode: forceRange ? "manual" : selection.mode,
       crop: selection.crop,
       presetLabel: forceRange ? selection.presetLabel ?? "選択範囲補正" : selection.presetLabel,
@@ -365,24 +382,30 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     });
   }
 
-  async function handleRunOcr() {
+  async function handleRunOcr(providerOverride?: OcrProvider) {
     if (selectedFiles.length === 0) {
       setError("画像を選択してください");
       return;
     }
 
+    const activeProvider = providerOverride ?? ocrProvider;
+    if (providerOverride && providerOverride !== ocrProvider) {
+      setOcrProvider(providerOverride);
+    }
     setIsRunning(true);
     setError(null);
     setProgress({ status: "starting", progress: 0 });
 
     try {
       if (receiptSelections.length === 1 && selectedReceipt) {
-        const ocrResult = await runOcrForSelection(selectedReceipt, setProgress);
+        const ocrResult = await runOcrForSelection(selectedReceipt, setProgress, activeProvider);
         const parsed = parseReceiptText(ocrResult.text);
         const initialShopName = parsed.shopNameCandidates[0]?.value ?? "";
         const categorySuggestion = suggestCategoryForShop(initialShopName);
         setOcrText(ocrResult.text);
         setCurrentOcrImagePreviewUrl(ocrResult.ocrImagePreviewUrl);
+        setLastOcrProvider(ocrResult.provider);
+        setLastOcrBlocks(ocrResult.blocks);
         setPickedDate(parsed.dateCandidates[0]?.value ?? toDateInputValue(new Date()));
         setPickedShopName(initialShopName);
         setPickedAmount(parsed.amountCandidates[0]?.value ?? 0);
@@ -409,6 +432,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
               progress: (index + nextProgress.progress) / receiptSelections.length,
             });
           },
+          activeProvider,
           true,
         );
         ocrResults.push({ selection, result: ocrResult });
@@ -440,6 +464,8 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       imageFile: selectedReceipt.file,
       imagePreviewUrl: selectedReceipt.previewUrl,
       ...(ocrImagePreviewUrl ? { ocrImagePreviewUrl } : {}),
+      ocrProvider: lastOcrProvider,
+      ...(lastOcrBlocks ? { ocrBlocks: lastOcrBlocks } : {}),
       ocrText,
       parseResult,
       ocrCrop: selectedReceipt.crop,
@@ -479,6 +505,42 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
           アップロード
         </button>
       </div>
+
+      <section className="content-section">
+        <div className="section-title-row">
+          <h2>OCR方式</h2>
+        </div>
+        <div className="provider-selector" role="group" aria-label="OCR方式">
+          <button
+            className={ocrProvider === "localTesseract" ? "button button-primary" : "button button-secondary"}
+            type="button"
+            onClick={() => setOcrProvider("localTesseract")}
+          >
+            ローカルOCR
+          </button>
+          <button
+            className={ocrProvider === "googleVision" ? "button button-primary" : "button button-secondary"}
+            type="button"
+            onClick={() => setOcrProvider("googleVision")}
+            disabled={!isGoogleVisionAvailable}
+          >
+            高精度OCR
+          </button>
+        </div>
+        {ocrProvider === "googleVision" ? (
+          <div className="privacy-note">
+            <p>高精度OCRでは、レシート画像をGoogle Cloud Visionへ送信して文字認識します。</p>
+            <p>画像はOCR処理にのみ使用し、caKb側ではサーバーに保存しません。</p>
+            <p>通信環境やAPI設定により失敗する場合があります。その場合はローカルOCRまたは手入力を利用してください。</p>
+          </div>
+        ) : (
+          <p className="subtle-text">
+            {isGoogleVisionAvailable
+              ? "端末内でTesseract.jsを使ってOCRします。"
+              : "高精度OCRを使うには VITE_GOOGLE_VISION_PROXY_URL の設定が必要です。"}
+          </p>
+        )}
+      </section>
 
       {receiptSelections.length > 1 && (
         <div className="receipt-selection-strip" aria-label="選択画像">
@@ -588,7 +650,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       )}
 
       <div className="button-row">
-        <button className="button button-primary" type="button" onClick={handleRunOcr} disabled={!selectedFile || isRunning || isDetectingCrop}>
+        <button className="button button-primary" type="button" onClick={() => void handleRunOcr()} disabled={!selectedFile || isRunning || isDetectingCrop}>
           <Play size={18} aria-hidden="true" />
           {isDetectingCrop ? "範囲検出中" : isRunning ? "OCR中" : selectedFiles.length > 1 ? "一括OCR実行" : "OCR実行"}
         </button>
@@ -603,7 +665,16 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
         </div>
       )}
 
-      {error && <p className="inline-error">{error}</p>}
+      {error && (
+        <div className="inline-error">
+          <p>{error}</p>
+          {ocrProvider === "googleVision" && (
+            <button className="button button-secondary button-compact" type="button" onClick={() => void handleRunOcr("localTesseract")}>
+              ローカルOCRで再試行
+            </button>
+          )}
+        </div>
+      )}
 
       {parseResult && (
         <div className="candidate-panel">

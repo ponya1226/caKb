@@ -48,3 +48,13 @@ npm run build
 - `docs/project-status.md`: 実装状況
 - `docs/development-history.md`: 作業履歴
 - `docs/decisions/`: ADR
+
+## Google Vision OCR任意利用
+
+標準では従来どおりローカルOCRを利用できます。Google Vision OCRを使う場合は、フロントエンドからGoogle Cloudへ直接接続せず、自前Proxyを経由します。
+
+```env
+VITE_GOOGLE_VISION_PROXY_URL=
+```
+
+Proxyサンプルは `server/google-vision-proxy/` にあります。Google Cloud認証情報、APIキー、token、secretはリポジトリへ追加しないでください。Google Vision利用時は、レシート画像がOCR処理のために外部サービスへ送信されます。

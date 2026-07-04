@@ -1,5 +1,32 @@
 # Development History
 
+## 2026-07-04 Google Vision OCR Provider Phase 1
+
+目的: Tesseract.jsだけでは実レシートOCR精度が不足するため、Google Vision OCRを任意の高精度OCR Providerとして追加し、Tesseract.jsをフォールバックとして残す。
+
+主な変更:
+
+- Google Vision OCR導入ADRを追加
+- OCR Provider型を追加し、localTesseract / googleVision を同じ後段フローへ接続
+- Google Vision Proxy呼び出しクライアントを追加
+- レシート登録画面にOCR方式選択と外部送信注意表示を追加
+- OCR確認画面に読み取り方式表示を追加
+- Node.js + TypeScriptのGoogle Vision Proxyサンプルを追加
+- Proxy入力バリデーションとOCR Provider抽象のテストを追加
+
+検証結果:
+
+- `npm run lint`
+- `npm run test`
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- Google Cloud実API接続は未検証。Cloud Run、Vision API、認証、CORS、予算アラート設定が必要
+- Proxyの本番運用ではレート制限、月間上限、認証強化が必要
+- Document AI Expense Parserとの比較は未実施
+
 ## 2026-07-04 Persistence and Historical Dashboard Step
 
 目的: ブラウザ終了後もデータが残る前提をユーザーが確認できるようにし、過去月の支出をダッシュボードで確認できるようにする。
