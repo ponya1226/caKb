@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { ExpenseEditor } from "./ExpenseEditor";
 import { currentMonthKey, formatDateLabel, formatMonthLabel, toMonthKey } from "../lib/date";
@@ -32,6 +32,13 @@ export function ExpenseListScreen({
   const [selectedCategoryId, setSelectedCategoryId] = useState("all");
   const [isAdding, setIsAdding] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!monthOptions.includes(selectedMonth)) {
+      setSelectedMonth(monthOptions[0] ?? currentMonthKey());
+    }
+  }, [monthOptions, selectedMonth]);
 
   const monthExpenses = expenses.filter((expense) => toMonthKey(expense.date) === selectedMonth);
   const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
@@ -60,7 +67,17 @@ export function ExpenseListScreen({
       return;
     }
 
-    await onDeleteExpense(expense);
+    setDeletingExpenseId(expense.id);
+    try {
+      await onDeleteExpense(expense);
+      if (editingExpense?.id === expense.id) {
+        setEditingExpense(null);
+      }
+    } catch (unknownError) {
+      window.alert(unknownError instanceof Error ? unknownError.message : "削除に失敗しました");
+    } finally {
+      setDeletingExpenseId(null);
+    }
   }
 
   return (
@@ -183,7 +200,13 @@ export function ExpenseListScreen({
                     <button className="icon-button small" type="button" onClick={() => setEditingExpense(expense)} aria-label="編集">
                       <Pencil size={17} aria-hidden="true" />
                     </button>
-                    <button className="icon-button small danger" type="button" onClick={() => handleDelete(expense)} aria-label="削除">
+                    <button
+                      className="icon-button small danger"
+                      type="button"
+                      onClick={() => handleDelete(expense)}
+                      aria-label="削除"
+                      disabled={deletingExpenseId !== null}
+                    >
                       <Trash2 size={17} aria-hidden="true" />
                     </button>
                   </div>

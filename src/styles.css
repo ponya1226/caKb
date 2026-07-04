@@ -250,6 +250,12 @@ h3 {
   opacity: 0.58;
 }
 
+.icon-button:disabled,
+.setting-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .button-primary {
   color: #ffffff;
   background: var(--primary);
