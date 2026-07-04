@@ -4,6 +4,8 @@ Last Updated: 2026-07-04
 
 ## Implemented
 
+- OCR前処理プリセット: 文字領域の自動寄せ、拡大、グレースケール化、コントラスト補正を通常OCR候補と比較
+
 - Vite + React + TypeScriptのPWA土台
 - IndexedDB保存
 - 初期カテゴリseed
@@ -46,6 +48,8 @@ Last Updated: 2026-07-04
 
 ## Technical Debt
 
+- OCR前処理は文字領域検出と明度補正まで。傾き補正、台形補正、店舗・撮影条件別の最適化は未対応。
+
 - Tesseract.jsの言語データ取得はライブラリ標準挙動に依存している。
 - レシート候補抽出はヒューリスティックで、店舗ごとの精密な解析は未対応。
 - IndexedDB schema migrationはversion 1のみ。
@@ -61,6 +65,8 @@ Last Updated: 2026-07-04
 - 確認画面での再OCRは現在の1枚のみを対象にし、複数枚全体の自動再最適化は未対応。
 
 ## Next Recommended Priorities
+
+- OCR前処理プリセットの実機結果を比較し、店舗・撮影条件ごとの閾値を調整する。
 
 - 支出日の範囲指定や金額範囲での絞り込み
 - レシート画像の任意圧縮、リサイズ方針の検討

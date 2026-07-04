@@ -81,5 +81,6 @@ export type ReceiptDraft = {
     left: number;
   };
   ocrPresetLabel?: string;
+  ocrPreprocess?: boolean;
   categorySuggestion?: ReceiptCategorySuggestion;
 };

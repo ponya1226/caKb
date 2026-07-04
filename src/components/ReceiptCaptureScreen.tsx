@@ -75,6 +75,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   const [ocrMode, setOcrMode] = useState<OcrMode>("auto");
   const [ocrCrop, setOcrCrop] = useState<OcrCropRatios>(savedOcrCrop ?? RECEIPT_BODY_CROP);
   const [selectedPresetLabel, setSelectedPresetLabel] = useState<string | null>(null);
+  const [ocrPreprocess, setOcrPreprocess] = useState(false);
 
   const selectedFile = selectedFiles[0] ?? null;
   const totalFileSize = selectedFiles.reduce((total, file) => total + file.size, 0);
@@ -110,6 +111,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     setOcrMode("auto");
     setOcrCrop(savedOcrCrop ?? RECEIPT_BODY_CROP);
     setSelectedPresetLabel(null);
+    setOcrPreprocess(false);
     event.target.value = "";
   }
 
@@ -126,6 +128,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       parseResult: parsed,
       ocrCrop: ocrResult.crop,
       ocrPresetLabel: ocrResult.presetLabel,
+      ocrPreprocess: ocrResult.preprocess,
       initialValues: {
         date: parsed.dateCandidates[0]?.value ?? toDateInputValue(new Date()),
         shopName: initialShopName,
@@ -144,6 +147,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
 
   function handleCropChange(side: keyof OcrCropRatios, value: number) {
     setOcrMode("manual");
+    setOcrPreprocess(false);
     setSelectedPresetLabel("手動");
     setOcrCrop((currentCrop) => {
       const pairedSide = getPairedCropSide(side);
@@ -158,12 +162,14 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   function applyPreset(preset: OcrPreset) {
     setOcrMode("manual");
     setSelectedPresetLabel(preset.label);
+    setOcrPreprocess(Boolean(preset.preprocess));
     setOcrCrop(preset.crop);
   }
 
   function applyAutoMode() {
     setOcrMode("auto");
     setSelectedPresetLabel(null);
+    setOcrPreprocess(false);
     setOcrCrop(savedOcrCrop ?? RECEIPT_BODY_CROP);
   }
 
@@ -175,6 +181,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       mode: ocrMode,
       crop: ocrCrop,
       presetLabel: selectedPresetLabel,
+      preprocess: ocrPreprocess,
       savedOcrCrop,
       onProgress,
     });
@@ -203,6 +210,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
         setPickedCategorySuggestion(categorySuggestion);
         setOcrCrop(ocrResult.crop);
         setSelectedPresetLabel(ocrResult.presetLabel);
+        setOcrPreprocess(ocrResult.preprocess);
         onSaveOcrCrop(ocrResult.crop);
         return;
       }
@@ -221,6 +229,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
         ocrResults.push({ file, result: ocrResult });
         setOcrCrop(ocrResult.crop);
         setSelectedPresetLabel(ocrResult.presetLabel);
+        setOcrPreprocess(ocrResult.preprocess);
         onSaveOcrCrop(ocrResult.crop);
       }
 
@@ -254,6 +263,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       parseResult,
       ocrCrop,
       ocrPresetLabel: selectedPresetLabel ?? undefined,
+      ocrPreprocess,
       initialValues: {
         date: pickedDate,
         shopName: pickedShopName,

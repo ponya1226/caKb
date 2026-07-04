@@ -49,6 +49,7 @@ export function OcrConfirmScreen({
   const [ocrMode, setOcrMode] = useState<OcrMode>("auto");
   const [ocrCrop, setOcrCrop] = useState<OcrCropRatios>(draft.ocrCrop ?? savedOcrCrop ?? RECEIPT_BODY_CROP);
   const [selectedPresetLabel, setSelectedPresetLabel] = useState<string | null>(draft.ocrPresetLabel ?? null);
+  const [ocrPreprocess, setOcrPreprocess] = useState(draft.ocrPreprocess ?? false);
   const [progress, setProgress] = useState<OcrProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -62,13 +63,15 @@ export function OcrConfirmScreen({
     setOcrMode("auto");
     setOcrCrop(draft.ocrCrop ?? savedOcrCrop ?? RECEIPT_BODY_CROP);
     setSelectedPresetLabel(draft.ocrPresetLabel ?? null);
+    setOcrPreprocess(draft.ocrPreprocess ?? false);
     setProgress(null);
     setError(null);
     setIsRunning(false);
-  }, [draft.imagePreviewUrl, draft.ocrCrop, draft.ocrPresetLabel, savedOcrCrop]);
+  }, [draft.imagePreviewUrl, draft.ocrCrop, draft.ocrPresetLabel, draft.ocrPreprocess, savedOcrCrop]);
 
   function handleCropChange(side: keyof OcrCropRatios, value: number) {
     setOcrMode("manual");
+    setOcrPreprocess(false);
     setSelectedPresetLabel("手動");
     setOcrCrop((currentCrop) => {
       const pairedSide = getPairedCropSide(side);
@@ -83,12 +86,14 @@ export function OcrConfirmScreen({
   function applyPreset(preset: OcrPreset) {
     setOcrMode("manual");
     setSelectedPresetLabel(preset.label);
+    setOcrPreprocess(Boolean(preset.preprocess));
     setOcrCrop(preset.crop);
   }
 
   function applyAutoMode() {
     setOcrMode("auto");
     setSelectedPresetLabel(null);
+    setOcrPreprocess(false);
     setOcrCrop(savedOcrCrop ?? RECEIPT_BODY_CROP);
   }
 
@@ -102,6 +107,7 @@ export function OcrConfirmScreen({
         mode: ocrMode,
         crop: ocrCrop,
         presetLabel: selectedPresetLabel,
+        preprocess: ocrPreprocess,
         savedOcrCrop,
         onProgress: setProgress,
       });
@@ -114,6 +120,7 @@ export function OcrConfirmScreen({
         parseResult: parsed,
         ocrCrop: ocrResult.crop,
         ocrPresetLabel: ocrResult.presetLabel,
+        ocrPreprocess: ocrResult.preprocess,
         initialValues: {
           ...draft.initialValues,
           date: parsed.dateCandidates[0]?.value ?? draft.initialValues.date ?? toDateInputValue(new Date()),
@@ -126,6 +133,7 @@ export function OcrConfirmScreen({
 
       setOcrCrop(ocrResult.crop);
       setSelectedPresetLabel(ocrResult.presetLabel);
+      setOcrPreprocess(ocrResult.preprocess);
       onSaveOcrCrop(ocrResult.crop);
       onUpdateDraft(nextDraft);
     } catch (unknownError) {
