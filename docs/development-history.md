@@ -1,5 +1,35 @@
 # Development History
 
+## 2026-07-05 Google Vision Proxy Deploy Prep
+
+目的: Google Cloud側の基本準備完了後、caKbのGoogle Vision OCR ProxyをCloud Runへデプロイし、GitHub Pagesから疎通確認できる状態に近づける。
+
+主な変更:
+
+- Google Vision Proxyにproduction用 `start` scriptを追加
+- TypeScriptを `dist/` へ出力するbuild設定を追加
+- Cloud Run向けDockerfileと `.dockerignore` を追加
+- Google Vision Proxyの `@google-cloud/vision` を更新し、本番依存のaudit警告を解消
+- GitHub Pages workflowで `VITE_GOOGLE_VISION_PROXY_URL` をRepository variableからbuildへ渡すように変更
+- Cloud Runデプロイ手順を `docs/google-vision-proxy-deploy.md` に追加
+- READMEとプロジェクト状態ドキュメントを更新
+
+検証結果:
+
+- `npm run lint`
+- `npm run test`
+- `npm run build`
+- `npm --prefix server/google-vision-proxy run build`
+- `npm --prefix server/google-vision-proxy run test`
+- `npm --prefix server/google-vision-proxy audit --omit=dev`
+- `git diff --check`
+
+残課題:
+
+- Cloud Run実デプロイとGoogle Vision実API疎通はユーザー環境で実施が必要
+- `OCR_SHARED_TOKEN` は疎通確認後に追加する
+- 公開Proxyの利用制限、監査、月間利用量確認手順は次ステップで整備する
+
 ## 2026-07-04 Google Vision OCR Provider Phase 1
 
 目的: Tesseract.jsだけでは実レシートOCR精度が不足するため、Google Vision OCRを任意の高精度OCR Providerとして追加し、Tesseract.jsをフォールバックとして残す。

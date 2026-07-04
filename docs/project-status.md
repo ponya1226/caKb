@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-07-04
+Last Updated: 2026-07-05
 
 ## Implemented
 
@@ -8,6 +8,9 @@ Last Updated: 2026-07-04
 - OCR Provider抽象化: localTesseract / googleVision
 - Google Vision Proxy呼び出しクライアント
 - Google Vision Proxyサンプル実装
+- Google Vision ProxyのCloud Run向けDockerfileとproduction start script
+- GitHub Pages build時の `VITE_GOOGLE_VISION_PROXY_URL` Repository variable連携
+- Google Vision ProxyのCloud Run疎通確認手順
 - レシート登録画面のOCR方式選択と外部送信注意表示
 - OCR確認画面の読み取り方式表示
 
@@ -74,7 +77,7 @@ Last Updated: 2026-07-04
 ## Technical Debt
 
 - Google Vision利用にはProxy運用、Google Cloud認証情報管理、API課金、CORS制御、将来のレート制限が必要。
-- Google Vision ProxyサンプルはPhase 1用途。実運用ではCloud Run設定、予算アラート、リクエスト制限、監査方針を別途整備する必要がある。
+- Google Vision ProxyはCloud Runデプロイ可能な形にしたが、疎通後に `OCR_SHARED_TOKEN`、リクエスト制限、監査方針を追加検討する必要がある。
 
 - ブラウザのプライベートモード、サイトデータ削除、端末容量不足によるIndexedDB削除はアプリだけでは完全に防げない。
 - JSONバックアップは支出、カテゴリ、設定のみ対象。レシート画像Blobは容量が大きくなるため対象外。
@@ -100,6 +103,8 @@ Last Updated: 2026-07-04
 
 ## Next Recommended Priorities
 
+- Cloud RunへGoogle Vision Proxyをデプロイし、GitHub Pagesから高精度OCRの疎通確認を行う。
+- 疎通確認後、`OCR_SHARED_TOKEN` または別の利用制限方式を追加する。
 - OCR前処理プリセットの実機結果を比較し、店舗・撮影条件ごとの閾値を調整する。
 
 - 支出日の範囲指定や金額範囲での絞り込み

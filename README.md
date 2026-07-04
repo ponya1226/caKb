@@ -58,3 +58,5 @@ VITE_GOOGLE_VISION_PROXY_URL=
 ```
 
 Proxyサンプルは `server/google-vision-proxy/` にあります。Google Cloud認証情報、APIキー、token、secretはリポジトリへ追加しないでください。Google Vision利用時は、レシート画像がOCR処理のために外部サービスへ送信されます。
+
+Cloud Runへの疎通確認手順は `docs/google-vision-proxy-deploy.md` を参照してください。GitHub Pagesでは `VITE_GOOGLE_VISION_PROXY_URL` をRepository variableとして設定し、ビルド時に埋め込みます。

@@ -37,6 +37,8 @@ jobs:
           npm run test
 
       - name: Build
+        env:
+          VITE_GOOGLE_VISION_PROXY_URL: ${{ vars.VITE_GOOGLE_VISION_PROXY_URL }}
         run: npm run build
 
       - name: Configure Pages
