@@ -312,7 +312,8 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       )}
 
       {selectedFile && (
-        <section className="ocr-crop-panel">
+        <details className="ocr-crop-panel">
+          <summary>範囲の補助設定</summary>
           <div className="section-title-row">
             <h2>OCR範囲</h2>
             <div className="preset-actions">
@@ -372,7 +373,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
               );
             })}
           </div>
-        </section>
+        </details>
       )}
 
       {selectedFile && (

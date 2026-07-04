@@ -488,21 +488,26 @@ textarea {
 }
 
 .ocr-crop-handle {
-  width: 38px;
-  height: 38px;
-  border: 2px solid #0f172a;
+  width: 30px;
+  height: 30px;
+  border: 0;
   border-radius: 999px;
-  background: #ffffff;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+  background: transparent;
   z-index: 2;
 }
 
 .ocr-crop-handle::after {
   position: absolute;
-  inset: 13px;
+  top: 50%;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #ffffff;
   border-radius: 999px;
   background: #0f766e;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.48), 0 3px 8px rgba(15, 23, 42, 0.24);
   content: "";
+  transform: translate(-50%, -50%);
 }
 
 .ocr-crop-handle.top,
@@ -513,11 +518,11 @@ textarea {
 }
 
 .ocr-crop-handle.top {
-  top: 6px;
+  top: -15px;
 }
 
 .ocr-crop-handle.bottom {
-  bottom: 6px;
+  bottom: -15px;
 }
 
 .ocr-crop-handle.left,
@@ -528,11 +533,11 @@ textarea {
 }
 
 .ocr-crop-handle.left {
-  left: 6px;
+  left: -15px;
 }
 
 .ocr-crop-handle.right {
-  right: 6px;
+  right: -15px;
 }
 
 .ocr-crop-panel {
@@ -542,6 +547,36 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
+}
+
+.ocr-crop-panel summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  color: #334155;
+  font-size: 0.92rem;
+  font-weight: 900;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ocr-crop-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.ocr-crop-panel summary::after {
+  color: #64748b;
+  content: "開く";
+  font-size: 0.78rem;
+}
+
+.ocr-crop-panel[open] summary {
+  margin-bottom: 4px;
+}
+
+.ocr-crop-panel[open] summary::after {
+  content: "閉じる";
 }
 
 .preset-actions {

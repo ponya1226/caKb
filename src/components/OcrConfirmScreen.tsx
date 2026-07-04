@@ -186,7 +186,8 @@ export function OcrConfirmScreen({
         </div>
       )}
 
-      <section className="ocr-crop-panel">
+      <details className="ocr-crop-panel">
+        <summary>範囲の補助設定</summary>
         <div className="section-title-row">
           <h2>このレシートを再OCR</h2>
           <div className="preset-actions">
@@ -246,10 +247,12 @@ export function OcrConfirmScreen({
             );
           })}
         </div>
-        <button className="button button-primary full-width" type="button" onClick={handleRerunOcr} disabled={isRunning}>
-          <Play size={18} aria-hidden="true" />
-          {isRunning ? "再OCR中" : "この範囲で再OCR"}
-        </button>
+      </details>
+
+      <button className="button button-primary full-width" type="button" onClick={handleRerunOcr} disabled={isRunning}>
+        <Play size={18} aria-hidden="true" />
+        {isRunning ? "再OCR中" : "この範囲で再OCR"}
+      </button>
         {progress && (
           <div className="progress-box">
             <div className="progress-track">
@@ -259,7 +262,6 @@ export function OcrConfirmScreen({
           </div>
         )}
         {error && <p className="inline-error">{error}</p>}
-      </section>
 
       <ExpenseEditor
         key={`${draft.imagePreviewUrl}-${draft.ocrText}`}
