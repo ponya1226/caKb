@@ -1,6 +1,6 @@
 # ローカル家計簿PWA MVP
 
-レシート画像を撮影またはアップロードし、Tesseract.js OCRの結果を確認・修正して支出を記録する、無料・ローカル保存型の家計簿アプリです。バックエンド、ログイン、クラウド同期、家族共有はMVP対象外です。
+レシート画像を撮影またはアップロードし、OCR結果を確認・修正して支出を記録する家計簿PWAです。現行の支出データ正本はブラウザ内IndexedDBです。次フェーズでは家族共有に向けてFirebase Auth / Firestoreを追加していきます。
 
 ## 主な機能
 
@@ -10,8 +10,10 @@
 - OCR結果からの日付、店舗名、金額候補抽出
 - OCR確認画面での修正後保存
 - 店舗別カテゴリルールによるカテゴリ初期値反映
+- 利用者によるカテゴリ追加、名称変更、色変更
 - IndexedDBへの支出、カテゴリ、任意のレシート画像保存
 - ダッシュボードの月次合計、前月比、カテゴリ別支出、日別推移
+- 年間支出画面の年合計、月別支出、カテゴリ別年間支出
 - CSVエクスポート
 - PWA manifestとservice worker
 
@@ -62,3 +64,17 @@ VITE_GOOGLE_VISION_PROXY_URL=
 Proxyサンプルは `server/google-vision-proxy/` にあります。Google Cloud認証情報、APIキー、token、secretはリポジトリへ追加しないでください。Google Vision利用時は、レシート画像がOCR処理のために外部サービスへ送信されます。
 
 Cloud Runへの疎通確認手順は `docs/google-vision-proxy-deploy.md` を参照してください。GitHub Pagesでは `VITE_GOOGLE_VISION_PROXY_URL` をRepository variableとして設定し、ビルド時に埋め込みます。
+
+## Firebase / Firestore次フェーズ準備
+
+Firebase Auth / Firestoreの土台コードとSecurity Rules雛形を追加しています。設定がない場合、アプリは従来どおりIndexedDB正本で動作します。
+
+```env
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_APP_ID=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+```
+
+詳細は `docs/firebase-cloud-setup.md` と `docs/decisions/0006-firebase-foundation.md` を参照してください。Firebase設定値やservice account keyはリポジトリへ追加しないでください。

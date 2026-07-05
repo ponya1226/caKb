@@ -39,6 +39,55 @@ export type Category = {
   sortOrder: number;
 };
 
+export type HouseholdRole = "owner" | "member";
+
+export type UserProfile = {
+  uid: string;
+  displayName: string;
+  email: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Household = {
+  id: string;
+  name: string;
+  ownerUid: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type HouseholdMember = {
+  householdId: string;
+  uid: string;
+  role: HouseholdRole;
+  joinedAt: string;
+};
+
+export type CloudExpense = Expense & {
+  householdId: string;
+  createdByUid: string;
+  updatedByUid: string;
+};
+
+export type CloudCategory = Category & {
+  householdId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type CloudShopCategoryRule = ShopCategoryRule & {
+  householdId: string;
+};
+
+export type SheetSyncSettings = {
+  householdId: string;
+  spreadsheetId: string;
+  enabled: boolean;
+  lastSyncedAt?: string;
+  updatedAt: string;
+};
+
 export type ReceiptImage = {
   id: string;
   imageBlob: Blob;

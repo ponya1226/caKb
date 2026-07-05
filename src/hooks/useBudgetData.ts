@@ -1,23 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
 import {
-  clearApplicationData,
-  deleteCategory as deleteCategoryRecord,
-  deleteExpense as deleteExpenseRecord,
-  getCategories,
-  getExpenses,
-  importApplicationData,
-  initializeDatabase,
-  saveCategory,
-  saveExpense,
-  saveReceiptImage,
-} from "../lib/db";
-import {
   findCategoryRuleForShop,
   findRecentCategoryForShop,
   upsertShopCategoryRule as upsertCategoryRule,
 } from "../lib/categorySuggestion";
 import { createId } from "../lib/id";
+import { localBudgetRepository } from "../lib/repositories/localBudgetRepository";
 import { loadSettings, resetSettings, saveSettings } from "../lib/settings";
 import { checkStorageHealth, requestPersistentStorage as requestBrowserPersistentStorage } from "../lib/storageHealth";
 import type {
@@ -88,16 +77,16 @@ export function useBudgetData(): UseBudgetDataResult {
 
   const refresh = useCallback(async () => {
     setError(null);
-    const [nextCategories, nextExpenses] = await Promise.all([getCategories(), getExpenses()]);
-    setCategories(nextCategories);
-    setExpenses(nextExpenses);
-    setStorageHealth(await checkStorageHealth(nextExpenses));
+    const snapshot = await localBudgetRepository.getSnapshot();
+    setCategories(snapshot.categories);
+    setExpenses(snapshot.expenses);
+    setStorageHealth(await checkStorageHealth(snapshot.expenses));
   }, []);
 
   useEffect(() => {
     let isActive = true;
 
-    initializeDatabase()
+    localBudgetRepository.initialize()
       .then(async () => {
         await requestBrowserPersistentStorage();
         await refresh();
@@ -122,7 +111,7 @@ export function useBudgetData(): UseBudgetDataResult {
 
   const addManualExpense = useCallback(
     async (values: ExpenseFormValues) => {
-      await saveExpense(createExpenseRecord(values, "manual"));
+      await localBudgetRepository.saveExpense(createExpenseRecord(values, "manual"));
       await refresh();
     },
     [refresh],
@@ -134,7 +123,7 @@ export function useBudgetData(): UseBudgetDataResult {
 
       if (receipt && settings.saveReceiptImages) {
         receiptImageId = createId("receipt");
-        await saveReceiptImage({
+        await localBudgetRepository.saveReceiptImage({
           id: receiptImageId,
           imageBlob: receipt.imageBlob,
           ocrText: receipt.ocrText,
@@ -142,7 +131,7 @@ export function useBudgetData(): UseBudgetDataResult {
         });
       }
 
-      await saveExpense(createExpenseRecord(values, "receipt", receiptImageId));
+      await localBudgetRepository.saveExpense(createExpenseRecord(values, "receipt", receiptImageId));
       await refresh();
     },
     [refresh, settings.saveReceiptImages],
@@ -150,7 +139,7 @@ export function useBudgetData(): UseBudgetDataResult {
 
   const updateExpense = useCallback(
     async (expense: Expense, values: ExpenseFormValues) => {
-      await saveExpense({
+      await localBudgetRepository.saveExpense({
         ...expense,
         date: values.date,
         shopName: values.shopName.trim(),
@@ -166,7 +155,7 @@ export function useBudgetData(): UseBudgetDataResult {
 
   const removeExpense = useCallback(
     async (expense: Expense) => {
-      await deleteExpenseRecord(expense.id);
+      await localBudgetRepository.deleteExpense(expense.id);
       await refresh();
     },
     [refresh],
@@ -179,7 +168,7 @@ export function useBudgetData(): UseBudgetDataResult {
 
   const importBackup = useCallback(
     async (backup: BackupData, mode: BackupImportMode) => {
-      await importApplicationData(backup.expenses, backup.categories, mode);
+      await localBudgetRepository.importApplicationData(backup.expenses, backup.categories, mode);
       saveSettings(backup.settings);
       setSettings(backup.settings);
       await refresh();
@@ -205,7 +194,7 @@ export function useBudgetData(): UseBudgetDataResult {
       }
 
       const maxSortOrder = categories.reduce((maxValue, category) => Math.max(maxValue, category.sortOrder), 0);
-      await saveCategory({
+      await localBudgetRepository.saveCategory({
         id: createId("category"),
         name,
         color: normalizeCategoryColor(values.color),
@@ -223,7 +212,7 @@ export function useBudgetData(): UseBudgetDataResult {
         throw new Error("カテゴリ名を入力してください");
       }
 
-      await saveCategory({
+      await localBudgetRepository.saveCategory({
         ...category,
         name,
         color: normalizeCategoryColor(values.color),
@@ -243,7 +232,7 @@ export function useBudgetData(): UseBudgetDataResult {
         throw new Error("支出で使われているカテゴリは削除できません");
       }
 
-      await deleteCategoryRecord(category.id);
+      await localBudgetRepository.deleteCategory(category.id);
       const nextRules = settings.shopCategoryRules?.filter((rule) => rule.categoryId !== category.id) ?? [];
       if (nextRules.length !== (settings.shopCategoryRules?.length ?? 0)) {
         const nextSettings: AppSettings = { ...settings };
@@ -277,7 +266,7 @@ export function useBudgetData(): UseBudgetDataResult {
   );
 
   const resetData = useCallback(async () => {
-    await clearApplicationData();
+    await localBudgetRepository.clearApplicationData();
     resetSettings();
     const defaultSettings = loadSettings();
     setSettings(defaultSettings);

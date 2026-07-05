@@ -1,5 +1,33 @@
 # Development History
 
+## 2026-07-05 Firebase Foundation Step
+
+目的: 家族共有とクラウド正本化へ進むため、現行ローカル動作を維持したままFirebase Auth / Firestoreの最小土台を追加する。
+
+主な変更:
+
+- Firebase Web SDKを追加
+- Firebase client configを `VITE_FIREBASE_*` から読み取る初期化層を追加
+- Firestore path定義と回帰テストを追加
+- `BudgetRepository` interfaceと `localBudgetRepository` を追加し、既存IndexedDB処理をRepository境界へ寄せた
+- Firestore Security Rules雛形、`firebase.json`、Firebase初期設定ドキュメントを追加
+- Firebase / Firestore土台追加のADRを追加
+
+検証結果:
+
+- `npm run lint`
+- `npm run test -- src/lib/firebaseConfig.test.ts src/lib/firestorePaths.test.ts`
+- `npm run test`
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- Firebase AuthログインUIは未実装
+- Firestore cloud repositoryとIndexedDBからの移行UIは未実装
+- Firestore Security Rulesは雛形段階で、Rules testやEmulator検証は未実施
+- Google Vision ProxyのFirebase ID token検証は未実装
+
 ## 2026-07-05 Family Cloud Direction and Local Analysis Step
 
 目的: 家族共有、認証、既存スプレッドシート同期へ進む前に、クラウド正本化の方針をADRとして固め、同時にクラウド化前でも使えるカテゴリ自由作成と年間支出一覧を追加する。

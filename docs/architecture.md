@@ -73,6 +73,8 @@ React PWA
 
 スプレッドシート同期はアプリ正本からGoogle Sheetsへの一方向エクスポートとして開始します。Sheets側で編集された内容をアプリへ取り込む双方向同期は初期対象外です。
 
+Firebase client configは `VITE_FIREBASE_*` 環境変数から読み取り、未設定の場合はFirebaseを初期化しません。Firestoreの初期パスは `households/{householdId}` 配下に支出、カテゴリ、店舗別カテゴリルール、同期設定を置きます。Security Rules雛形は `firestore.rules` にあります。
+
 ## OCR Provider
 
 OCRはProvider抽象を通して実行します。

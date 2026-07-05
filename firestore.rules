@@ -1,0 +1,58 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isHouseholdMember(householdId) {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid));
+    }
+
+    function isHouseholdOwner(householdId) {
+      return isHouseholdMember(householdId) &&
+        get(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid)).data.role == "owner";
+    }
+
+    match /users/{uid} {
+      allow create, read, update: if isSignedIn() && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    match /households/{householdId} {
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow read: if isHouseholdMember(householdId);
+      allow update, delete: if isHouseholdOwner(householdId);
+
+      match /members/{uid} {
+        allow read: if isHouseholdMember(householdId);
+        allow create: if isHouseholdOwner(householdId) ||
+          (
+            isSignedIn() &&
+            uid == request.auth.uid &&
+            get(/databases/$(database)/documents/households/$(householdId)).data.ownerUid == request.auth.uid &&
+            request.resource.data.role == "owner"
+          );
+        allow update, delete: if isHouseholdOwner(householdId);
+      }
+
+      match /expenses/{expenseId} {
+        allow read, create, update, delete: if isHouseholdMember(householdId);
+      }
+
+      match /categories/{categoryId} {
+        allow read, create, update, delete: if isHouseholdMember(householdId);
+      }
+
+      match /shopCategoryRules/{ruleId} {
+        allow read, create, update, delete: if isHouseholdMember(householdId);
+      }
+
+      match /sheetSyncSettings/{settingsId} {
+        allow read, create, update, delete: if isHouseholdOwner(householdId);
+      }
+    }
+  }
+}

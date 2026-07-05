@@ -7,6 +7,9 @@ Last Updated: 2026-07-05
 - 利用者によるカテゴリ追加、名称変更、色変更、未使用カテゴリ削除
 - 年間支出画面: 年間合計、レシート登録分、月別支出、カテゴリ別年間支出、年間明細
 - 家族共有、認証、クラウド正本化、Google Sheets一方向同期に向けた方針ADR
+- Firebase Web SDK、Firebase環境変数検出、Firestore path定義
+- IndexedDB local repositoryを `BudgetRepository` interface経由に整理
+- Firestore Security Rules雛形とFirebase初期設定ドキュメント
 - OCR候補ボタンの選択中表示
 - Google Vision OCRが設定済みの場合の高精度OCR優先導線
 - 支店名が異なる同系列店舗に対するカテゴリ推定
@@ -81,8 +84,9 @@ Last Updated: 2026-07-05
 
 ## Not Started
 
-- Firebase Authログイン
-- Firestoreクラウド正本化
+- Firebase AuthログインUI
+- Firestore cloud repository実装
+- IndexedDBからFirestoreへの手動移行UI
 - 家族共有
 - Google Sheets一方向同期
 - AI分析
@@ -91,7 +95,8 @@ Last Updated: 2026-07-05
 
 ## Technical Debt
 
-- 現在の支出データ正本はまだIndexedDBで、家族共有・認証・クラウド同期は方針ADRのみ。Firestore repository、Security Rules、移行UIは未実装。
+- 現在の支出データ正本はまだIndexedDBで、Firebase SDKとRules雛形は追加済みだが、Firestore repository、認証UI、移行UIは未実装。
+- Firestore Security Rulesは雛形段階で、Firebase EmulatorまたはRules testによる検証は未実施。
 - Google Sheets同期は方針のみで、Sheets API連携、認可、同期ログ、失敗時再試行は未実装。
 - カテゴリ削除は支出で未使用の場合のみ可能。使用中カテゴリの統合や一括付け替えは未対応。
 - 店舗別カテゴリルールは店舗名の正規化一致、部分一致、共通ブランド接頭辞に基づくため、商品名やチェーン公式IDによる厳密な店舗識別は未対応。
@@ -125,8 +130,9 @@ Last Updated: 2026-07-05
 
 ## Next Recommended Priorities
 
-- Firebase AuthとFirestore導入ADRの詳細化、環境変数、Security Rules、Repository境界の実装
-- IndexedDBからFirestoreへの初回移行UI
+- Firebase AuthのGoogleログインUIと `users/{uid}` profile作成
+- household作成UIとowner member作成
+- Firestore cloud repository実装とIndexedDBからFirestoreへの初回移行UI
 - 家族共有のhousehold/memberデータモデルと招待コード導線
 - Google Sheets一方向同期の設定UIとエクスポートProxy
 - 高精度OCRの実レシート結果を匿名化し、候補抽出の回帰テストへ追加する。
