@@ -5,6 +5,7 @@ import { upsertShopCategoryRule } from "../lib/categorySuggestion";
 import { buildExpensesCsv, downloadCsv } from "../lib/csv";
 import { currentMonthKey, formatMonthLabel } from "../lib/date";
 import { formatFileSize } from "../lib/format";
+import type { CloudHouseholdState } from "../hooks/useCloudHousehold";
 import type { FirebaseAuthState } from "../hooks/useFirebaseAuth";
 import type { AppSettings, BackupImportMode, Category, Expense, StorageHealth } from "../types";
 
@@ -22,6 +23,7 @@ type SettingsScreenProps = {
   onUpdateCategory: (category: Category, values: Pick<Category, "name" | "color">) => Promise<void>;
   onDeleteCategory: (category: Category) => Promise<void>;
   firebaseAuth: FirebaseAuthState;
+  cloudHousehold: CloudHouseholdState;
 };
 
 type CategoryDraft = Pick<Category, "name" | "color">;
@@ -76,6 +78,7 @@ export function SettingsScreen({
   onUpdateCategory,
   onDeleteCategory,
   firebaseAuth,
+  cloudHousehold,
 }: SettingsScreenProps) {
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importMode, setImportMode] = useState<BackupImportMode>("append");
@@ -84,6 +87,7 @@ export function SettingsScreen({
   const [newRuleCategoryId, setNewRuleCategoryId] = useState(categories[0]?.id ?? "");
   const [newCategory, setNewCategory] = useState<CategoryDraft>({ name: "", color: "#0f766e" });
   const [categoryDrafts, setCategoryDrafts] = useState<Record<string, CategoryDraft>>({});
+  const [newHouseholdName, setNewHouseholdName] = useState("");
   const shopCategoryRules = settings.shopCategoryRules ?? [];
 
   useEffect(() => {
@@ -97,6 +101,12 @@ export function SettingsScreen({
       Object.fromEntries(categories.map((category) => [category.id, { name: category.name, color: category.color }])),
     );
   }, [categories]);
+
+  useEffect(() => {
+    if (!newHouseholdName && firebaseAuth.user) {
+      setNewHouseholdName(`${firebaseAuth.user.displayName}の家計簿`);
+    }
+  }, [firebaseAuth.user, newHouseholdName]);
 
   function updateShopCategoryRules(nextRules: NonNullable<AppSettings["shopCategoryRules"]>) {
     const nextSettings: AppSettings = { ...settings };
@@ -233,6 +243,18 @@ export function SettingsScreen({
     setStatusMessage("データを初期化しました");
   }
 
+  async function handleCreateHousehold() {
+    await cloudHousehold.createHousehold(newHouseholdName);
+  }
+
+  async function handleMigrateLocalData() {
+    if (!window.confirm("現在のIndexedDB内の支出、カテゴリ、店舗別カテゴリルールをFirestoreへコピーします。実行しますか？")) {
+      return;
+    }
+
+    await cloudHousehold.migrateLocalData();
+  }
+
   return (
     <section className="screen">
       <div className="screen-heading">
@@ -289,7 +311,67 @@ export function SettingsScreen({
         )}
 
         <p className="subtle-text storage-note">
-          現時点ではログインしても支出データの保存先はIndexedDBです。クラウド移行は次ステップで明示操作として追加します。
+          現時点ではログインしても支出データの保存先はIndexedDBです。クラウド移行は下のクラウド家計簿から明示操作で実行できます。
+        </p>
+      </section>
+
+      <section className="content-section">
+        <div className="section-title-row">
+          <h2>クラウド家計簿</h2>
+        </div>
+
+        {!firebaseAuth.isConfigured ? (
+          <div className="empty-state">Firebase設定後に利用できます</div>
+        ) : !firebaseAuth.user ? (
+          <div className="empty-state">Googleログイン後に作成できます</div>
+        ) : cloudHousehold.isLoading ? (
+          <div className="empty-state">クラウド家計簿を確認中</div>
+        ) : cloudHousehold.household ? (
+          <div className="cloud-panel">
+            <div>
+              <strong>{cloudHousehold.household.household.name}</strong>
+              <span>権限: {cloudHousehold.household.member.role === "owner" ? "管理者" : "メンバー"}</span>
+            </div>
+            <button className="button button-secondary" type="button" onClick={handleMigrateLocalData} disabled={cloudHousehold.isWorking}>
+              <Upload size={18} aria-hidden="true" />
+              ローカルデータを移行
+            </button>
+          </div>
+        ) : (
+          <div className="cloud-form">
+            <label className="field">
+              <span>家計簿名</span>
+              <input
+                type="text"
+                value={newHouseholdName}
+                placeholder="例: わが家の家計簿"
+                onChange={(event) => setNewHouseholdName(event.target.value)}
+              />
+            </label>
+            <button className="button button-secondary" type="button" onClick={handleCreateHousehold} disabled={cloudHousehold.isWorking}>
+              <Plus size={18} aria-hidden="true" />
+              作成
+            </button>
+          </div>
+        )}
+
+        {cloudHousehold.lastMigration && (
+          <div className="inline-status">
+            Firestoreへコピーしました: 支出{cloudHousehold.lastMigration.expenses}件、カテゴリ{cloudHousehold.lastMigration.categories}件、店舗ルール{cloudHousehold.lastMigration.shopCategoryRules}件
+          </div>
+        )}
+
+        {cloudHousehold.error && (
+          <div className="inline-error account-error">
+            <p>{cloudHousehold.error}</p>
+            <button className="button button-secondary button-compact" type="button" onClick={cloudHousehold.clearError}>
+              閉じる
+            </button>
+          </div>
+        )}
+
+        <p className="subtle-text storage-note">
+          移行はコピーのみです。移行後もこの画面の支出登録・一覧表示は、次ステップまでIndexedDBを使用します。
         </p>
       </section>
 

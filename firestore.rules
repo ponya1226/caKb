@@ -27,12 +27,14 @@ service cloud.firestore {
       allow update, delete: if isHouseholdOwner(householdId);
 
       match /members/{uid} {
-        allow read: if isHouseholdMember(householdId);
+        allow read: if isHouseholdMember(householdId) ||
+          (isSignedIn() && resource.data.uid == request.auth.uid);
         allow create: if isHouseholdOwner(householdId) ||
           (
             isSignedIn() &&
             uid == request.auth.uid &&
             get(/databases/$(database)/documents/households/$(householdId)).data.ownerUid == request.auth.uid &&
+            request.resource.data.uid == request.auth.uid &&
             request.resource.data.role == "owner"
           );
         allow update, delete: if isHouseholdOwner(householdId);

@@ -75,6 +75,8 @@ React PWA
 
 Firebase client configは `VITE_FIREBASE_*` 環境変数から読み取り、未設定の場合はFirebaseを初期化しません。Firestoreの初期パスは `households/{householdId}` 配下に支出、カテゴリ、店舗別カテゴリルール、同期設定を置きます。Security Rules雛形は `firestore.rules` にあります。
 
+設定画面ではログイン後にhouseholdを作成し、IndexedDB内の支出、カテゴリ、店舗別カテゴリルールをFirestoreへコピーできます。この段階ではコピー後もアプリの正本はIndexedDBであり、Firestore cloud repositoryへの切り替えは未実装です。
+
 ## OCR Provider
 
 OCRはProvider抽象を通して実行します。

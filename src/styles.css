@@ -452,6 +452,29 @@ textarea {
   margin-top: 10px;
 }
 
+.cloud-panel,
+.cloud-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.cloud-panel div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cloud-panel span {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
 .compact-list {
   gap: 8px;
 }
@@ -1178,6 +1201,8 @@ textarea {
   .category-form,
   .category-row,
   .account-panel,
+  .cloud-form,
+  .cloud-panel,
   .metrics-grid,
   .expense-item,
   .picked-summary,

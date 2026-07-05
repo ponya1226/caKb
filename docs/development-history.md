@@ -1,5 +1,31 @@
 # Development History
 
+## 2026-07-05 Household Creation and Migration UI Step
+
+目的: Firebase Authログイン後にクラウド家計簿を作成し、既存IndexedDBデータを明示操作でFirestoreへコピーできる入口を追加する。
+
+主な変更:
+
+- Firestore上にhouseholdとowner memberを作成する処理を追加
+- ログインユーザーのmember recordから既存householdを取得する処理を追加
+- IndexedDB内の支出、カテゴリ、店舗別カテゴリルールをhousehold配下へコピーする移行処理を追加
+- 設定画面にクラウド家計簿作成UIとローカルデータ移行UIを追加
+- Firestore Rulesをmember検索とowner member作成に対応
+- household/cloud migration変換の回帰テストを追加
+
+検証結果:
+
+- `npm run lint`
+- `npm run test`
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- 移行後もアプリの支出登録・一覧・編集はIndexedDBを正本として使用
+- Firestore cloud repositoryへの正本切替は未実装
+- 家族招待、member権限UI、Firestore Rules testは未実装
+
 ## 2026-07-05 Firebase Auth UI Step
 
 目的: Firestore正本化の前段として、Firebase設定済み環境でGoogleログイン/ログアウトできるUIを追加し、ログイン成功時にユーザーprofileをFirestoreへ作成できるようにする。

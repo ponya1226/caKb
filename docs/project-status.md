@@ -12,6 +12,8 @@ Last Updated: 2026-07-05
 - Firestore Security Rules雛形とFirebase初期設定ドキュメント
 - Firebase Auth Googleログイン/ログアウトUI
 - ログイン成功時の `users/{uid}` profile作成/更新
+- Firestore上のhousehold作成とowner member作成
+- IndexedDB内の支出、カテゴリ、店舗別カテゴリルールをFirestoreへ手動コピーする移行UI
 - OCR候補ボタンの選択中表示
 - Google Vision OCRが設定済みの場合の高精度OCR優先導線
 - 支店名が異なる同系列店舗に対するカテゴリ推定
@@ -86,8 +88,7 @@ Last Updated: 2026-07-05
 
 ## Not Started
 
-- Firestore cloud repository実装
-- IndexedDBからFirestoreへの手動移行UI
+- Firestore cloud repositoryへの正本切替
 - 家族共有
 - Google Sheets一方向同期
 - AI分析
@@ -96,7 +97,7 @@ Last Updated: 2026-07-05
 
 ## Technical Debt
 
-- 現在の支出データ正本はまだIndexedDBで、Firebase Auth UIは追加済みだが、Firestore repositoryと移行UIは未実装。
+- 現在の支出データ正本はまだIndexedDB。Firestoreへのコピー移行UIはあるが、移行後の一覧表示・登録・編集はまだFirestoreを正本にしていない。
 - Firestore Security Rulesは雛形段階で、Firebase EmulatorまたはRules testによる検証は未実施。
 - Google Sheets同期は方針のみで、Sheets API連携、認可、同期ログ、失敗時再試行は未実装。
 - カテゴリ削除は支出で未使用の場合のみ可能。使用中カテゴリの統合や一括付け替えは未対応。
@@ -131,10 +132,8 @@ Last Updated: 2026-07-05
 
 ## Next Recommended Priorities
 
-- Firebase AuthのGoogleログインUIと `users/{uid}` profile作成
-- household作成UIとowner member作成
-- Firestore cloud repository実装とIndexedDBからFirestoreへの初回移行UI
-- 家族共有のhousehold/memberデータモデルと招待コード導線
+- Firestore cloud repository実装とクラウド正本切替
+- 家族招待コード導線とmember権限UI
 - Google Sheets一方向同期の設定UIとエクスポートProxy
 - 高精度OCRの実レシート結果を匿名化し、候補抽出の回帰テストへ追加する。
 - 疎通確認後、`OCR_SHARED_TOKEN` または別の利用制限方式を追加する。

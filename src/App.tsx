@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from "react";
 import { CalendarDays, Camera, Home, List, Plus, ReceiptText, Settings } from "lucide-react";
 import { ExpenseEditor } from "./components/ExpenseEditor";
 import { useBudgetData } from "./hooks/useBudgetData";
+import { useCloudHousehold } from "./hooks/useCloudHousehold";
 import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { normalizeShopNameForCategory } from "./lib/categorySuggestion";
 import type { ExpenseFormValues, ReceiptDraft, ReceiptSaveOptions } from "./types";
@@ -42,6 +43,12 @@ export default function App() {
   const [isManualQuickAddOpen, setIsManualQuickAddOpen] = useState(false);
   const budgetData = useBudgetData();
   const firebaseAuth = useFirebaseAuth();
+  const cloudHousehold = useCloudHousehold(
+    firebaseAuth.user,
+    budgetData.expenses,
+    budgetData.categories,
+    budgetData.settings,
+  );
   const receiptDraft = receiptDrafts[0] ?? null;
   const receiptQueuePosition = receiptDraft
     ? {
@@ -271,6 +278,7 @@ export default function App() {
               onUpdateCategory={budgetData.updateCategory}
               onDeleteCategory={budgetData.removeCategory}
               firebaseAuth={firebaseAuth}
+              cloudHousehold={cloudHousehold}
             />
           )}
         </Suspense>
