@@ -54,6 +54,16 @@ export type AppSettings = {
     bottom: number;
     left: number;
   };
+  shopCategoryRules?: ShopCategoryRule[];
+};
+
+export type ShopCategoryRule = {
+  id: string;
+  shopName: string;
+  normalizedShopName: string;
+  categoryId: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type StorageHealth = {
@@ -101,6 +111,8 @@ export type ReceiptParseResult = {
 export type ReceiptCategorySuggestion = {
   categoryId: string;
   matchedShopName: string;
+  source?: "rule" | "history";
+  ruleId?: string;
 };
 
 export type ExpenseFormValues = {
@@ -109,6 +121,10 @@ export type ExpenseFormValues = {
   amount: number;
   categoryId: string;
   memo: string;
+};
+
+export type ReceiptSaveOptions = {
+  saveCategoryRule: boolean;
 };
 
 export type ReceiptDraft = {

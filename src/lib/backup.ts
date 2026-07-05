@@ -1,4 +1,5 @@
 import type { AppSettings, BackupData, Category, Expense } from "../types";
+import { normalizeShopCategoryRule } from "./categorySuggestion";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -57,10 +58,39 @@ function isValidCrop(value: unknown): value is NonNullable<AppSettings["lastOcrC
   });
 }
 
+function isShopCategoryRule(value: unknown): value is NonNullable<AppSettings["shopCategoryRules"]>[number] {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === "string" &&
+    typeof value.shopName === "string" &&
+    typeof value.normalizedShopName === "string" &&
+    typeof value.categoryId === "string" &&
+    typeof value.createdAt === "string" &&
+    typeof value.updatedAt === "string"
+  );
+}
+
+function normalizeShopCategoryRules(value: unknown): NonNullable<AppSettings["shopCategoryRules"]> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter(isShopCategoryRule)
+    .map((rule) => normalizeShopCategoryRule(rule))
+    .filter((rule): rule is NonNullable<AppSettings["shopCategoryRules"]>[number] => Boolean(rule));
+}
+
 function normalizeSettings(settings: AppSettings): AppSettings {
+  const shopCategoryRules = normalizeShopCategoryRules(settings.shopCategoryRules);
+
   return {
     saveReceiptImages: settings.saveReceiptImages,
     ...(isValidCrop(settings.lastOcrCrop) ? { lastOcrCrop: settings.lastOcrCrop } : {}),
+    ...(shopCategoryRules.length > 0 ? { shopCategoryRules } : {}),
   };
 }
 

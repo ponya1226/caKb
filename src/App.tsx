@@ -3,7 +3,7 @@ import { Camera, Home, List, Plus, ReceiptText, Settings } from "lucide-react";
 import { ExpenseEditor } from "./components/ExpenseEditor";
 import { useBudgetData } from "./hooks/useBudgetData";
 import { normalizeShopNameForCategory } from "./lib/categorySuggestion";
-import type { ExpenseFormValues, ReceiptDraft } from "./types";
+import type { ExpenseFormValues, ReceiptDraft, ReceiptSaveOptions } from "./types";
 
 type View = "dashboard" | "expenses" | "receipt" | "confirm" | "settings";
 
@@ -69,6 +69,7 @@ export default function App() {
         categorySuggestion: {
           categoryId: values.categoryId,
           matchedShopName: values.shopName,
+          source: "rule",
         },
         initialValues: {
           ...draft.initialValues,
@@ -78,7 +79,7 @@ export default function App() {
     });
   }
 
-  async function handleSaveReceiptExpense(values: ExpenseFormValues) {
+  async function handleSaveReceiptExpense(values: ExpenseFormValues, options?: ReceiptSaveOptions) {
     if (!receiptDraft) {
       return;
     }
@@ -88,6 +89,9 @@ export default function App() {
       imageBlob: receiptDraft.imageFile,
       ocrText: receiptDraft.ocrText,
     });
+    if (options?.saveCategoryRule) {
+      budgetData.upsertShopCategoryRule(values.shopName, values.categoryId);
+    }
     URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
     if (receiptDraft.ocrImagePreviewUrl) {
       URL.revokeObjectURL(receiptDraft.ocrImagePreviewUrl);

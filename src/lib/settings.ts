@@ -1,4 +1,5 @@
 import type { AppSettings } from "../types";
+import { normalizeShopCategoryRule } from "./categorySuggestion";
 
 const SETTINGS_KEY = "local-kakeibo-settings-v1";
 
@@ -18,6 +19,31 @@ function isValidCrop(value: unknown): value is NonNullable<AppSettings["lastOcrC
   });
 }
 
+function normalizeShopCategoryRules(value: unknown): NonNullable<AppSettings["shopCategoryRules"]> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .filter((rule): rule is NonNullable<AppSettings["shopCategoryRules"]>[number] => {
+      if (!rule || typeof rule !== "object") {
+        return false;
+      }
+
+      const candidate = rule as Record<string, unknown>;
+      return (
+        typeof candidate.id === "string" &&
+        typeof candidate.shopName === "string" &&
+        typeof candidate.normalizedShopName === "string" &&
+        typeof candidate.categoryId === "string" &&
+        typeof candidate.createdAt === "string" &&
+        typeof candidate.updatedAt === "string"
+      );
+    })
+    .map((rule) => normalizeShopCategoryRule(rule))
+    .filter((rule): rule is NonNullable<AppSettings["shopCategoryRules"]>[number] => Boolean(rule));
+}
+
 export function loadSettings(): AppSettings {
   try {
     const rawValue = localStorage.getItem(SETTINGS_KEY);
@@ -29,6 +55,9 @@ export function loadSettings(): AppSettings {
     return {
       saveReceiptImages: parsedValue.saveReceiptImages ?? DEFAULT_SETTINGS.saveReceiptImages,
       ...(isValidCrop(parsedValue.lastOcrCrop) ? { lastOcrCrop: parsedValue.lastOcrCrop } : {}),
+      ...(normalizeShopCategoryRules(parsedValue.shopCategoryRules).length > 0
+        ? { shopCategoryRules: normalizeShopCategoryRules(parsedValue.shopCategoryRules) }
+        : {}),
     };
   } catch {
     return DEFAULT_SETTINGS;

@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
-import { Database, Download, FileJson, RefreshCw, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Database, Download, FileJson, Plus, RefreshCw, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Upload } from "lucide-react";
 import { buildBackupJson, downloadJson, parseBackupJson } from "../lib/backup";
+import { upsertShopCategoryRule } from "../lib/categorySuggestion";
 import { buildExpensesCsv, downloadCsv } from "../lib/csv";
 import { currentMonthKey, formatMonthLabel } from "../lib/date";
 import { formatFileSize } from "../lib/format";
@@ -68,6 +69,57 @@ export function SettingsScreen({
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importMode, setImportMode] = useState<BackupImportMode>("append");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [newRuleShopName, setNewRuleShopName] = useState("");
+  const [newRuleCategoryId, setNewRuleCategoryId] = useState(categories[0]?.id ?? "");
+  const shopCategoryRules = settings.shopCategoryRules ?? [];
+
+  useEffect(() => {
+    if (!newRuleCategoryId && categories[0]) {
+      setNewRuleCategoryId(categories[0].id);
+    }
+  }, [categories, newRuleCategoryId]);
+
+  function updateShopCategoryRules(nextRules: NonNullable<AppSettings["shopCategoryRules"]>) {
+    const nextSettings: AppSettings = { ...settings };
+    if (nextRules.length > 0) {
+      nextSettings.shopCategoryRules = nextRules;
+    } else {
+      delete nextSettings.shopCategoryRules;
+    }
+    onUpdateSettings(nextSettings);
+  }
+
+  function handleAddShopCategoryRule() {
+    const categoryId = newRuleCategoryId || categories[0]?.id;
+    if (!categoryId || !newRuleShopName.trim()) {
+      setStatusMessage("店舗名とカテゴリを入力してください");
+      return;
+    }
+
+    updateShopCategoryRules(upsertShopCategoryRule(shopCategoryRules, newRuleShopName, categoryId));
+    setNewRuleShopName("");
+    setNewRuleCategoryId(categoryId);
+    setStatusMessage("店舗別カテゴリルールを保存しました");
+  }
+
+  function handleUpdateRuleCategory(ruleId: string, categoryId: string) {
+    updateShopCategoryRules(
+      shopCategoryRules.map((rule) =>
+        rule.id === ruleId
+          ? {
+              ...rule,
+              categoryId,
+              updatedAt: new Date().toISOString(),
+            }
+          : rule,
+      ),
+    );
+  }
+
+  function handleDeleteRule(ruleId: string) {
+    updateShopCategoryRules(shopCategoryRules.filter((rule) => rule.id !== ruleId));
+    setStatusMessage("店舗別カテゴリルールを削除しました");
+  }
 
   function handleExportCsv() {
     const csv = buildExpensesCsv(expenses, categories);
@@ -199,7 +251,69 @@ export function SettingsScreen({
             {settings.saveReceiptImages ? <ToggleRight size={28} aria-hidden="true" /> : <ToggleLeft size={28} aria-hidden="true" />}
           </button>
         </article>
+      </div>
 
+      <section className="content-section">
+        <div className="section-title-row">
+          <h2>店舗別カテゴリルール</h2>
+        </div>
+        <p className="subtle-text">
+          保存した店舗名に一致したレシートは、ここで指定したカテゴリを初期値にします。
+        </p>
+
+        <div className="rule-form">
+          <label className="field">
+            <span>店舗名</span>
+            <input
+              type="text"
+              value={newRuleShopName}
+              placeholder="例: サンプルストア"
+              onChange={(event) => setNewRuleShopName(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            <span>カテゴリ</span>
+            <select value={newRuleCategoryId} onChange={(event) => setNewRuleCategoryId(event.target.value)}>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="button button-secondary" type="button" onClick={handleAddShopCategoryRule}>
+            <Plus size={18} aria-hidden="true" />
+            追加
+          </button>
+        </div>
+
+        {shopCategoryRules.length === 0 ? (
+          <div className="empty-state">店舗別カテゴリルールはありません</div>
+        ) : (
+          <div className="rule-list">
+            {shopCategoryRules.map((rule) => (
+              <article className="rule-row" key={rule.id}>
+                <div>
+                  <strong>{rule.shopName}</strong>
+                  <span>{rule.normalizedShopName}</span>
+                </div>
+                <select value={rule.categoryId} onChange={(event) => handleUpdateRuleCategory(rule.id, event.target.value)}>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <button className="icon-button danger" type="button" onClick={() => handleDeleteRule(rule.id)} aria-label={`${rule.shopName}のルールを削除`}>
+                  <Trash2 size={18} aria-hidden="true" />
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <div className="settings-list">
         <button className="setting-action" type="button" onClick={handleExportCsv}>
           <Download size={20} aria-hidden="true" />
           CSVエクスポート

@@ -10,7 +10,11 @@ import {
   saveExpense,
   saveReceiptImage,
 } from "../lib/db";
-import { findRecentCategoryForShop } from "../lib/categorySuggestion";
+import {
+  findCategoryRuleForShop,
+  findRecentCategoryForShop,
+  upsertShopCategoryRule as upsertCategoryRule,
+} from "../lib/categorySuggestion";
 import { createId } from "../lib/id";
 import { loadSettings, resetSettings, saveSettings } from "../lib/settings";
 import { checkStorageHealth, requestPersistentStorage as requestBrowserPersistentStorage } from "../lib/storageHealth";
@@ -45,6 +49,7 @@ type UseBudgetDataResult = {
   resetData: () => Promise<void>;
   refresh: () => Promise<void>;
   suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
+  upsertShopCategoryRule: (shopName: string, categoryId: string) => void;
 };
 
 function createExpenseRecord(values: ExpenseFormValues, source: Expense["source"], receiptImageId?: string): Expense {
@@ -184,8 +189,20 @@ export function useBudgetData(): UseBudgetDataResult {
   }, [expenses]);
 
   const suggestCategoryForShop = useCallback(
-    (shopName: string) => findRecentCategoryForShop(expenses, shopName),
-    [expenses],
+    (shopName: string) =>
+      findCategoryRuleForShop(settings.shopCategoryRules, shopName) ?? findRecentCategoryForShop(expenses, shopName),
+    [expenses, settings.shopCategoryRules],
+  );
+
+  const upsertShopCategoryRule = useCallback(
+    (shopName: string, categoryId: string) => {
+      const nextRules = upsertCategoryRule(settings.shopCategoryRules, shopName, categoryId);
+      updateSettings({
+        ...settings,
+        ...(nextRules.length > 0 ? { shopCategoryRules: nextRules } : {}),
+      });
+    },
+    [settings, updateSettings],
   );
 
   const resetData = useCallback(async () => {
@@ -215,5 +232,6 @@ export function useBudgetData(): UseBudgetDataResult {
     resetData,
     refresh,
     suggestCategoryForShop,
+    upsertShopCategoryRule,
   };
 }

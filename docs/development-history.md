@@ -1,5 +1,30 @@
 # Development History
 
+## 2026-07-05 Shop Category Rules Step
+
+目的: Google Vision OCRで文字認識精度が改善したため、保存時に店舗別カテゴリルールを作成し、次回以降のカテゴリ初期値を安定させる。
+
+主な変更:
+
+- `AppSettings.shopCategoryRules` を追加し、localStorageとJSONバックアップ/復元の対象にした
+- OCR確認画面に「この店舗のカテゴリを次回も使う」チェックを追加
+- 設定画面に店舗別カテゴリルールの追加、カテゴリ変更、削除UIを追加
+- カテゴリ初期値は店舗別カテゴリルールを保存済み支出履歴より優先するように変更
+- 店舗名揺れを許容したカテゴリルールの回帰テストを追加
+- 保存形式変更のADRとして `docs/decisions/0004-shop-category-rules.md` を追加
+
+検証結果:
+
+- `npm run lint`
+- `npm run test`
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- 店舗別カテゴリルールは店舗名の正規化一致と部分一致に基づくため、誤適用があれば実機結果に合わせて調整する
+- 店舗名そのものを編集するUIは未実装。現時点では削除して再追加する
+
 ## 2026-07-05 Google Vision Candidate Tuning
 
 目的: Google Vision OCRで文字認識精度が改善したため、OCR後の店舗名候補とカテゴリ初期値の精度を上げる。

@@ -17,7 +17,15 @@ import {
 import type { OcrMode, OcrPreset } from "../lib/ocrRange";
 import { parseReceiptText } from "../lib/receiptParser";
 import { toDateInputValue } from "../lib/date";
-import type { AppSettings, Category, ExpenseFormValues, OcrProgress, ReceiptCategorySuggestion, ReceiptDraft } from "../types";
+import type {
+  AppSettings,
+  Category,
+  ExpenseFormValues,
+  OcrProgress,
+  ReceiptCategorySuggestion,
+  ReceiptDraft,
+  ReceiptSaveOptions,
+} from "../types";
 
 type OcrConfirmScreenProps = {
   draft: ReceiptDraft;
@@ -33,7 +41,7 @@ type OcrConfirmScreenProps = {
   onSaveOcrCrop: (crop: OcrCropRatios) => void;
   onUpdateDraft: (draft: ReceiptDraft) => void;
   suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
-  onSave: (values: ExpenseFormValues) => Promise<void>;
+  onSave: (values: ExpenseFormValues, options?: ReceiptSaveOptions) => Promise<void>;
 };
 
 function normalizeOcrPreprocessMode(mode: string | undefined): OcrPreprocessMode {
@@ -73,6 +81,7 @@ export function OcrConfirmScreen({
   const [progress, setProgress] = useState<OcrProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [saveCategoryRule, setSaveCategoryRule] = useState(true);
   const ocrPresets = useMemo(() => getOcrPresets(savedOcrCrop), [savedOcrCrop]);
   const isDraftGoogleVision = draft.ocrProvider === "googleVision";
 
@@ -89,6 +98,7 @@ export function OcrConfirmScreen({
     setProgress(null);
     setError(null);
     setIsRunning(false);
+    setSaveCategoryRule(true);
   }, [draft.imagePreviewUrl, draft.ocrCrop, draft.ocrPresetLabel, draft.ocrPreprocess, draft.ocrPreprocessMode, draft.ocrProvider, savedOcrCrop]);
 
   function applyManualCrop(nextCrop: OcrCropRatios) {
@@ -226,7 +236,7 @@ export function OcrConfirmScreen({
 
       {suggestedCategory && (
         <div className="save-mode">
-          <span>前回のカテゴリを反映: {suggestedCategory.name}</span>
+          <span>{draft.categorySuggestion?.source === "rule" ? "店舗ルールを反映" : "前回のカテゴリを反映"}: {suggestedCategory.name}</span>
         </div>
       )}
 
@@ -313,13 +323,25 @@ export function OcrConfirmScreen({
         )}
         {error && <p className="inline-error">{error}</p>}
 
+      <label className="rule-toggle">
+        <input
+          type="checkbox"
+          checked={saveCategoryRule}
+          onChange={(event) => setSaveCategoryRule(event.target.checked)}
+        />
+        <span>
+          <strong>この店舗のカテゴリを次回も使う</strong>
+          <small>保存した店舗名とカテゴリを端末内にルールとして保存します。</small>
+        </span>
+      </label>
+
       <ExpenseEditor
         key={`${draft.imagePreviewUrl}-${draft.ocrText}`}
         categories={categories}
         initialValues={draft.initialValues}
         submitLabel="保存"
         onCancel={onBack}
-        onSubmit={onSave}
+        onSubmit={(values) => onSave(values, { saveCategoryRule })}
       />
 
       {onSkip && (

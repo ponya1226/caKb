@@ -913,6 +913,74 @@ textarea {
   color: var(--danger);
 }
 
+.rule-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.rule-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.rule-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(128px, 0.65fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.rule-row div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.rule-row strong,
+.rule-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-row span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.rule-toggle {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.rule-toggle input {
+  width: 20px;
+  min-height: 20px;
+  margin-top: 2px;
+}
+
+.rule-toggle span {
+  display: grid;
+  gap: 3px;
+}
+
+.rule-toggle small {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
 .bottom-nav {
   position: fixed;
   right: 12px;
@@ -1025,6 +1093,7 @@ textarea {
   .expense-item,
   .picked-summary,
   .provider-selector,
+  .rule-row,
   .status-grid {
     grid-template-columns: 1fr;
   }
