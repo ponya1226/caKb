@@ -38,6 +38,20 @@ describe("categorySuggestion", () => {
     });
   });
 
+  it("matches brand-only and branch-combined shop names for category learning", () => {
+    const result = findRecentCategoryForShop(
+      [
+        createExpense({ id: "expense-tea", shopName: "SAMPLE TEA 架空新都心店", categoryId: "entertainment" }),
+      ],
+      "SAMPLE TEA",
+    );
+
+    expect(result).toEqual({
+      categoryId: "entertainment",
+      matchedShopName: "SAMPLE TEA 架空新都心店",
+    });
+  });
+
   it("returns null when there is no usable shop match", () => {
     expect(findRecentCategoryForShop([createExpense({ shopName: "別店舗" })], "サンプルストア")).toBeNull();
     expect(findRecentCategoryForShop([createExpense({ shopName: "サンプルストア" })], "")).toBeNull();

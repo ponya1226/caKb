@@ -7,6 +7,12 @@ const SHOP_EXCLUDE_PATTERN = /(領収|レシート|明細|登録番号|TEL|電�
 const MONEY_AMOUNT_PATTERN = /¥\s*[%A-Za-z]*\s*[\dOo〇○Cc¢][\dOo〇○Cc¢,\s.．()[\]（）]{0,14}(?:円)?/g;
 const PLAIN_AMOUNT_PATTERN = /[\d][\d,\s]{1,12}(?:円)?/g;
 
+type ShopLine = {
+  value: string;
+  line: string;
+  index: number;
+};
+
 function normalizeText(value: string): string {
   return value
     .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
@@ -196,7 +202,8 @@ function extractAmountCandidates(lines: string[]): Array<ReceiptCandidate<number
 }
 
 function normalizeShopNameCandidate(line: string): { value: string; confidenceBoost: number } {
-  const compactLine = line.replace(/[\s\-ー―—‐・]/g, "");
+  const cleanedLine = cleanShopNameLine(line);
+  const compactLine = cleanedLine.replace(/[\s\-ー―—‐・]/g, "");
   const hasSampleStoreFragments =
     (/サン/.test(compactLine) && /(プル|ブル|フル)/.test(compactLine) && /(ストア|ス卜ア|トア|スト)/.test(compactLine)) ||
     (/(サプ|サンプ|サソプ)/.test(compactLine) && /(ス卜|スト|トア)/.test(compactLine));
@@ -209,9 +216,43 @@ function normalizeShopNameCandidate(line: string): { value: string; confidenceBo
   }
 
   return {
-    value: line,
+    value: cleanedLine,
     confidenceBoost: 0,
   };
+}
+
+function cleanShopNameLine(line: string): string {
+  return line.replace(/^[\s\d\-ー―—‐|*/._]+/, "").trim();
+}
+
+function isAddressLikeShopLine(line: string): boolean {
+  return /(都|道|府|県|市|区|町|丁目|番地|住所)/.test(line) && !isProbableBranchShopLine(line);
+}
+
+function isProbableLatinBrandLine(line: string): boolean {
+  const compactLine = line.replace(/[\s._\-ー―—‐・]/g, "");
+  if (compactLine.length < 3 || compactLine.length > 24 || /\d/.test(compactLine)) {
+    return false;
+  }
+
+  const latinCount = compactLine.match(/[A-Za-z]/g)?.length ?? 0;
+  const japaneseCount = compactLine.match(/[ぁ-んァ-ン一-龯]/g)?.length ?? 0;
+
+  return latinCount >= 3 && japaneseCount === 0 && latinCount / compactLine.length >= 0.75;
+}
+
+function isProbableJapaneseBrandLine(line: string): boolean {
+  const compactLine = line.replace(/\s/g, "");
+  const japaneseCount = compactLine.match(/[ぁ-んァ-ン一-龯]/g)?.length ?? 0;
+
+  return japaneseCount >= 3 && !isProbableBranchShopLine(line) && !isAddressLikeShopLine(line);
+}
+
+function isProbableBranchShopLine(line: string): boolean {
+  const compactLine = line.replace(/\s/g, "");
+  const japaneseCount = compactLine.match(/[ぁ-んァ-ン一-龯]/g)?.length ?? 0;
+
+  return compactLine.endsWith("店") && japaneseCount >= 3 && !/\s/.test(line);
 }
 
 function isNoisyShopNameLine(line: string): boolean {
@@ -235,27 +276,95 @@ function isNoisyShopNameLine(line: string): boolean {
   return latinCount > 0 && japaneseCount === 0;
 }
 
+function getShopNameConfidence(line: string, sourceIndex: number, confidenceBoost: number): number {
+  let confidence = sourceIndex <= 2 ? 0.68 : 0.52;
+
+  if (isProbableJapaneseBrandLine(line)) {
+    confidence += 0.2;
+  } else if (isProbableLatinBrandLine(line)) {
+    confidence += 0.08;
+  }
+
+  if (isProbableBranchShopLine(line)) {
+    confidence -= 0.2;
+  }
+
+  if (isAddressLikeShopLine(line)) {
+    confidence -= 0.25;
+  }
+
+  return Math.min(0.95, Math.max(0.1, confidence + confidenceBoost));
+}
+
+function canUseShopLine(line: string): boolean {
+  return !isNoisyShopNameLine(line) || isProbableLatinBrandLine(line);
+}
+
+function createCombinedShopCandidates(shopLines: ShopLine[]): Array<ReceiptCandidate<string> & { branchIndex: number }> {
+  const candidates: Array<ReceiptCandidate<string> & { branchIndex: number }> = [];
+
+  shopLines.forEach((shopLine, index) => {
+    if (!isProbableBranchShopLine(shopLine.value)) {
+      return;
+    }
+
+    const brandLine = [...shopLines]
+      .slice(0, index)
+      .reverse()
+      .find((candidate) => shopLine.index - candidate.index <= 2 && (isProbableJapaneseBrandLine(candidate.value) || isProbableLatinBrandLine(candidate.value)));
+
+    if (!brandLine) {
+      return;
+    }
+
+    const normalizedBrandLine = normalizeShopNameCandidate(brandLine.value).value;
+    const normalizedBranchLine = normalizeShopNameCandidate(shopLine.value).value;
+    const combinedValue = `${normalizedBrandLine} ${normalizedBranchLine}`;
+    candidates.push({
+      value: combinedValue,
+      label: combinedValue,
+      line: `${brandLine.line} / ${shopLine.line}`,
+      confidence: isProbableJapaneseBrandLine(brandLine.value) ? 0.97 : 0.94,
+      branchIndex: shopLine.index,
+    });
+  });
+
+  return candidates;
+}
+
 function extractShopNameCandidates(lines: string[]): Array<ReceiptCandidate<string>> {
-  const candidates = lines
-    .map((line) => normalizeText(line).trim())
-    .filter((line) => line.length >= 2)
-    .filter((line) => line.length <= 32)
-    .filter((line) => !SHOP_EXCLUDE_PATTERN.test(line))
-    .filter((line) => !/\d{1,4}\s*(?:[\/\-.年])\s*\d{1,2}/.test(line))
-    .filter((line) => extractAmountsFromLine(line).length === 0)
-    .filter((line) => !isNoisyShopNameLine(line))
-    .slice(0, 5)
-    .map((line, index) => {
-      const normalizedCandidate = normalizeShopNameCandidate(line);
-      const confidence = Math.min(0.95, (index === 0 ? 0.75 : 0.55) + normalizedCandidate.confidenceBoost);
+  const shopLines: ShopLine[] = lines
+    .map((line, index) => ({
+      value: cleanShopNameLine(normalizeText(line).trim()),
+      line: normalizeText(line).trim(),
+      index,
+    }))
+    .filter((shopLine) => shopLine.value.length >= 2)
+    .filter((shopLine) => shopLine.value.length <= 32)
+    .filter((shopLine) => !SHOP_EXCLUDE_PATTERN.test(shopLine.value))
+    .filter((shopLine) => !/\d{1,4}\s*(?:[\/\-.年])\s*\d{1,2}/.test(shopLine.value))
+    .filter((shopLine) => extractAmountsFromLine(shopLine.value).length === 0)
+    .filter((shopLine) => canUseShopLine(shopLine.value));
+
+  const combinedCandidates = createCombinedShopCandidates(shopLines);
+  const combinedBranchIndexes = new Set(combinedCandidates.map((candidate) => candidate.branchIndex));
+  const singleLineCandidates = shopLines
+    .filter((shopLine) => !combinedBranchIndexes.has(shopLine.index))
+    .filter((shopLine) => !isAddressLikeShopLine(shopLine.value))
+    .map((shopLine) => {
+      const normalizedCandidate = normalizeShopNameCandidate(shopLine.value);
+      const confidence = getShopNameConfidence(normalizedCandidate.value, shopLine.index, normalizedCandidate.confidenceBoost);
       return {
         value: normalizedCandidate.value,
         label: normalizedCandidate.value,
-        line,
+        line: shopLine.line,
         confidence,
       };
-    })
-    .sort((a, b) => b.confidence - a.confidence);
+    });
+
+  const candidates = [...combinedCandidates, ...singleLineCandidates].sort(
+    (a, b) => b.confidence - a.confidence,
+  );
 
   return uniqueCandidates(candidates).slice(0, 5);
 }

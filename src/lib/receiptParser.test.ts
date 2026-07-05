@@ -233,6 +233,42 @@ describe("parseReceiptText", () => {
     expect(result.amountCandidates[0]?.value).toBe(481);
   });
 
+  it("combines a brand logo line and branch line as the primary shop candidate", () => {
+    const result = parseReceiptText(`
+      SAMPLE TEA
+
+      架空新都心店
+      架空県架空市中央区
+      架空町4丁目267-21F
+      000-000-0000
+
+      2026年04月05日(日)       16:37
+      DECAF SAMPLE TB10        ¥1,000
+      合計                    ¥1,000
+    `);
+
+    expect(result.shopNameCandidates[0]?.value).toBe("SAMPLE TEA 架空新都心店");
+    expect(result.shopNameCandidates.map((candidate) => candidate.value)).not.toContain("架空新都心店");
+    expect(result.dateCandidates[0]?.value).toBe("2026-04-05");
+    expect(result.amountCandidates[0]?.value).toBe(1000);
+  });
+
+  it("prefers a Japanese brand line over an English logo when building shop candidates", () => {
+    const result = parseReceiptText(`
+      SAMPLE CONVENIENCE
+      7 サンプル-ストア
+      架空5丁目店
+      架空県架空市架空5-1-32
+      電話 : 000-0000-0000
+      2026年07月01日 (水) 20:31
+      合計 ¥481
+    `);
+
+    expect(result.shopNameCandidates[0]?.value).toBe("サンプルストア 架空5丁目店");
+    expect(result.shopNameCandidates[1]?.value).toBe("サンプルストア");
+    expect(result.amountCandidates[0]?.value).toBe(481);
+  });
+
   it("scores parse results with date, shop, and amount candidates higher", () => {
     const weakResult = parseReceiptText(`
       / ノイズ 1 |

@@ -9,6 +9,21 @@ export function normalizeShopNameForCategory(value: string): string {
     .replace(/[^\p{L}\p{N}]/gu, "");
 }
 
+function isSameOrRelatedShopName(savedShopName: string, targetShopName: string): boolean {
+  if (!savedShopName || !targetShopName) {
+    return false;
+  }
+
+  if (savedShopName === targetShopName) {
+    return true;
+  }
+
+  const shortest = savedShopName.length <= targetShopName.length ? savedShopName : targetShopName;
+  const longest = savedShopName.length > targetShopName.length ? savedShopName : targetShopName;
+
+  return shortest.length >= 6 && longest.includes(shortest);
+}
+
 export function findRecentCategoryForShop(expenses: Expense[], shopName: string): ReceiptCategorySuggestion | null {
   const normalizedShopName = normalizeShopNameForCategory(shopName);
   if (!normalizedShopName) {
@@ -16,7 +31,7 @@ export function findRecentCategoryForShop(expenses: Expense[], shopName: string)
   }
 
   const matchedExpense = expenses.find(
-    (expense) => normalizeShopNameForCategory(expense.shopName) === normalizedShopName,
+    (expense) => isSameOrRelatedShopName(normalizeShopNameForCategory(expense.shopName), normalizedShopName),
   );
 
   if (!matchedExpense) {

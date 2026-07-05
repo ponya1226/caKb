@@ -1,5 +1,31 @@
 # Development History
 
+## 2026-07-05 Google Vision Candidate Tuning
+
+目的: Google Vision OCRで文字認識精度が改善したため、OCR後の店舗名候補とカテゴリ初期値の精度を上げる。
+
+主な変更:
+
+- 店舗候補抽出でブランド行と支店行を結合した候補を優先
+- 支店名だけの候補が先頭に出にくいように調整
+- 英字ロゴ行と日本語ブランド行が併存する場合は日本語ブランド行を優先
+- 保存済み店舗名によるカテゴリ推定で、ブランド名のみと支店名込みの揺れを許容
+- 匿名化したGoogle Vision OCR風テキストの回帰テストを追加
+
+検証結果:
+
+- `npm run test -- src/lib/receiptParser.test.ts`
+- `npm run test -- src/lib/categorySuggestion.test.ts`
+- `npm run lint`
+- `npm run test`
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- 店舗別カテゴリルールをユーザーが明示的に管理するUIは未実装
+- 店舗候補抽出はヒューリスティックのため、実レシート結果を匿名化して継続的にテストへ追加する必要がある
+
 ## 2026-07-05 Google Vision Proxy Deploy Prep
 
 目的: Google Cloud側の基本準備完了後、caKbのGoogle Vision OCR ProxyをCloud Runへデプロイし、GitHub Pagesから疎通確認できる状態に近づける。
