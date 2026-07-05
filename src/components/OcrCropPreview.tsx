@@ -18,7 +18,7 @@ type OcrCropPreviewProps = {
   imageAlt: string;
   crop: OcrCropRatios;
   compact?: boolean;
-  onCropChange: (crop: OcrCropRatios) => void;
+  onCropChange?: (crop: OcrCropRatios) => void;
 };
 
 const sideLabels: Record<keyof OcrCropRatios, string> = {
@@ -120,7 +120,7 @@ export function OcrCropPreview({ imageSrc, imageAlt, crop, compact = false, onCr
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
     const preview = previewRef.current;
-    if (!preview || !drag) {
+    if (!preview || !drag || !onCropChange) {
       return;
     }
 
@@ -154,21 +154,25 @@ export function OcrCropPreview({ imageSrc, imageAlt, crop, compact = false, onCr
           left: `${crop.left}%`,
         }}
       >
-        <button
-          className="ocr-crop-move-area"
-          type="button"
-          aria-label="OCR範囲を移動"
-          onPointerDown={(event) => startDrag("move", event)}
-        />
-        {(Object.keys(sideLabels) as Array<keyof OcrCropRatios>).map((side) => (
-          <button
-            key={side}
-            className={`ocr-crop-handle ${side}`}
-            type="button"
-            aria-label={`OCR範囲の${sideLabels[side]}端を調整`}
-            onPointerDown={(event) => startDrag(side, event)}
-          />
-        ))}
+        {onCropChange && (
+          <>
+            <button
+              className="ocr-crop-move-area"
+              type="button"
+              aria-label="OCR範囲を移動"
+              onPointerDown={(event) => startDrag("move", event)}
+            />
+            {(Object.keys(sideLabels) as Array<keyof OcrCropRatios>).map((side) => (
+              <button
+                key={side}
+                className={`ocr-crop-handle ${side}`}
+                type="button"
+                aria-label={`OCR範囲の${sideLabels[side]}端を調整`}
+                onPointerDown={(event) => startDrag(side, event)}
+              />
+            ))}
+          </>
+        )}
       </div>
     </div>
   );

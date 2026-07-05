@@ -141,8 +141,8 @@ export async function runOcrWithRangeMode(
     return {
       provider: result.provider,
       text: result.text,
-      crop: options.crop,
-      presetLabel: "Google Vision",
+      crop: FULL_OCR_CROP,
+      presetLabel: "全体",
       preprocess: false,
       preprocessMode: options.preprocessMode ?? "contrast",
       ...(typeof result.confidence === "number" ? { confidence: result.confidence } : {}),

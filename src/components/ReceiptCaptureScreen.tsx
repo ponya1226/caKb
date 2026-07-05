@@ -6,8 +6,9 @@ import { DEFAULT_CATEGORY_ID } from "../constants/categories";
 import { toDateInputValue } from "../lib/date";
 import { formatFileSize } from "../lib/format";
 import { detectOcrCrop, type OcrCropRatios, type OcrPreprocessMode } from "../lib/ocr";
-import { getOcrProviderLabel, isGoogleVisionProviderConfigured } from "../lib/ocrProviders";
+import { isGoogleVisionProviderConfigured } from "../lib/ocrProviders";
 import {
+  FULL_OCR_CROP,
   getOcrPresets,
   getPairedCropSide,
   MAX_COMBINED_CROP_PERCENT,
@@ -104,7 +105,8 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   const selectedPresetLabel = selectedReceipt?.presetLabel ?? null;
   const totalFileSize = selectedFiles.reduce((total, file) => total + file.size, 0);
   const hasLargeSelectedFile = selectedFiles.some((file) => file.size > LARGE_RECEIPT_IMAGE_BYTES);
-  const isDetectingCrop = receiptSelections.some((selection) => selection.cropStatus === "detecting");
+  const isGoogleVisionSelected = ocrProvider === "googleVision";
+  const isDetectingCrop = !isGoogleVisionSelected && receiptSelections.some((selection) => selection.cropStatus === "detecting");
   const parseResult = ocrText ? parseReceiptText(ocrText) : null;
   const ocrPresets = useMemo(() => getOcrPresets(savedOcrCrop), [savedOcrCrop]);
   const isGoogleVisionAvailable = isGoogleVisionProviderConfigured();
@@ -163,17 +165,39 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     });
   }
 
+  function getProviderDefaultCrop(provider: OcrProvider): OcrCropRatios {
+    return provider === "googleVision" ? FULL_OCR_CROP : savedOcrCrop ?? RECEIPT_BODY_CROP;
+  }
+
   function createReceiptSelection(file: File): ReceiptSelection {
+    const isGoogleVision = ocrProvider === "googleVision";
     return {
       file,
       previewUrl: URL.createObjectURL(file),
-      crop: savedOcrCrop ?? RECEIPT_BODY_CROP,
+      crop: getProviderDefaultCrop(ocrProvider),
       mode: "manual",
-      presetLabel: "自動検出中",
-      preprocess: true,
+      presetLabel: isGoogleVision ? "全体" : "自動検出中",
+      preprocess: !isGoogleVision,
       preprocessMode: "contrast",
-      cropStatus: "detecting",
+      cropStatus: isGoogleVision ? "preset" : "detecting",
     };
+  }
+
+  function applyProviderDefaultRange(provider: OcrProvider) {
+    setReceiptSelections((currentSelections) =>
+      currentSelections.map((selection) => {
+        const isGoogleVision = provider === "googleVision";
+        return {
+          ...selection,
+          crop: getProviderDefaultCrop(provider),
+          mode: "manual",
+          presetLabel: isGoogleVision ? "全体" : "既定補正",
+          preprocess: !isGoogleVision,
+          preprocessMode: "contrast",
+          cropStatus: isGoogleVision ? "preset" : "fallback",
+        };
+      }),
+    );
   }
 
   function updateReceiptSelection(index: number, updater: (selection: ReceiptSelection) => ReceiptSelection) {
@@ -254,7 +278,9 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     setError(null);
     setPickedCategorySuggestion(null);
     event.target.value = "";
-    void detectCropForSelections(nextSelections);
+    if (ocrProvider !== "googleVision") {
+      void detectCropForSelections(nextSelections);
+    }
   }
 
   function createDraftFromOcr(file: File, imageUrl: string, ocrResult: OcrRunResult): ReceiptDraft {
@@ -338,10 +364,10 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     updateSelectedReceipt((selection) => ({
       ...selection,
       mode: "auto",
-      presetLabel: null,
+      presetLabel: ocrProvider === "googleVision" ? "全体" : null,
       preprocess: false,
       preprocessMode: "contrast",
-      crop: savedOcrCrop ?? RECEIPT_BODY_CROP,
+      crop: getProviderDefaultCrop(ocrProvider),
       cropStatus: "auto",
     }));
   }
@@ -418,7 +444,9 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
           preprocessMode: ocrResult.preprocessMode,
           cropStatus: ocrResult.presetLabel === "自動" ? "auto" : selection.cropStatus,
         }));
-        onSaveOcrCrop(ocrResult.crop);
+        if (activeProvider !== "googleVision") {
+          onSaveOcrCrop(ocrResult.crop);
+        }
         return;
       }
 
@@ -514,14 +542,20 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
           <button
             className={ocrProvider === "localTesseract" ? "button button-primary" : "button button-secondary"}
             type="button"
-            onClick={() => setOcrProvider("localTesseract")}
+            onClick={() => {
+              setOcrProvider("localTesseract");
+              applyProviderDefaultRange("localTesseract");
+            }}
           >
             ローカルOCR
           </button>
           <button
             className={ocrProvider === "googleVision" ? "button button-primary" : "button button-secondary"}
             type="button"
-            onClick={() => setOcrProvider("googleVision")}
+            onClick={() => {
+              setOcrProvider("googleVision");
+              applyProviderDefaultRange("googleVision");
+            }}
             disabled={!isGoogleVisionAvailable}
           >
             高精度OCR
@@ -563,7 +597,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
           imageSrc={imagePreviewUrl}
           imageAlt="選択したレシート"
           crop={ocrCrop}
-          onCropChange={applyManualCrop}
+          onCropChange={isGoogleVisionSelected ? undefined : applyManualCrop}
         />
       )}
 
@@ -572,67 +606,73 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
           <summary>範囲の補助設定</summary>
           <div className="section-title-row">
             <h2>OCR範囲</h2>
-            <div className="preset-actions">
-              <button className={ocrMode === "auto" ? "button button-primary button-compact" : "button button-secondary button-compact"} type="button" onClick={applyAutoMode}>
-                <Sparkles size={16} aria-hidden="true" />
-                自動
-              </button>
-              {receiptSelections.length > 1 && (
-                <button className="button button-secondary button-compact" type="button" onClick={applySelectedCropToAll}>
-                  <Copy size={16} aria-hidden="true" />
-                  全画像に適用
+            {!isGoogleVisionSelected && (
+              <div className="preset-actions">
+                <button className={ocrMode === "auto" ? "button button-primary button-compact" : "button button-secondary button-compact"} type="button" onClick={applyAutoMode}>
+                  <Sparkles size={16} aria-hidden="true" />
+                  自動
                 </button>
-              )}
-              {ocrPresets.map((preset) => (
-                <button
-                  className={
-                    ocrMode === "manual" && selectedPresetLabel === preset.label
-                      ? "button button-primary button-compact"
-                      : "button button-secondary button-compact"
-                  }
-                  key={preset.id}
-                  type="button"
-                  onClick={() => applyPreset(preset)}
-                >
-                  {preset.id === "body" && <SlidersHorizontal size={16} aria-hidden="true" />}
-                  {preset.label}
+                {receiptSelections.length > 1 && (
+                  <button className="button button-secondary button-compact" type="button" onClick={applySelectedCropToAll}>
+                    <Copy size={16} aria-hidden="true" />
+                    全画像に適用
+                  </button>
+                )}
+                {ocrPresets.map((preset) => (
+                  <button
+                    className={
+                      ocrMode === "manual" && selectedPresetLabel === preset.label
+                        ? "button button-primary button-compact"
+                        : "button button-secondary button-compact"
+                    }
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyPreset(preset)}
+                  >
+                    {preset.id === "body" && <SlidersHorizontal size={16} aria-hidden="true" />}
+                    {preset.label}
+                  </button>
+                ))}
+                <button className="button button-secondary button-compact" type="button" onClick={() => onSaveOcrCrop(ocrCrop)}>
+                  <Save size={16} aria-hidden="true" />
+                  既定にする
                 </button>
-              ))}
-              <button className="button button-secondary button-compact" type="button" onClick={() => onSaveOcrCrop(ocrCrop)}>
-                <Save size={16} aria-hidden="true" />
-                既定にする
-              </button>
-            </div>
+              </div>
+            )}
           </div>
           <p className="subtle-text">
-            {selectedReceipt ? getCropDescription(selectedReceipt) : ""}
+            {ocrProvider === "googleVision"
+              ? "高精度OCRでは写真全体を送信します。範囲調整はローカルOCR用の補助機能です。"
+              : selectedReceipt ? getCropDescription(selectedReceipt) : ""}
           </p>
-          <div className="crop-control-grid">
-            {[
-              ["上", "top"],
-              ["下", "bottom"],
-              ["左", "left"],
-              ["右", "right"],
-            ].map(([label, side]) => {
-              const cropSide = side as keyof OcrCropRatios;
-              const maxValue = Math.max(0, MAX_COMBINED_CROP_PERCENT - ocrCrop[getPairedCropSide(cropSide)]);
-              return (
-                <label className="range-field" key={side}>
-                  <span>
-                    {label} {ocrCrop[cropSide]}%
-                  </span>
-                  <input
-                    type="range"
-                    min="0"
-                    max={maxValue}
-                    step="1"
-                    value={ocrCrop[cropSide]}
-                    onChange={(event) => handleCropChange(cropSide, Number(event.target.value))}
-                  />
-                </label>
-              );
-            })}
-          </div>
+          {!isGoogleVisionSelected && (
+            <div className="crop-control-grid">
+              {[
+                ["上", "top"],
+                ["下", "bottom"],
+                ["左", "left"],
+                ["右", "right"],
+              ].map(([label, side]) => {
+                const cropSide = side as keyof OcrCropRatios;
+                const maxValue = Math.max(0, MAX_COMBINED_CROP_PERCENT - ocrCrop[getPairedCropSide(cropSide)]);
+                return (
+                  <label className="range-field" key={side}>
+                    <span>
+                      {label} {ocrCrop[cropSide]}%
+                    </span>
+                    <input
+                      type="range"
+                      min="0"
+                      max={maxValue}
+                      step="1"
+                      value={ocrCrop[cropSide]}
+                      onChange={(event) => handleCropChange(cropSide, Number(event.target.value))}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </details>
       )}
 
