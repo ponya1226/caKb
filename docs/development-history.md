@@ -1,5 +1,30 @@
 # Development History
 
+## 2026-07-05 OCR Candidate Flow and Branch Matching Step
+
+目的: Google Vision OCRを使う実運用で、候補選択の状態を見分けやすくし、高精度OCRを自然に使える導線にしつつ、同じ店舗ブランドの支店違いでもカテゴリ推定が効くようにする。
+
+主な変更:
+
+- OCR後の日付、店舗名、金額候補で選択中の候補を強調表示
+- Google Vision OCR設定済みの場合は高精度OCRを初期選択し、OCR実行ボタンにも反映
+- OCR方式の選択肢で高精度OCRを先に表示し、推奨であることを明示
+- 店舗カテゴリ推定で、正規化一致と部分一致に加え、共通するブランド接頭辞が十分長い場合を同系列店舗として扱うように変更
+- 支店名が異なる店舗カテゴリ推定の回帰テストを追加
+
+検証結果:
+
+- `npm run test -- src/lib/categorySuggestion.test.ts`
+- `npm run lint`
+- `npm run test`
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- 店舗ブランド判定はヒューリスティックのため、誤適用があれば匿名化した実例をもとに調整する
+- Google Vision Proxyの利用制限として `OCR_SHARED_TOKEN` などの導入は別ステップで対応する
+
 ## 2026-07-05 Shop Category Rules Step
 
 目的: Google Vision OCRで文字認識精度が改善したため、保存時に店舗別カテゴリルールを作成し、次回以降のカテゴリ初期値を安定させる。

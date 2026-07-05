@@ -816,6 +816,12 @@ textarea {
   background: #ffffff;
 }
 
+.candidate-chip.active {
+  border-color: #0f766e;
+  background: #ecfdf5;
+  box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.28);
+}
+
 .candidate-chip span {
   font-weight: 800;
 }
@@ -825,6 +831,24 @@ textarea {
   color: var(--text-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.candidate-chip.active span {
+  color: #064e3b;
+}
+
+.candidate-chip.active small {
+  color: #0f766e;
+}
+
+.candidate-selected-badge {
+  width: fit-content;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #ccfbf1;
+  color: #115e59;
+  font-size: 0.76rem;
+  font-weight: 800;
 }
 
 .picked-summary {

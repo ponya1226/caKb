@@ -59,6 +59,21 @@ describe("categorySuggestion", () => {
     });
   });
 
+  it("matches saved categories across different branches of the same shop brand", () => {
+    const result = findRecentCategoryForShop(
+      [
+        createExpense({ id: "expense-branch", shopName: "サンプル茶 架空新都心店", categoryId: "entertainment" }),
+      ],
+      "サンプル茶 海岸店",
+    );
+
+    expect(result).toEqual({
+      categoryId: "entertainment",
+      matchedShopName: "サンプル茶 架空新都心店",
+      source: "history",
+    });
+  });
+
   it("matches explicit shop category rules before saved expense history", () => {
     const rules: ShopCategoryRule[] = [
       {
@@ -79,6 +94,17 @@ describe("categorySuggestion", () => {
     });
   });
 
+  it("matches explicit shop category rules across different branches of the same shop brand", () => {
+    const rules = upsertShopCategoryRule([], "サンプル茶 架空新都心店", "entertainment", "2026-07-01T00:00:00.000Z");
+
+    expect(findCategoryRuleForShop(rules, "サンプル茶 海岸店")).toEqual({
+      categoryId: "entertainment",
+      matchedShopName: "サンプル茶 架空新都心店",
+      source: "rule",
+      ruleId: rules[0].id,
+    });
+  });
+
   it("upserts explicit shop category rules for related shop names", () => {
     const firstRules = upsertShopCategoryRule([], "SAMPLE TEA 架空新都心店", "entertainment", "2026-07-01T00:00:00.000Z");
     const nextRules = upsertShopCategoryRule(firstRules, "SAMPLE TEA", "food", "2026-07-02T00:00:00.000Z");
@@ -96,6 +122,7 @@ describe("categorySuggestion", () => {
   it("returns null when there is no usable shop match", () => {
     expect(findRecentCategoryForShop([createExpense({ shopName: "別店舗" })], "サンプルストア")).toBeNull();
     expect(findRecentCategoryForShop([createExpense({ shopName: "サンプルストア" })], "")).toBeNull();
+    expect(findRecentCategoryForShop([createExpense({ shopName: "AB店" })], "AB商店")).toBeNull();
     expect(findCategoryRuleForShop([], "サンプルストア")).toBeNull();
   });
 });

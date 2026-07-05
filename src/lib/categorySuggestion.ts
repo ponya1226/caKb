@@ -1,6 +1,9 @@
 import { createId } from "./id";
 import type { Expense, ReceiptCategorySuggestion, ShopCategoryRule } from "../types";
 
+const MIN_RELATED_SHOP_PREFIX_LENGTH = 4;
+const MIN_RELATED_SHOP_PREFIX_RATIO = 0.45;
+
 export function normalizeShopNameForCategory(value: string): string {
   return value
     .normalize("NFKC")
@@ -8,6 +11,30 @@ export function normalizeShopNameForCategory(value: string): string {
     .replace(/\s/g, "")
     .replace(/[ー―—‐・\-_/\\|()[\]{}"'“”.,:;!?@#$%^&*+=<>~`]/g, "")
     .replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+function getCommonPrefixLength(firstValue: string, secondValue: string): number {
+  const maxLength = Math.min(firstValue.length, secondValue.length);
+  let length = 0;
+
+  while (length < maxLength && firstValue[length] === secondValue[length]) {
+    length += 1;
+  }
+
+  return length;
+}
+
+function hasRelatedShopPrefix(savedShopName: string, targetShopName: string): boolean {
+  const commonPrefixLength = getCommonPrefixLength(savedShopName, targetShopName);
+  const shortestLength = Math.min(savedShopName.length, targetShopName.length);
+  if (shortestLength === 0) {
+    return false;
+  }
+
+  return (
+    commonPrefixLength >= MIN_RELATED_SHOP_PREFIX_LENGTH &&
+    commonPrefixLength / shortestLength >= MIN_RELATED_SHOP_PREFIX_RATIO
+  );
 }
 
 function isSameOrRelatedShopName(savedShopName: string, targetShopName: string): boolean {
@@ -22,7 +49,7 @@ function isSameOrRelatedShopName(savedShopName: string, targetShopName: string):
   const shortest = savedShopName.length <= targetShopName.length ? savedShopName : targetShopName;
   const longest = savedShopName.length > targetShopName.length ? savedShopName : targetShopName;
 
-  return shortest.length >= 6 && longest.includes(shortest);
+  return (shortest.length >= 6 && longest.includes(shortest)) || hasRelatedShopPrefix(savedShopName, targetShopName);
 }
 
 export function createShopCategoryRule(shopName: string, categoryId: string, now = new Date().toISOString()): ShopCategoryRule | null {

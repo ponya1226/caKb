@@ -44,10 +44,12 @@ type ReceiptCaptureScreenProps = {
 function CandidateButtons<T>({
   title,
   candidates,
+  selectedValue,
   onPick,
 }: {
   title: string;
   candidates: Array<ReceiptCandidate<T>>;
+  selectedValue: T | null | undefined;
   onPick: (value: T) => void;
 }) {
   return (
@@ -57,21 +59,31 @@ function CandidateButtons<T>({
         <p className="subtle-text">候補なし</p>
       ) : (
         <div className="candidate-list">
-          {candidates.map((candidate) => (
-            <button
-              key={`${candidate.label}-${candidate.line}`}
-              className="candidate-chip"
-              type="button"
-              onClick={() => onPick(candidate.value)}
-            >
-              <span>{candidate.label}</span>
-              <small>{candidate.line}</small>
-            </button>
-          ))}
+          {candidates.map((candidate) => {
+            const isSelected = candidate.value === selectedValue;
+
+            return (
+              <button
+                key={`${candidate.label}-${candidate.line}`}
+                className={isSelected ? "candidate-chip active" : "candidate-chip"}
+                type="button"
+                aria-pressed={isSelected}
+                onClick={() => onPick(candidate.value)}
+              >
+                <span>{candidate.label}</span>
+                <small>{candidate.line}</small>
+                {isSelected && <small className="candidate-selected-badge">選択中</small>}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
   );
+}
+
+function getInitialOcrProvider(): OcrProvider {
+  return isGoogleVisionProviderConfigured() ? "googleVision" : "localTesseract";
 }
 
 export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedOcrCrop, onSaveOcrCrop }: ReceiptCaptureScreenProps) {
@@ -92,8 +104,8 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   const [pickedShopName, setPickedShopName] = useState("");
   const [pickedAmount, setPickedAmount] = useState(0);
   const [pickedCategorySuggestion, setPickedCategorySuggestion] = useState<ReceiptCategorySuggestion | null>(null);
-  const [ocrProvider, setOcrProvider] = useState<OcrProvider>("localTesseract");
-  const [lastOcrProvider, setLastOcrProvider] = useState<OcrProvider>("localTesseract");
+  const [ocrProvider, setOcrProvider] = useState<OcrProvider>(getInitialOcrProvider);
+  const [lastOcrProvider, setLastOcrProvider] = useState<OcrProvider>(getInitialOcrProvider);
   const [lastOcrBlocks, setLastOcrBlocks] = useState<ReceiptDraft["ocrBlocks"]>(undefined);
 
   const selectedReceipt = receiptSelections[selectedFileIndex] ?? null;
@@ -272,7 +284,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     setSelectedFileIndex(0);
     setOcrText("");
     setOcrImagePreviewUrl(null);
-    setLastOcrProvider("localTesseract");
+    setLastOcrProvider(ocrProvider);
     setLastOcrBlocks(undefined);
     setProgress(null);
     setError(null);
@@ -511,6 +523,22 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     }]);
   }
 
+  function getOcrRunButtonLabel(): string {
+    if (isDetectingCrop) {
+      return "範囲検出中";
+    }
+
+    if (isRunning) {
+      return "OCR中";
+    }
+
+    if (selectedFiles.length > 1) {
+      return isGoogleVisionSelected ? "高精度OCRで一括実行" : "一括OCR実行";
+    }
+
+    return isGoogleVisionSelected ? "高精度OCR実行" : "OCR実行";
+  }
+
   return (
     <section className="screen">
       <div className="screen-heading">
@@ -540,16 +568,6 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
         </div>
         <div className="provider-selector" role="group" aria-label="OCR方式">
           <button
-            className={ocrProvider === "localTesseract" ? "button button-primary" : "button button-secondary"}
-            type="button"
-            onClick={() => {
-              setOcrProvider("localTesseract");
-              applyProviderDefaultRange("localTesseract");
-            }}
-          >
-            ローカルOCR
-          </button>
-          <button
             className={ocrProvider === "googleVision" ? "button button-primary" : "button button-secondary"}
             type="button"
             onClick={() => {
@@ -558,7 +576,17 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
             }}
             disabled={!isGoogleVisionAvailable}
           >
-            高精度OCR
+            高精度OCR（推奨）
+          </button>
+          <button
+            className={ocrProvider === "localTesseract" ? "button button-primary" : "button button-secondary"}
+            type="button"
+            onClick={() => {
+              setOcrProvider("localTesseract");
+              applyProviderDefaultRange("localTesseract");
+            }}
+          >
+            ローカルOCR
           </button>
         </div>
         {ocrProvider === "googleVision" ? (
@@ -692,7 +720,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       <div className="button-row">
         <button className="button button-primary" type="button" onClick={() => void handleRunOcr()} disabled={!selectedFile || isRunning || isDetectingCrop}>
           <Play size={18} aria-hidden="true" />
-          {isDetectingCrop ? "範囲検出中" : isRunning ? "OCR中" : selectedFiles.length > 1 ? "一括OCR実行" : "OCR実行"}
+          {getOcrRunButtonLabel()}
         </button>
       </div>
 
@@ -718,9 +746,9 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
 
       {parseResult && (
         <div className="candidate-panel">
-          <CandidateButtons title="日付候補" candidates={parseResult.dateCandidates} onPick={setPickedDate} />
-          <CandidateButtons title="店舗名候補" candidates={parseResult.shopNameCandidates} onPick={pickShopName} />
-          <CandidateButtons title="金額候補" candidates={parseResult.amountCandidates} onPick={setPickedAmount} />
+          <CandidateButtons title="日付候補" candidates={parseResult.dateCandidates} selectedValue={pickedDate} onPick={setPickedDate} />
+          <CandidateButtons title="店舗名候補" candidates={parseResult.shopNameCandidates} selectedValue={pickedShopName} onPick={pickShopName} />
+          <CandidateButtons title="金額候補" candidates={parseResult.amountCandidates} selectedValue={pickedAmount} onPick={setPickedAmount} />
           <div className="picked-summary">
             <span>{pickedDate}</span>
             <span>{pickedShopName || "店舗名未選択"}</span>
