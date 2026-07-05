@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from "react";
 import { CalendarDays, Camera, Home, List, Plus, ReceiptText, Settings } from "lucide-react";
 import { ExpenseEditor } from "./components/ExpenseEditor";
 import { useBudgetData } from "./hooks/useBudgetData";
+import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { normalizeShopNameForCategory } from "./lib/categorySuggestion";
 import type { ExpenseFormValues, ReceiptDraft, ReceiptSaveOptions } from "./types";
 
@@ -40,6 +41,7 @@ export default function App() {
   const [receiptBatchTotal, setReceiptBatchTotal] = useState(0);
   const [isManualQuickAddOpen, setIsManualQuickAddOpen] = useState(false);
   const budgetData = useBudgetData();
+  const firebaseAuth = useFirebaseAuth();
   const receiptDraft = receiptDrafts[0] ?? null;
   const receiptQueuePosition = receiptDraft
     ? {
@@ -196,7 +198,7 @@ export default function App() {
         </div>
         <div>
           <span className="app-name">ローカル家計簿</span>
-          <span className="app-subtitle">IndexedDB保存</span>
+          <span className="app-subtitle">{firebaseAuth.user ? "ログイン中 / IndexedDB保存" : "IndexedDB保存"}</span>
         </div>
       </header>
 
@@ -268,6 +270,7 @@ export default function App() {
               onAddCategory={budgetData.addCategory}
               onUpdateCategory={budgetData.updateCategory}
               onDeleteCategory={budgetData.removeCategory}
+              firebaseAuth={firebaseAuth}
             />
           )}
         </Suspense>

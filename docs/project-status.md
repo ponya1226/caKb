@@ -10,6 +10,8 @@ Last Updated: 2026-07-05
 - Firebase Web SDK、Firebase環境変数検出、Firestore path定義
 - IndexedDB local repositoryを `BudgetRepository` interface経由に整理
 - Firestore Security Rules雛形とFirebase初期設定ドキュメント
+- Firebase Auth Googleログイン/ログアウトUI
+- ログイン成功時の `users/{uid}` profile作成/更新
 - OCR候補ボタンの選択中表示
 - Google Vision OCRが設定済みの場合の高精度OCR優先導線
 - 支店名が異なる同系列店舗に対するカテゴリ推定
@@ -84,7 +86,6 @@ Last Updated: 2026-07-05
 
 ## Not Started
 
-- Firebase AuthログインUI
 - Firestore cloud repository実装
 - IndexedDBからFirestoreへの手動移行UI
 - 家族共有
@@ -95,7 +96,7 @@ Last Updated: 2026-07-05
 
 ## Technical Debt
 
-- 現在の支出データ正本はまだIndexedDBで、Firebase SDKとRules雛形は追加済みだが、Firestore repository、認証UI、移行UIは未実装。
+- 現在の支出データ正本はまだIndexedDBで、Firebase Auth UIは追加済みだが、Firestore repositoryと移行UIは未実装。
 - Firestore Security Rulesは雛形段階で、Firebase EmulatorまたはRules testによる検証は未実施。
 - Google Sheets同期は方針のみで、Sheets API連携、認可、同期ログ、失敗時再試行は未実装。
 - カテゴリ削除は支出で未使用の場合のみ可能。使用中カテゴリの統合や一括付け替えは未対応。

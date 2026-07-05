@@ -1,5 +1,32 @@
 # Development History
 
+## 2026-07-05 Firebase Auth UI Step
+
+目的: Firestore正本化の前段として、Firebase設定済み環境でGoogleログイン/ログアウトできるUIを追加し、ログイン成功時にユーザーprofileをFirestoreへ作成できるようにする。
+
+主な変更:
+
+- Firebase Auth状態を扱う `useFirebaseAuth` hookを追加
+- Googleログイン/ログアウト処理を追加
+- 設定画面にアカウントセクションを追加
+- ログイン成功時に `users/{uid}` profileを作成/更新
+- Firebase未設定時は従来どおりIndexedDB正本で動作し、ログインボタンを無効化
+- user profile変換の回帰テストを追加
+
+検証結果:
+
+- `npm run lint`
+- `npm run test -- src/lib/userProfile.test.ts src/lib/firebaseConfig.test.ts src/lib/firestorePaths.test.ts`
+- `npm run test`
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- 支出データの保存先はまだIndexedDB
+- Firestore cloud repositoryとIndexedDBからの手動移行UIは未実装
+- household作成、家族招待、Google Vision ProxyのID token検証は未実装
+
 ## 2026-07-05 Firebase Foundation Step
 
 目的: 家族共有とクラウド正本化へ進むため、現行ローカル動作を維持したままFirebase Auth / Firestoreの最小土台を追加する。

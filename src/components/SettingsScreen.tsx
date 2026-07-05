@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Database, Download, FileJson, Plus, RefreshCw, Save, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Upload } from "lucide-react";
+import { Cloud, Database, Download, FileJson, LogIn, LogOut, Plus, RefreshCw, Save, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Upload } from "lucide-react";
 import { buildBackupJson, downloadJson, parseBackupJson } from "../lib/backup";
 import { upsertShopCategoryRule } from "../lib/categorySuggestion";
 import { buildExpensesCsv, downloadCsv } from "../lib/csv";
 import { currentMonthKey, formatMonthLabel } from "../lib/date";
 import { formatFileSize } from "../lib/format";
+import type { FirebaseAuthState } from "../hooks/useFirebaseAuth";
 import type { AppSettings, BackupImportMode, Category, Expense, StorageHealth } from "../types";
 
 type SettingsScreenProps = {
@@ -20,6 +21,7 @@ type SettingsScreenProps = {
   onAddCategory: (values: Pick<Category, "name" | "color">) => Promise<void>;
   onUpdateCategory: (category: Category, values: Pick<Category, "name" | "color">) => Promise<void>;
   onDeleteCategory: (category: Category) => Promise<void>;
+  firebaseAuth: FirebaseAuthState;
 };
 
 type CategoryDraft = Pick<Category, "name" | "color">;
@@ -73,6 +75,7 @@ export function SettingsScreen({
   onAddCategory,
   onUpdateCategory,
   onDeleteCategory,
+  firebaseAuth,
 }: SettingsScreenProps) {
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importMode, setImportMode] = useState<BackupImportMode>("append");
@@ -240,6 +243,55 @@ export function SettingsScreen({
       </div>
 
       {statusMessage && <div className="inline-status">{statusMessage}</div>}
+
+      <section className="content-section">
+        <div className="section-title-row">
+          <h2>アカウント</h2>
+          <Cloud size={20} aria-hidden="true" />
+        </div>
+
+        <div className="account-panel">
+          <div>
+            <strong>{firebaseAuth.user ? firebaseAuth.user.displayName : firebaseAuth.isConfigured ? "未ログイン" : "Firebase未設定"}</strong>
+            <span>
+              {firebaseAuth.user
+                ? firebaseAuth.user.email || "メールアドレス未設定"
+                : firebaseAuth.isConfigured
+                  ? "Googleログインでクラウド化準備を開始できます"
+                  : "Firebase環境変数を設定するとログイン機能を使えます"}
+            </span>
+          </div>
+          {firebaseAuth.user ? (
+            <button className="button button-secondary" type="button" onClick={() => void firebaseAuth.signOut()} disabled={firebaseAuth.isWorking}>
+              <LogOut size={18} aria-hidden="true" />
+              ログアウト
+            </button>
+          ) : (
+            <button
+              className="button button-secondary"
+              type="button"
+              onClick={() => void firebaseAuth.signInWithGoogle()}
+              disabled={!firebaseAuth.isConfigured || firebaseAuth.isLoading || firebaseAuth.isWorking}
+            >
+              <LogIn size={18} aria-hidden="true" />
+              Googleでログイン
+            </button>
+          )}
+        </div>
+
+        {firebaseAuth.error && (
+          <div className="inline-error account-error">
+            <p>{firebaseAuth.error}</p>
+            <button className="button button-secondary button-compact" type="button" onClick={firebaseAuth.clearError}>
+              閉じる
+            </button>
+          </div>
+        )}
+
+        <p className="subtle-text storage-note">
+          現時点ではログインしても支出データの保存先はIndexedDBです。クラウド移行は次ステップで明示操作として追加します。
+        </p>
+      </section>
 
       <section className="content-section">
         <div className="section-title-row">

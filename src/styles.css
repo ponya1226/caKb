@@ -424,6 +424,34 @@ textarea {
   gap: 10px;
 }
 
+.account-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.account-panel div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.account-panel span {
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-error {
+  margin-top: 10px;
+}
+
 .compact-list {
   gap: 8px;
 }
@@ -1149,6 +1177,7 @@ textarea {
 @media (max-width: 420px) {
   .category-form,
   .category-row,
+  .account-panel,
   .metrics-grid,
   .expense-item,
   .picked-summary,

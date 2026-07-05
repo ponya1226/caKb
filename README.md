@@ -78,3 +78,5 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=
 ```
 
 詳細は `docs/firebase-cloud-setup.md` と `docs/decisions/0006-firebase-foundation.md` を参照してください。Firebase設定値やservice account keyはリポジトリへ追加しないでください。
+
+Firebase設定後は、設定画面のアカウント欄からGoogleログインできます。現時点ではログインしても支出データの保存先はIndexedDBのままです。Firestoreへの手動移行UIは次ステップで追加します。
