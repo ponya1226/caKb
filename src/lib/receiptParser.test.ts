@@ -85,6 +85,41 @@ describe("parseReceiptText", () => {
     expect(result.amountCandidates[0]?.value).toBe(481);
   });
 
+  it("prioritizes total over cash tendered and excludes change amounts", () => {
+    const result = parseReceiptText(`
+      SAMPLE MARKET
+      サンプル団地店
+      TEL
+      000-0000-0000
+      領収証
+      株式会社 サンプルフード
+      登録番号 T0000000000000
+      レジ 0000 2026/7/5(日) 14:12
+      商品 A 158
+      小計
+      ¥158
+      外税 8%対象額
+      ¥158
+      外税8%
+      ¥12
+      合計
+      ¥170
+      現金
+      ¥1,020
+      お釣り
+      ¥850
+      お買上商品数:1
+    `);
+
+    expect(result.shopNameCandidates[0]?.value).toBe("SAMPLE MARKET サンプル団地店");
+    expect(result.dateCandidates[0]?.value).toBe("2026-07-05");
+    expect(result.amountCandidates[0]?.value).toBe(170);
+    expect(result.amountCandidates.map((candidate) => candidate.value)).not.toContain(850);
+    expect(result.amountCandidates.find((candidate) => candidate.value === 1020)?.confidence).toBeLessThan(
+      result.amountCandidates[0]?.confidence ?? 0,
+    );
+  });
+
   it("normalizes full-width numbers and Japanese date notation", () => {
     const result = parseReceiptText(`
       テスト薬局

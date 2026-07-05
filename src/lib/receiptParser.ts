@@ -3,6 +3,8 @@ import type { ReceiptCandidate, ReceiptParseResult } from "../types";
 const FINAL_AMOUNT_KEYWORD_PATTERN =
   /(合\s*計|現\s*計|お\s*買\s*上\s*計|お\s*買\s*い\s*上\s*げ\s*計|総\s*合\s*計|請\s*求|支\s*払|お\s*支\s*払|Pay\s*Pay|y\s*Pay|計\s*$)/i;
 const SUPPORTING_AMOUNT_KEYWORD_PATTERN = /(税\s*込|小\s*計|消\s*費\s*税)/;
+const CASH_TENDERED_KEYWORD_PATTERN = /(現\s*金|お\s*預|預\s*り)/;
+const CHANGE_AMOUNT_KEYWORD_PATTERN = /(お\s*釣|おつり|釣\s*り|釣銭)/;
 const SHOP_EXCLUDE_PATTERN = /(領収|レシート|明細|登録番号|TEL|電話|合計|税込|小計|現計|釣|お預|クレジット|ポイント)/i;
 const MONEY_AMOUNT_PATTERN = /¥\s*[%A-Za-z]*\s*[\dOo〇○Cc¢][\dOo〇○Cc¢,\s.．()[\]（）]{0,14}(?:円)?/g;
 const PLAIN_AMOUNT_PATTERN = /[\d][\d,\s]{1,12}(?:円)?/g;
@@ -142,6 +144,14 @@ function extractAmountsFromLine(line: string): number[] {
 }
 
 function getAmountConfidence(line: string): number {
+  if (CHANGE_AMOUNT_KEYWORD_PATTERN.test(line)) {
+    return 0.1;
+  }
+
+  if (CASH_TENDERED_KEYWORD_PATTERN.test(line)) {
+    return 0.2;
+  }
+
   if (FINAL_AMOUNT_KEYWORD_PATTERN.test(line)) {
     return 0.98;
   }
@@ -165,6 +175,26 @@ function shouldSkipFallbackAmountLine(line: string): boolean {
   return /(電話|TEL|登録番号|伝票番号|No\.?|#|都|道|府|県|市|区|町|丁目|番地|住所|\d{2,4}-\d{2,4}-\d{3,4}|\d{1,4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日)/i.test(line);
 }
 
+function getAmountContextLine(lines: string[], index: number): string {
+  const line = lines[index] ?? "";
+  const previousLine = lines[index - 1] ?? "";
+
+  if (!previousLine || extractAmountsFromLine(previousLine).length > 0) {
+    return line;
+  }
+
+  if (
+    FINAL_AMOUNT_KEYWORD_PATTERN.test(previousLine) ||
+    SUPPORTING_AMOUNT_KEYWORD_PATTERN.test(previousLine) ||
+    CASH_TENDERED_KEYWORD_PATTERN.test(previousLine) ||
+    CHANGE_AMOUNT_KEYWORD_PATTERN.test(previousLine)
+  ) {
+    return `${previousLine} ${line}`;
+  }
+
+  return line;
+}
+
 function extractAmountCandidates(lines: string[]): Array<ReceiptCandidate<number>> {
   const keywordCandidates: Array<ReceiptCandidate<number>> = [];
   const fallbackCandidates: Array<ReceiptCandidate<number>> = [];
@@ -175,10 +205,18 @@ function extractAmountCandidates(lines: string[]): Array<ReceiptCandidate<number
       return;
     }
 
-    const hasKeyword = FINAL_AMOUNT_KEYWORD_PATTERN.test(line) || SUPPORTING_AMOUNT_KEYWORD_PATTERN.test(line);
+    const contextLine = getAmountContextLine(lines, index);
+    const hasKeyword =
+      FINAL_AMOUNT_KEYWORD_PATTERN.test(contextLine) ||
+      SUPPORTING_AMOUNT_KEYWORD_PATTERN.test(contextLine) ||
+      CASH_TENDERED_KEYWORD_PATTERN.test(contextLine);
     const hasMoneySymbol = /¥/.test(normalizeText(line));
-    const confidence = hasKeyword ? getAmountConfidence(line) : hasMoneySymbol ? 0.72 : 0.45;
+    const confidence = hasKeyword ? getAmountConfidence(contextLine) : hasMoneySymbol ? 0.72 : 0.45;
     const target = hasKeyword || hasMoneySymbol ? keywordCandidates : fallbackCandidates;
+
+    if (CHANGE_AMOUNT_KEYWORD_PATTERN.test(contextLine)) {
+      return;
+    }
 
     if (!hasKeyword && !hasMoneySymbol && shouldSkipFallbackAmountLine(line)) {
       return;
@@ -188,7 +226,7 @@ function extractAmountCandidates(lines: string[]): Array<ReceiptCandidate<number
       target.push({
         value: amount,
         label: `¥${amount.toLocaleString("ja-JP")}`,
-        line: line.trim() || `行 ${index + 1}`,
+        line: contextLine.trim() || `行 ${index + 1}`,
         confidence,
       });
     });
