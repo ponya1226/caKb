@@ -1,5 +1,32 @@
 # Development History
 
+## 2026-07-05 Family Cloud Direction and Local Analysis Step
+
+目的: 家族共有、認証、既存スプレッドシート同期へ進む前に、クラウド正本化の方針をADRとして固め、同時にクラウド化前でも使えるカテゴリ自由作成と年間支出一覧を追加する。
+
+主な変更:
+
+- 家族共有向けクラウド正本化方針ADRを追加
+- 次フェーズの第一候補をFirebase Auth、Cloud Firestore、Google Sheets一方向同期として整理
+- 設定画面にカテゴリ追加、名称変更、色変更、未使用カテゴリ削除を追加
+- 年間支出画面を追加し、年間合計、レシート登録分、月別支出、カテゴリ別年間支出、年間明細を表示
+- 年間集計ロジックと回帰テストを追加
+- architectureとproject statusを次フェーズ方針に合わせて更新
+
+検証結果:
+
+- `npm run lint`
+- `npm run test -- src/lib/yearlyStats.test.ts`
+- `npm run test`
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- Firebase Auth、Firestore、家族共有、Google Sheets同期は方針整理のみで未実装
+- 使用中カテゴリの統合や一括付け替えは未対応
+- Sheets双方向同期、レシート画像のクラウド保存は初期対象外
+
 ## 2026-07-05 OCR Candidate Flow and Branch Matching Step
 
 目的: Google Vision OCRを使う実運用で、候補選択の状態を見分けやすくし、高精度OCRを自然に使える導線にしつつ、同じ店舗ブランドの支店違いでもカテゴリ推定が効くようにする。

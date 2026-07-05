@@ -4,6 +4,9 @@ Last Updated: 2026-07-05
 
 ## Implemented
 
+- 利用者によるカテゴリ追加、名称変更、色変更、未使用カテゴリ削除
+- 年間支出画面: 年間合計、レシート登録分、月別支出、カテゴリ別年間支出、年間明細
+- 家族共有、認証、クラウド正本化、Google Sheets一方向同期に向けた方針ADR
 - OCR候補ボタンの選択中表示
 - Google Vision OCRが設定済みの場合の高精度OCR優先導線
 - 支店名が異なる同系列店舗に対するカテゴリ推定
@@ -78,15 +81,19 @@ Last Updated: 2026-07-05
 
 ## Not Started
 
-- クラウド同期
-- ログイン
+- Firebase Authログイン
+- Firestoreクラウド正本化
 - 家族共有
+- Google Sheets一方向同期
 - AI分析
 - 予算管理
 - 定期支出
 
 ## Technical Debt
 
+- 現在の支出データ正本はまだIndexedDBで、家族共有・認証・クラウド同期は方針ADRのみ。Firestore repository、Security Rules、移行UIは未実装。
+- Google Sheets同期は方針のみで、Sheets API連携、認可、同期ログ、失敗時再試行は未実装。
+- カテゴリ削除は支出で未使用の場合のみ可能。使用中カテゴリの統合や一括付け替えは未対応。
 - 店舗別カテゴリルールは店舗名の正規化一致、部分一致、共通ブランド接頭辞に基づくため、商品名やチェーン公式IDによる厳密な店舗識別は未対応。
 - Google Vision利用にはProxy運用、Google Cloud認証情報管理、API課金、CORS制御、将来のレート制限が必要。
 - Google Vision ProxyはCloud Runデプロイ可能な形にしたが、疎通後に `OCR_SHARED_TOKEN`、リクエスト制限、監査方針を追加検討する必要がある。
@@ -118,6 +125,10 @@ Last Updated: 2026-07-05
 
 ## Next Recommended Priorities
 
+- Firebase AuthとFirestore導入ADRの詳細化、環境変数、Security Rules、Repository境界の実装
+- IndexedDBからFirestoreへの初回移行UI
+- 家族共有のhousehold/memberデータモデルと招待コード導線
+- Google Sheets一方向同期の設定UIとエクスポートProxy
 - 高精度OCRの実レシート結果を匿名化し、候補抽出の回帰テストへ追加する。
 - 疎通確認後、`OCR_SHARED_TOKEN` または別の利用制限方式を追加する。
 - 店舗別カテゴリルールの実機利用結果を確認し、支店違いの誤適用や解除しやすさを調整する。

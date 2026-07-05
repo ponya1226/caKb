@@ -1,17 +1,20 @@
 import { lazy, Suspense, useState } from "react";
-import { Camera, Home, List, Plus, ReceiptText, Settings } from "lucide-react";
+import { CalendarDays, Camera, Home, List, Plus, ReceiptText, Settings } from "lucide-react";
 import { ExpenseEditor } from "./components/ExpenseEditor";
 import { useBudgetData } from "./hooks/useBudgetData";
 import { normalizeShopNameForCategory } from "./lib/categorySuggestion";
 import type { ExpenseFormValues, ReceiptDraft, ReceiptSaveOptions } from "./types";
 
-type View = "dashboard" | "expenses" | "receipt" | "confirm" | "settings";
+type View = "dashboard" | "expenses" | "yearly" | "receipt" | "confirm" | "settings";
 
 const DashboardScreen = lazy(() =>
   import("./components/DashboardScreen").then((module) => ({ default: module.DashboardScreen })),
 );
 const ExpenseListScreen = lazy(() =>
   import("./components/ExpenseListScreen").then((module) => ({ default: module.ExpenseListScreen })),
+);
+const YearlyExpenseScreen = lazy(() =>
+  import("./components/YearlyExpenseScreen").then((module) => ({ default: module.YearlyExpenseScreen })),
 );
 const ReceiptCaptureScreen = lazy(() =>
   import("./components/ReceiptCaptureScreen").then((module) => ({ default: module.ReceiptCaptureScreen })),
@@ -26,6 +29,7 @@ const SettingsScreen = lazy(() =>
 const navItems: Array<{ view: View; label: string; icon: typeof Home }> = [
   { view: "dashboard", label: "ホーム", icon: Home },
   { view: "expenses", label: "一覧", icon: List },
+  { view: "yearly", label: "年間", icon: CalendarDays },
   { view: "receipt", label: "レシート", icon: Camera },
   { view: "settings", label: "設定", icon: Settings },
 ];
@@ -226,6 +230,14 @@ export default function App() {
             />
           )}
 
+          {view === "yearly" && (
+            <YearlyExpenseScreen
+              expenses={budgetData.expenses}
+              categories={budgetData.categories}
+              categoryMap={budgetData.categoryMap}
+            />
+          )}
+
           {view === "confirm" && receiptDraft && (
             <OcrConfirmScreen
               draft={receiptDraft}
@@ -253,6 +265,9 @@ export default function App() {
               onRequestPersistentStorage={budgetData.requestPersistentStorage}
               onRefreshStorageHealth={budgetData.refreshStorageHealth}
               onResetData={budgetData.resetData}
+              onAddCategory={budgetData.addCategory}
+              onUpdateCategory={budgetData.updateCategory}
+              onDeleteCategory={budgetData.removeCategory}
             />
           )}
         </Suspense>

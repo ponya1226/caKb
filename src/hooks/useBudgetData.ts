@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
 import {
   clearApplicationData,
+  deleteCategory as deleteCategoryRecord,
   deleteExpense as deleteExpenseRecord,
   getCategories,
   getExpenses,
   importApplicationData,
   initializeDatabase,
+  saveCategory,
   saveExpense,
   saveReceiptImage,
 } from "../lib/db";
@@ -48,9 +50,16 @@ type UseBudgetDataResult = {
   refreshStorageHealth: () => Promise<void>;
   resetData: () => Promise<void>;
   refresh: () => Promise<void>;
+  addCategory: (values: Pick<Category, "name" | "color">) => Promise<void>;
+  updateCategory: (category: Category, values: Pick<Category, "name" | "color">) => Promise<void>;
+  removeCategory: (category: Category) => Promise<void>;
   suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
   upsertShopCategoryRule: (shopName: string, categoryId: string) => void;
 };
+
+function normalizeCategoryColor(color: string): string {
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : "#64748b";
+}
 
 function createExpenseRecord(values: ExpenseFormValues, source: Expense["source"], receiptImageId?: string): Expense {
   const now = new Date().toISOString();
@@ -188,6 +197,68 @@ export function useBudgetData(): UseBudgetDataResult {
     return granted;
   }, [expenses]);
 
+  const addCategory = useCallback(
+    async (values: Pick<Category, "name" | "color">) => {
+      const name = values.name.trim();
+      if (!name) {
+        throw new Error("カテゴリ名を入力してください");
+      }
+
+      const maxSortOrder = categories.reduce((maxValue, category) => Math.max(maxValue, category.sortOrder), 0);
+      await saveCategory({
+        id: createId("category"),
+        name,
+        color: normalizeCategoryColor(values.color),
+        sortOrder: maxSortOrder + 10,
+      });
+      await refresh();
+    },
+    [categories, refresh],
+  );
+
+  const updateCategory = useCallback(
+    async (category: Category, values: Pick<Category, "name" | "color">) => {
+      const name = values.name.trim();
+      if (!name) {
+        throw new Error("カテゴリ名を入力してください");
+      }
+
+      await saveCategory({
+        ...category,
+        name,
+        color: normalizeCategoryColor(values.color),
+      });
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const removeCategory = useCallback(
+    async (category: Category) => {
+      if (category.id === DEFAULT_CATEGORY_ID) {
+        throw new Error("その他カテゴリは削除できません");
+      }
+
+      if (expenses.some((expense) => expense.categoryId === category.id)) {
+        throw new Error("支出で使われているカテゴリは削除できません");
+      }
+
+      await deleteCategoryRecord(category.id);
+      const nextRules = settings.shopCategoryRules?.filter((rule) => rule.categoryId !== category.id) ?? [];
+      if (nextRules.length !== (settings.shopCategoryRules?.length ?? 0)) {
+        const nextSettings: AppSettings = { ...settings };
+        if (nextRules.length > 0) {
+          nextSettings.shopCategoryRules = nextRules;
+        } else {
+          delete nextSettings.shopCategoryRules;
+        }
+        updateSettings(nextSettings);
+      }
+      await refresh();
+    },
+    [expenses, refresh, settings, updateSettings],
+  );
+
   const suggestCategoryForShop = useCallback(
     (shopName: string) =>
       findCategoryRuleForShop(settings.shopCategoryRules, shopName) ?? findRecentCategoryForShop(expenses, shopName),
@@ -231,6 +302,9 @@ export function useBudgetData(): UseBudgetDataResult {
     refreshStorageHealth,
     resetData,
     refresh,
+    addCategory,
+    updateCategory,
+    removeCategory,
     suggestCategoryForShop,
     upsertShopCategoryRule,
   };

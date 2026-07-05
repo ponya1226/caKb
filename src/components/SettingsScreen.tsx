@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Database, Download, FileJson, Plus, RefreshCw, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Upload } from "lucide-react";
+import { Database, Download, FileJson, Plus, RefreshCw, Save, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Upload } from "lucide-react";
 import { buildBackupJson, downloadJson, parseBackupJson } from "../lib/backup";
 import { upsertShopCategoryRule } from "../lib/categorySuggestion";
 import { buildExpensesCsv, downloadCsv } from "../lib/csv";
@@ -17,7 +17,12 @@ type SettingsScreenProps = {
   onRequestPersistentStorage: () => Promise<boolean>;
   onRefreshStorageHealth: () => Promise<void>;
   onResetData: () => Promise<void>;
+  onAddCategory: (values: Pick<Category, "name" | "color">) => Promise<void>;
+  onUpdateCategory: (category: Category, values: Pick<Category, "name" | "color">) => Promise<void>;
+  onDeleteCategory: (category: Category) => Promise<void>;
 };
+
+type CategoryDraft = Pick<Category, "name" | "color">;
 
 function formatOptionalFileSize(bytes: number | undefined): string {
   return typeof bytes === "number" ? formatFileSize(bytes) : "不明";
@@ -65,12 +70,17 @@ export function SettingsScreen({
   onRequestPersistentStorage,
   onRefreshStorageHealth,
   onResetData,
+  onAddCategory,
+  onUpdateCategory,
+  onDeleteCategory,
 }: SettingsScreenProps) {
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importMode, setImportMode] = useState<BackupImportMode>("append");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [newRuleShopName, setNewRuleShopName] = useState("");
   const [newRuleCategoryId, setNewRuleCategoryId] = useState(categories[0]?.id ?? "");
+  const [newCategory, setNewCategory] = useState<CategoryDraft>({ name: "", color: "#0f766e" });
+  const [categoryDrafts, setCategoryDrafts] = useState<Record<string, CategoryDraft>>({});
   const shopCategoryRules = settings.shopCategoryRules ?? [];
 
   useEffect(() => {
@@ -78,6 +88,12 @@ export function SettingsScreen({
       setNewRuleCategoryId(categories[0].id);
     }
   }, [categories, newRuleCategoryId]);
+
+  useEffect(() => {
+    setCategoryDrafts(
+      Object.fromEntries(categories.map((category) => [category.id, { name: category.name, color: category.color }])),
+    );
+  }, [categories]);
 
   function updateShopCategoryRules(nextRules: NonNullable<AppSettings["shopCategoryRules"]>) {
     const nextSettings: AppSettings = { ...settings };
@@ -119,6 +135,43 @@ export function SettingsScreen({
   function handleDeleteRule(ruleId: string) {
     updateShopCategoryRules(shopCategoryRules.filter((rule) => rule.id !== ruleId));
     setStatusMessage("店舗別カテゴリルールを削除しました");
+  }
+
+  async function handleAddCategory() {
+    try {
+      await onAddCategory(newCategory);
+      setNewCategory({ name: "", color: "#0f766e" });
+      setStatusMessage("カテゴリを追加しました");
+    } catch (unknownError) {
+      setStatusMessage(unknownError instanceof Error ? unknownError.message : "カテゴリを追加できませんでした");
+    }
+  }
+
+  async function handleUpdateCategory(category: Category) {
+    const draft = categoryDrafts[category.id];
+    if (!draft) {
+      return;
+    }
+
+    try {
+      await onUpdateCategory(category, draft);
+      setStatusMessage("カテゴリを更新しました");
+    } catch (unknownError) {
+      setStatusMessage(unknownError instanceof Error ? unknownError.message : "カテゴリを更新できませんでした");
+    }
+  }
+
+  async function handleDeleteCategory(category: Category) {
+    if (!window.confirm(`${category.name}を削除しますか？`)) {
+      return;
+    }
+
+    try {
+      await onDeleteCategory(category);
+      setStatusMessage("カテゴリを削除しました");
+    } catch (unknownError) {
+      setStatusMessage(unknownError instanceof Error ? unknownError.message : "カテゴリを削除できませんでした");
+    }
   }
 
   function handleExportCsv() {
@@ -252,6 +305,83 @@ export function SettingsScreen({
           </button>
         </article>
       </div>
+
+      <section className="content-section">
+        <div className="section-title-row">
+          <h2>カテゴリ管理</h2>
+        </div>
+        <p className="subtle-text">
+          支出登録やレシート確認で使うカテゴリを追加、編集できます。支出で使われているカテゴリは削除できません。
+        </p>
+
+        <div className="category-form">
+          <label className="field">
+            <span>カテゴリ名</span>
+            <input
+              type="text"
+              value={newCategory.name}
+              placeholder="例: 趣味"
+              onChange={(event) => setNewCategory((current) => ({ ...current, name: event.target.value }))}
+            />
+          </label>
+          <label className="field color-field">
+            <span>色</span>
+            <input
+              type="color"
+              value={newCategory.color}
+              onChange={(event) => setNewCategory((current) => ({ ...current, color: event.target.value }))}
+            />
+          </label>
+          <button className="button button-secondary" type="button" onClick={handleAddCategory}>
+            <Plus size={18} aria-hidden="true" />
+            追加
+          </button>
+        </div>
+
+        <div className="category-list">
+          {categories.map((category) => {
+            const draft = categoryDrafts[category.id] ?? { name: category.name, color: category.color };
+            return (
+              <article className="category-row" key={category.id}>
+                <label className="field">
+                  <span>名前</span>
+                  <input
+                    type="text"
+                    value={draft.name}
+                    onChange={(event) =>
+                      setCategoryDrafts((current) => ({
+                        ...current,
+                        [category.id]: { ...draft, name: event.target.value },
+                      }))
+                    }
+                  />
+                </label>
+                <label className="field color-field">
+                  <span>色</span>
+                  <input
+                    type="color"
+                    value={draft.color}
+                    onChange={(event) =>
+                      setCategoryDrafts((current) => ({
+                        ...current,
+                        [category.id]: { ...draft, color: event.target.value },
+                      }))
+                    }
+                  />
+                </label>
+                <div className="item-actions">
+                  <button className="icon-button small" type="button" onClick={() => handleUpdateCategory(category)} aria-label={`${category.name}を保存`}>
+                    <Save size={17} aria-hidden="true" />
+                  </button>
+                  <button className="icon-button small danger" type="button" onClick={() => handleDeleteCategory(category)} aria-label={`${category.name}を削除`}>
+                    <Trash2 size={17} aria-hidden="true" />
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
 
       <section className="content-section">
         <div className="section-title-row">

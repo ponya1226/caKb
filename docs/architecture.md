@@ -4,6 +4,8 @@
 
 MVPはブラウザだけで完結します。支出、カテゴリ、任意のレシート画像はIndexedDBに保存し、設定はlocalStorageに保存します。外部DB、ログイン、サーバーAPIは使いません。
 
+次フェーズでは家族共有、認証、スプレッドシート同期に対応するため、Firebase AuthとCloud Firestoreを第一候補にクラウド正本化を進めます。詳細は `docs/decisions/0005-family-cloud-ledger-direction.md` に従います。
+
 ## レイヤー
 
 ```text
@@ -32,7 +34,7 @@ type Expense = {
 };
 ```
 
-`Category` と `ReceiptImage` も要件通りに保持します。レシート画像保存OFFの場合、OCR後に支出だけを保存し、`ReceiptImage` は作成しません。
+`Category` と `ReceiptImage` も要件通りに保持します。カテゴリは設定画面で追加、名称変更、色変更、未使用カテゴリの削除ができます。レシート画像保存OFFの場合、OCR後に支出だけを保存し、`ReceiptImage` は作成しません。
 
 ## IndexedDB
 
@@ -54,6 +56,22 @@ type Expense = {
 CSVエクスポートは表計算用、JSONバックアップは復元用として扱います。JSONバックアップには支出、カテゴリ、設定を含めますが、容量が大きくなりやすいレシート画像Blobは含めません。
 
 プライベートブラウズ、サイトデータ削除、端末容量不足など、ブラウザ側の判断による保存データ削除はアプリだけでは完全に防げません。
+
+## 次フェーズのクラウド構成
+
+```text
+React PWA
+  -> repository adapter
+    -> IndexedDB local repository
+    -> Firestore cloud repository
+  -> Firebase Auth
+  -> Google Vision Proxy
+  -> Google Sheets export sync
+```
+
+クラウド正本化後はFirestoreを支出、カテゴリ、店舗別カテゴリルール、家計簿メンバー情報の正本にします。IndexedDBは未ログイン時の利用、初回移行元、将来のオフラインキャッシュとして扱います。
+
+スプレッドシート同期はアプリ正本からGoogle Sheetsへの一方向エクスポートとして開始します。Sheets側で編集された内容をアプリへ取り込む双方向同期は初期対象外です。
 
 ## OCR Provider
 

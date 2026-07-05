@@ -124,6 +124,14 @@ export async function getCategories(): Promise<Category[]> {
   return categories.sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
+export async function saveCategory(category: Category): Promise<void> {
+  await putRecord("categories", category);
+}
+
+export async function deleteCategory(id: string): Promise<void> {
+  await deleteRecord("categories", id);
+}
+
 export async function getExpenses(): Promise<Expense[]> {
   const expenses = await getAll<Expense>("expenses");
   return expenses.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));

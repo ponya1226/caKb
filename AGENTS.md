@@ -4,6 +4,8 @@
 
 MVPではバックエンド、ログイン、クラウド同期、家族共有、有料API、AI分析を実装しません。
 
+次フェーズでは、明示的に承認された方針として家族共有、Firebase Auth、Firestoreクラウド正本化、Google Sheets一方向同期を検討・実装します。対象外機能を追加する場合は、ADRとユーザー承認を必須にします。
+
 ## Architecture
 
 - Frontend: Vite, React, TypeScript
@@ -118,13 +120,15 @@ UI変更では次を手動確認する。
 
 Google Vision OCR is an explicitly allowed optional external OCR Provider for this project. It must be used only through a self-owned proxy such as `server/google-vision-proxy/`; the frontend must not call Google Vision directly.
 
+Firebase Auth, Cloud Firestore, and Google Sheets export sync are explicitly allowed next-phase candidates only within the scope described in `docs/decisions/0005-family-cloud-ledger-direction.md`.
+
 - Do not commit API keys, service account keys, tokens, passwords, or secrets.
 - Do not commit `.env`; `.env.example` is allowed.
 - Do not log receipt images, image base64, OCR full text, or expense data in the proxy.
 - Do not persist uploaded receipt images on the proxy.
 - Keep Tesseract.js available as `localTesseract` fallback.
 - External OCR use must be visible to the user before sending an image.
-- Adding other external services, sync, login, or paid APIs still requires explicit user approval and an ADR.
+- Adding other external services, paid APIs, bidirectional sync, or receipt-image cloud storage still requires explicit user approval and an ADR.
 
 ## Prohibited Actions
 
