@@ -9,7 +9,8 @@ Google Cloud Vision OCRをcaKbから利用するためのサンプルProxyです
 - 受け取った画像とOCR全文は永続保存しません。
 - 画像base64やOCR全文はログに出しません。
 - CORS許可originは `CORS_ORIGINS` で制御します。
-- `OCR_SHARED_TOKEN` は疎通確認後に追加する想定です。
+- `REQUIRE_FIREBASE_AUTH=true` ではFirebase ID tokenを検証し、未ログイン利用を拒否します。
+- `OCR_SHARED_TOKEN` は任意の追加防御として併用できます。
 
 ## ローカル起動
 
@@ -32,9 +33,11 @@ npm start
 ## 環境変数
 
 - `PORT`: 待ち受けポート。Cloud Runでは自動設定されます。
-- `CORS_ORIGINS`: 許可originのカンマ区切り。例: `https://ponya1226.github.io`
+- `CORS_ORIGINS`: 許可originのカンマ区切り。例: `https://cakb-dev.firebaseapp.com`
 - `MAX_IMAGE_BYTES`: 受け付ける画像サイズ上限。初期値は5MBです。
-- `OCR_SHARED_TOKEN`: 任意。疎通確認後に追加する簡易トークンです。
+- `REQUIRE_FIREBASE_AUTH`: Firebase ID token検証を必須にします。初期値は `true` です。
+- `FIREBASE_PROJECT_ID`: Firebase ID token検証に使うproject IDです。Cloud Runで自動推定できない場合に設定します。
+- `OCR_SHARED_TOKEN`: 任意。Firebase ID tokenとは別に追加する簡易トークンです。
 
 ## エンドポイント
 
@@ -49,6 +52,8 @@ npm start
   "mimeType": "image/jpeg"
 }
 ```
+
+`REQUIRE_FIREBASE_AUTH=true` の場合、`Authorization: Bearer <Firebase ID token>` headerが必要です。
 
 レスポンス:
 

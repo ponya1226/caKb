@@ -87,7 +87,7 @@ OCRはProvider抽象を通して実行します。
 
 どのProviderでも、OCR全文を取得した後は既存の `receiptParser.ts` で日付、店舗名、金額候補を抽出し、OCR確認画面でユーザーが修正してからIndexedDBに保存します。支出データのIndexedDB schemaは変更しません。
 
-Google Vision利用時はレシート画像を外部サービスへ送信しますが、フロントエンドにGoogle Cloud認証情報は置かず、Proxy側でも画像やOCR全文を永続保存しません。
+Google Vision利用時はレシート画像を外部サービスへ送信しますが、フロントエンドにGoogle Cloud認証情報は置かず、Proxy側でも画像やOCR全文を永続保存しません。Hosting環境ではFirebase ID tokenをProxyで検証し、未ログイン状態ではGoogle Vision OCRを利用できないようにします。
 
 ## OCR
 

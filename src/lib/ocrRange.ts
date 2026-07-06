@@ -45,6 +45,7 @@ type RunOcrWithRangeModeOptions = {
   preprocessMode?: OcrPreprocessMode;
   savedOcrCrop?: OcrCropRatios;
   googleVisionProxyUrl?: string | null;
+  googleVisionAuthToken?: string | null;
   onProgress: (progress: OcrProgress) => void;
 };
 
@@ -135,6 +136,7 @@ export async function runOcrWithRangeMode(
     const result = await runOcrProvider(image, {
       provider: "googleVision",
       googleVisionProxyUrl: options.googleVisionProxyUrl,
+      googleVisionAuthToken: options.googleVisionAuthToken,
       onProgress: options.onProgress,
     });
     const parsed = parseReceiptText(result.text);

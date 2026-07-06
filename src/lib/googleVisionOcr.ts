@@ -17,6 +17,7 @@ type GoogleVisionProxyResponse = {
 
 export type GoogleVisionOcrOptions = {
   proxyUrl?: string | null;
+  authToken?: string | null;
   fetcher?: typeof fetch;
   signal?: AbortSignal;
 };
@@ -118,10 +119,12 @@ export async function runGoogleVisionOcr(image: File | Blob, options: GoogleVisi
 
   const mimeType = assertSupportedImage(image);
   const fetcher = options.fetcher ?? fetch;
+  const authToken = options.authToken?.trim();
   const response = await fetcher(proxyUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
     },
     body: JSON.stringify({
       imageBase64: await blobToBase64(image),

@@ -236,6 +236,8 @@ export default function App() {
               suggestCategoryForShop={budgetData.suggestCategoryForShop}
               savedOcrCrop={budgetData.settings.lastOcrCrop}
               onSaveOcrCrop={(crop) => budgetData.updateSettings({ ...budgetData.settings, lastOcrCrop: crop })}
+              isGoogleVisionAuthenticated={Boolean(firebaseAuth.user)}
+              getGoogleVisionIdToken={firebaseAuth.getIdToken}
             />
           )}
 
@@ -257,6 +259,7 @@ export default function App() {
               onSaveOcrCrop={(crop) => budgetData.updateSettings({ ...budgetData.settings, lastOcrCrop: crop })}
               onUpdateDraft={handleUpdateCurrentReceiptDraft}
               suggestCategoryForShop={budgetData.suggestCategoryForShop}
+              getGoogleVisionIdToken={firebaseAuth.getIdToken}
               onBack={handleCancelReceiptConfirm}
               onSkip={receiptDrafts.length > 1 ? handleSkipReceiptDraft : undefined}
               onSave={handleSaveReceiptExpense}

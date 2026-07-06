@@ -16,6 +16,7 @@ export type FirebaseAuthState = {
   isWorking: boolean;
   user: AuthenticatedUser | null;
   error: string | null;
+  getIdToken: () => Promise<string | null>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   clearError: () => void;
@@ -253,6 +254,15 @@ export function useFirebaseAuth(): FirebaseAuthState {
     }
   }, [loadServices]);
 
+  const getIdToken = useCallback(async () => {
+    const services = await loadServices();
+    if (!services?.auth.currentUser) {
+      return null;
+    }
+
+    return services.auth.currentUser.getIdToken();
+  }, [loadServices]);
+
   const signOut = useCallback(async () => {
     const services = await loadServices();
     if (!services) {
@@ -278,6 +288,7 @@ export function useFirebaseAuth(): FirebaseAuthState {
     isWorking,
     user,
     error,
+    getIdToken,
     signInWithGoogle,
     signOut,
     clearError: () => setError(null),

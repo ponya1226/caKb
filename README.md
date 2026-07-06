@@ -65,6 +65,8 @@ Proxyサンプルは `server/google-vision-proxy/` にあります。Google Clou
 
 Cloud Runへの疎通確認手順は `docs/google-vision-proxy-deploy.md` を参照してください。Firebase Hosting / GitHub Actionsでは `VITE_GOOGLE_VISION_PROXY_URL` をRepository variableとして設定し、ビルド時に埋め込みます。
 
+Google Vision ProxyはFirebase ID tokenを検証するため、高精度OCRはGoogleログイン後に利用します。未ログイン時は従来どおりローカルOCRを利用できます。
+
 ## Firebase Hosting / Auth / Firestore次フェーズ準備
 
 Firebase Auth / Firestoreの土台コードとSecurity Rules雛形を追加しています。設定がない場合、アプリは従来どおりIndexedDB正本で動作します。

@@ -27,6 +27,7 @@ export type RunOcrProviderOptions = {
   includeImagePreview?: boolean;
   onProgress?: (progress: OcrProgress) => void;
   googleVisionProxyUrl?: string | null;
+  googleVisionAuthToken?: string | null;
   fetcher?: typeof fetch;
   localRunner?: LocalTesseractRunner;
   googleVisionRunner?: GoogleVisionRunner;
@@ -50,6 +51,7 @@ export async function runOcrProvider(image: File | Blob, options: RunOcrProvider
     const googleRunner = options.googleVisionRunner ?? runGoogleVisionOcr;
     const result = await googleRunner(image, {
       proxyUrl: options.googleVisionProxyUrl,
+      authToken: options.googleVisionAuthToken,
       fetcher: options.fetcher,
     });
     options.onProgress?.({ status: "Google Vision OCR完了", progress: 1 });

@@ -1,6 +1,7 @@
 import vision, { protos } from "@google-cloud/vision";
 import cors from "cors";
 import express from "express";
+import { createFirebaseIdTokenVerifier, parseBooleanEnv, verifyFirebaseAuthorization } from "./auth.js";
 import { parseAllowedOrigins, parseMaxImageBytes, validateOcrRequestBody } from "./validation.js";
 
 type BoundingBox = {
@@ -20,6 +21,8 @@ const port = Number(process.env.PORT ?? 8080);
 const maxImageBytes = parseMaxImageBytes(process.env.MAX_IMAGE_BYTES);
 const allowedOrigins = parseAllowedOrigins(process.env.CORS_ORIGINS);
 const sharedToken = process.env.OCR_SHARED_TOKEN?.trim();
+const requireFirebaseAuth = parseBooleanEnv(process.env.REQUIRE_FIREBASE_AUTH, true);
+const verifyIdToken = requireFirebaseAuth ? createFirebaseIdTokenVerifier() : null;
 const visionClient = new vision.ImageAnnotatorClient();
 
 app.use(express.json({ limit: `${Math.ceil(maxImageBytes * 1.4)}b` }));
@@ -81,6 +84,14 @@ app.post("/api/ocr", async (request, response) => {
   if (sharedToken && request.header("X-caKb-OCR-Token") !== sharedToken) {
     response.status(401).json({ error: "Unauthorized" });
     return;
+  }
+
+  if (verifyIdToken) {
+    const authValidation = await verifyFirebaseAuthorization(request.header("Authorization"), verifyIdToken);
+    if (!authValidation.ok) {
+      response.status(authValidation.status).json({ error: authValidation.message });
+      return;
+    }
   }
 
   const validation = validateOcrRequestBody(request.body, maxImageBytes);

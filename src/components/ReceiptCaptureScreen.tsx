@@ -39,6 +39,8 @@ type ReceiptCaptureScreenProps = {
   suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
   savedOcrCrop?: OcrCropRatios;
   onSaveOcrCrop: (crop: OcrCropRatios) => void;
+  isGoogleVisionAuthenticated: boolean;
+  getGoogleVisionIdToken: () => Promise<string | null>;
 };
 
 function CandidateButtons<T>({
@@ -86,7 +88,14 @@ function getInitialOcrProvider(): OcrProvider {
   return isGoogleVisionProviderConfigured() ? "googleVision" : "localTesseract";
 }
 
-export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedOcrCrop, onSaveOcrCrop }: ReceiptCaptureScreenProps) {
+export function ReceiptCaptureScreen({
+  onConfirm,
+  suggestCategoryForShop,
+  savedOcrCrop,
+  onSaveOcrCrop,
+  isGoogleVisionAuthenticated,
+  getGoogleVisionIdToken,
+}: ReceiptCaptureScreenProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const transferredPreviewUrlsRef = useRef<Set<string>>(new Set());
@@ -122,6 +131,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   const parseResult = ocrText ? parseReceiptText(ocrText) : null;
   const ocrPresets = useMemo(() => getOcrPresets(savedOcrCrop), [savedOcrCrop]);
   const isGoogleVisionAvailable = isGoogleVisionProviderConfigured();
+  const canUseGoogleVision = isGoogleVisionAvailable && isGoogleVisionAuthenticated;
 
   useEffect(() => {
     receiptSelectionsRef.current = receiptSelections;
@@ -132,10 +142,10 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
   }, [ocrImagePreviewUrl]);
 
   useEffect(() => {
-    if (!isGoogleVisionAvailable && ocrProvider === "googleVision") {
+    if (!canUseGoogleVision && ocrProvider === "googleVision") {
       setOcrProvider("localTesseract");
     }
-  }, [isGoogleVisionAvailable, ocrProvider]);
+  }, [canUseGoogleVision, ocrProvider]);
 
   useEffect(() => {
     return () => {
@@ -406,6 +416,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     selection: ReceiptSelection,
     onProgress: (progress: OcrProgress) => void,
     provider: OcrProvider,
+    googleVisionAuthToken: string | null,
     forceRange = false,
   ): Promise<OcrRunResult> {
     return runOcrWithRangeMode(selection.file, {
@@ -416,8 +427,22 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       preprocess: selection.preprocess,
       preprocessMode: selection.preprocessMode,
       savedOcrCrop,
+      googleVisionAuthToken,
       onProgress,
     });
+  }
+
+  async function resolveGoogleVisionAuthToken(provider: OcrProvider): Promise<string | null> {
+    if (provider !== "googleVision") {
+      return null;
+    }
+
+    const token = await getGoogleVisionIdToken();
+    if (!token) {
+      throw new Error("高精度OCRにはGoogleログインが必要です。設定画面でログインするか、ローカルOCRを利用してください。");
+    }
+
+    return token;
   }
 
   async function handleRunOcr(providerOverride?: OcrProvider) {
@@ -435,8 +460,10 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
     setProgress({ status: "starting", progress: 0 });
 
     try {
+      const googleVisionAuthToken = await resolveGoogleVisionAuthToken(activeProvider);
+
       if (receiptSelections.length === 1 && selectedReceipt) {
-        const ocrResult = await runOcrForSelection(selectedReceipt, setProgress, activeProvider);
+        const ocrResult = await runOcrForSelection(selectedReceipt, setProgress, activeProvider, googleVisionAuthToken);
         const parsed = parseReceiptText(ocrResult.text);
         const initialShopName = parsed.shopNameCandidates[0]?.value ?? "";
         const categorySuggestion = suggestCategoryForShop(initialShopName);
@@ -473,6 +500,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
             });
           },
           activeProvider,
+          googleVisionAuthToken,
           true,
         );
         ocrResults.push({ selection, result: ocrResult });
@@ -574,7 +602,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
               setOcrProvider("googleVision");
               applyProviderDefaultRange("googleVision");
             }}
-            disabled={!isGoogleVisionAvailable}
+            disabled={!canUseGoogleVision}
           >
             高精度OCR（推奨）
           </button>
@@ -597,7 +625,9 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
           </div>
         ) : (
           <p className="subtle-text">
-            {isGoogleVisionAvailable
+            {isGoogleVisionAvailable && !isGoogleVisionAuthenticated
+              ? "高精度OCRを使うにはGoogleログインが必要です。ローカルOCRは未ログインでも使えます。"
+              : isGoogleVisionAvailable
               ? "端末内でTesseract.jsを使ってOCRします。"
               : "高精度OCRを使うには VITE_GOOGLE_VISION_PROXY_URL の設定が必要です。"}
           </p>
@@ -718,7 +748,7 @@ export function ReceiptCaptureScreen({ onConfirm, suggestCategoryForShop, savedO
       )}
 
       <div className="button-row">
-        <button className="button button-primary" type="button" onClick={() => void handleRunOcr()} disabled={!selectedFile || isRunning || isDetectingCrop}>
+        <button className="button button-primary" type="button" onClick={() => void handleRunOcr()} disabled={!selectedFile || isRunning || isDetectingCrop || (isGoogleVisionSelected && !canUseGoogleVision)}>
           <Play size={18} aria-hidden="true" />
           {getOcrRunButtonLabel()}
         </button>

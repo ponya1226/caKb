@@ -58,6 +58,25 @@ describe("ocrProviders", () => {
     ).rejects.toThrow("Google Vision OCRに失敗しました");
   });
 
+  it("sends a Firebase ID token to the googleVision proxy", async () => {
+    const result = await runGoogleVisionOcr(createImageBlob(), {
+      proxyUrl: "https://example.test/ocr",
+      authToken: "firebase-id-token",
+      fetcher: async (_input, init) => {
+        expect(init?.headers).toMatchObject({
+          Authorization: "Bearer firebase-id-token",
+        });
+
+        return Response.json({
+          provider: "googleVision",
+          text: "合計\n¥481",
+        });
+      },
+    });
+
+    expect(result.text).toBe("合計\n¥481");
+  });
+
   it("uses candidates from both providers through the same parser", async () => {
     const localResult = await runOcrProvider(createImageBlob(), {
       provider: "localTesseract",

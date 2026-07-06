@@ -41,6 +41,7 @@ type OcrConfirmScreenProps = {
   onSaveOcrCrop: (crop: OcrCropRatios) => void;
   onUpdateDraft: (draft: ReceiptDraft) => void;
   suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
+  getGoogleVisionIdToken: () => Promise<string | null>;
   onSave: (values: ExpenseFormValues, options?: ReceiptSaveOptions) => Promise<void>;
 };
 
@@ -71,6 +72,7 @@ export function OcrConfirmScreen({
   onSaveOcrCrop,
   onUpdateDraft,
   suggestCategoryForShop,
+  getGoogleVisionIdToken,
   onSave,
 }: OcrConfirmScreenProps) {
   const [ocrMode, setOcrMode] = useState<OcrMode>("auto");
@@ -149,6 +151,11 @@ export function OcrConfirmScreen({
     try {
       const provider = draft.ocrProvider ?? "localTesseract";
       const isGoogleVision = provider === "googleVision";
+      const googleVisionAuthToken = isGoogleVision ? await getGoogleVisionIdToken() : null;
+      if (isGoogleVision && !googleVisionAuthToken) {
+        throw new Error("Google Visionで再OCRするにはGoogleログインが必要です。");
+      }
+
       const ocrResult = await runOcrWithRangeMode(draft.imageFile, {
         provider,
         mode: isGoogleVision ? "manual" : ocrMode,
@@ -157,6 +164,7 @@ export function OcrConfirmScreen({
         preprocess: isGoogleVision ? false : ocrPreprocess,
         preprocessMode: ocrPreprocessMode,
         savedOcrCrop,
+        googleVisionAuthToken,
         onProgress: setProgress,
       });
       const parsed = parseReceiptText(ocrResult.text);

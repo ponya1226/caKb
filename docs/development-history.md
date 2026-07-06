@@ -1,5 +1,36 @@
 # Development History
 
+## 2026-07-07 Google Vision Proxy Auth Step
+
+目的: Firebase Hosting上でログイン確認が通ったため、レシート画像を送信するGoogle Vision Proxyをログイン済みユーザーに限定する。
+
+主な変更:
+
+- Google Vision ProxyにFirebase Admin SDKを追加
+- `Authorization: Bearer <Firebase ID token>` の検証を追加
+- `REQUIRE_FIREBASE_AUTH` を追加し、hosted環境ではID token検証を有効にする方針に変更
+- フロントエンドのGoogle Vision OCR呼び出しでFirebase ID tokenを送信
+- 未ログイン状態では高精度OCRを使えないようにし、ローカルOCRへ誘導
+- Proxy認証処理とAuthorization header送信の回帰テストを追加
+- Google Vision Proxyのdeploy手順とCORS/env例を更新
+
+検証結果:
+
+- `npm run lint`
+- `npm run test -- src/lib/ocrProviders.test.ts src/hooks/useFirebaseAuth.test.ts`
+- `npm run test`
+- `npm run build`
+- `npm run test` in `server/google-vision-proxy`
+- `npm run build` in `server/google-vision-proxy`
+- `git diff --check`
+
+残課題:
+
+- Cloud RunのGoogle Vision Proxy再デプロイ
+- Firebase Hosting上でログイン済み高精度OCRが通ることの実機確認
+- `firebase-admin` transitive dependencyのmoderate audit警告の継続監視
+- 追加防御として `OCR_SHARED_TOKEN`、Cloud Runレート制限、月間利用上限の検討
+
 ## 2026-07-07 Firebase Hosting Auth Migration Prep
 
 目的: GitHub Pages上のスマホGoogleログインが不安定なため、Firebase Hostingへ移行して認証を安定化する準備を行う。
