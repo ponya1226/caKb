@@ -39,9 +39,64 @@ function getFirebaseErrorCode(error: unknown): string | null {
   return typeof code === "string" ? code : null;
 }
 
+export type GoogleSignInMode = "popup" | "redirect";
+
+type SignInModeInput = {
+  authDomain: string;
+  hostname: string;
+  userAgent?: string;
+  isStandalone?: boolean;
+};
+
+function normalizeHost(value: string): string {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) {
+    return "";
+  }
+
+  try {
+    return new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`).hostname;
+  } catch {
+    return trimmed.split("/")[0] ?? "";
+  }
+}
+
+function isMobileLikeUserAgent(userAgent: string | undefined): boolean {
+  return Boolean(userAgent && /Android|iPhone|iPad|iPod|Mobile/i.test(userAgent));
+}
+
+export function selectGoogleSignInMode(input: SignInModeInput): GoogleSignInMode {
+  const currentHost = normalizeHost(input.hostname);
+  const authHost = normalizeHost(input.authDomain);
+
+  if (!currentHost || !authHost || currentHost !== authHost) {
+    return "popup";
+  }
+
+  return input.isStandalone || isMobileLikeUserAgent(input.userAgent) ? "redirect" : "popup";
+}
+
 export function shouldFallbackToRedirect(error: unknown): boolean {
   void error;
   return false;
+}
+
+function resolveGoogleSignInMode(authDomain: string): GoogleSignInMode {
+  if (typeof window === "undefined") {
+    return "popup";
+  }
+
+  const navigatorWithStandalone = window.navigator as Navigator & { standalone?: boolean };
+  const isStandalone =
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    navigatorWithStandalone.standalone === true;
+
+  return selectGoogleSignInMode({
+    authDomain,
+    hostname: window.location.hostname,
+    userAgent: window.navigator.userAgent,
+    isStandalone,
+  });
 }
 
 export function getSafeAuthErrorMessage(error: unknown): string {
@@ -49,11 +104,11 @@ export function getSafeAuthErrorMessage(error: unknown): string {
 
   switch (code) {
     case "auth/unauthorized-domain":
-      return "ログイン元ドメインがFirebaseで許可されていません。Firebase Authenticationの承認済みドメインに ponya1226.github.io を追加してください。";
+      return "ログイン元ドメインがFirebaseで許可されていません。Firebase Authenticationの承認済みドメインに cakb-dev.firebaseapp.com を追加してください。移行中にGitHub Pagesで確認する場合は ponya1226.github.io も追加してください。";
     case "auth/operation-not-allowed":
       return "Firebase AuthenticationでGoogleログインが有効になっていません。Sign-in methodのGoogleを有効化してください。";
     case "auth/popup-blocked":
-      return "ブラウザにポップアップがブロックされました。GitHub Pagesではリダイレクトログインが安定しないため、ポップアップを許可してもう一度ログインしてください。";
+      return "ブラウザにポップアップがブロックされました。ポップアップを許可するか、Firebase HostingのURLからもう一度ログインしてください。";
     case "auth/operation-not-supported-in-this-environment":
       return "このブラウザ環境ではポップアップログインを開始できませんでした。通常のブラウザで開くか、ポップアップを許可してもう一度ログインしてください。";
     case "auth/popup-closed-by-user":
@@ -172,10 +227,19 @@ export function useFirebaseAuth(): FirebaseAuthState {
     setIsWorking(true);
     setError(null);
     try {
-      const [{ signInWithPopup }, { upsertUserProfile }] = await Promise.all([
+      const [{ browserLocalPersistence, setPersistence, signInWithPopup, signInWithRedirect }, { upsertUserProfile }] = await Promise.all([
         import("firebase/auth"),
         import("../lib/userProfile"),
       ]);
+
+      await setPersistence(services.auth, browserLocalPersistence).catch(() => {
+        // If local persistence is unavailable, Firebase falls back to its current persistence.
+      });
+
+      if (resolveGoogleSignInMode(services.authDomain) === "redirect") {
+        await signInWithRedirect(services.auth, services.googleProvider);
+        return;
+      }
 
       const credential = await signInWithPopup(services.auth, services.googleProvider);
       setUser(toAuthenticatedUser(credential.user));

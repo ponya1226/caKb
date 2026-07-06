@@ -1,5 +1,34 @@
 # Development History
 
+## 2026-07-07 Firebase Hosting Auth Migration Prep
+
+目的: GitHub Pages上のスマホGoogleログインが不安定なため、Firebase Hostingへ移行して認証を安定化する準備を行う。
+
+主な変更:
+
+- Firebase Hosting移行ADRを追加
+- `firebase.json` にHosting配信、SPA fallback、PWA/cache header設定を追加
+- `.firebaserc` で `cakb-dev` を既定Firebase projectに設定
+- Firebase Hosting手動deploy用GitHub Actions workflowを追加
+- Firebase Hostingのauth domain上ではスマホ/PWAのGoogleログインをredirect方式に切り替える判定を追加
+- GitHub Pagesなどauth domain外ではpopup方式を維持
+- Firebase Hosting移行手順と今後の優先順位をREADME/docsへ反映
+
+検証結果:
+
+- `npm run lint`
+- `npm run test`
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- GitHub Secret `FIREBASE_SERVICE_ACCOUNT_CAKB_DEV` の設定とFirebase Hosting実deploy
+- Firebase Hosting URLでのPC/スマホログイン検証
+- Google Vision ProxyのFirebase ID token検証
+- Firestore cloud repositoryへの正本切替
+- Firebase Hosting検証完了後のGitHub Pages workflow停止
+
 ## 2026-07-05 Household Creation and Migration UI Step
 
 目的: Firebase Authログイン後にクラウド家計簿を作成し、既存IndexedDBデータを明示操作でFirestoreへコピーできる入口を追加する。

@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "lint": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "deploy:hosting": "npm run build && npx firebase-tools deploy --only hosting --project cakb-dev"
   },
   "dependencies": {
     "firebase": "^12.15.0",

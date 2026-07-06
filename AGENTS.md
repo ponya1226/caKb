@@ -120,7 +120,7 @@ UI変更では次を手動確認する。
 
 Google Vision OCR is an explicitly allowed optional external OCR Provider for this project. It must be used only through a self-owned proxy such as `server/google-vision-proxy/`; the frontend must not call Google Vision directly.
 
-Firebase Auth, Cloud Firestore, and Google Sheets export sync are explicitly allowed next-phase candidates only within the scope described in `docs/decisions/0005-family-cloud-ledger-direction.md` and `docs/decisions/0006-firebase-foundation.md`.
+Firebase Hosting, Firebase Auth, Cloud Firestore, and Google Sheets export sync are explicitly allowed next-phase candidates only within the scope described in `docs/decisions/0005-family-cloud-ledger-direction.md`, `docs/decisions/0006-firebase-foundation.md`, and `docs/decisions/0007-firebase-hosting-auth-migration.md`.
 
 - Do not commit API keys, service account keys, tokens, passwords, or secrets.
 - Do not commit `.env`; `.env.example` is allowed.
@@ -129,6 +129,7 @@ Firebase Auth, Cloud Firestore, and Google Sheets export sync are explicitly all
 - Keep Tesseract.js available as `localTesseract` fallback.
 - External OCR use must be visible to the user before sending an image.
 - Firebase client config must come from `VITE_FIREBASE_*`; do not commit real `.env` values or service account keys.
+- Firebase Hosting deploy credentials must stay in GitHub Secrets or local Firebase CLI auth; do not commit deploy tokens or service account JSON.
 - Adding other external services, paid APIs, bidirectional sync, or receipt-image cloud storage still requires explicit user approval and an ADR.
 
 ## Prohibited Actions

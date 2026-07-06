@@ -55,7 +55,7 @@ gcloud run deploy cakb-google-vision-proxy \
   --source . \
   --allow-unauthenticated \
   --service-account="cakb-vision-proxy@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-  --set-env-vars="CORS_ORIGINS=https://ponya1226.github.io" \
+  --set-env-vars="CORS_ORIGINS=https://cakb-dev.firebaseapp.com,https://ponya1226.github.io" \
   --set-env-vars="MAX_IMAGE_BYTES=5242880"
 ```
 
@@ -89,7 +89,7 @@ curl https://cakb-google-vision-proxy-xxxxx-an.a.run.app/health
 
 ## 7. GitHub PagesビルドへProxy URLを渡す
 
-GitHubの `ponya1226/caKb` リポジトリで以下を設定します。
+GitHubの `ponya1226/caKb` リポジトリで以下を設定します。Firebase Hosting移行後も、同じRepository variableをFirebase Hosting buildで使います。
 
 1. `Settings`
 2. `Secrets and variables`

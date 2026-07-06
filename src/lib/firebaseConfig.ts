@@ -8,6 +8,7 @@ export { readFirebaseClientConfig, isFirebaseClientConfigured } from "./firebase
 export type FirebaseClientServices = {
   app: FirebaseApp;
   auth: Auth;
+  authDomain: string;
   firestore: Firestore;
   googleProvider: GoogleAuthProvider;
 };
@@ -25,6 +26,7 @@ export function getFirebaseClientServices(env: Partial<FirebaseEnv> = import.met
   return {
     app,
     auth: getAuth(app),
+    authDomain: config.authDomain,
     firestore: getFirestore(app),
     googleProvider,
   };
