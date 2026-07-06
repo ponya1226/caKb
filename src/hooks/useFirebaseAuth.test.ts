@@ -9,9 +9,9 @@ describe("useFirebaseAuth helpers", () => {
     expect(getSafeAuthErrorMessage({ code: "auth/configuration-not-found" })).toContain("Authentication");
   });
 
-  it("falls back to redirect only when popup login cannot be used", () => {
-    expect(shouldFallbackToRedirect({ code: "auth/popup-blocked" })).toBe(true);
-    expect(shouldFallbackToRedirect({ code: "auth/operation-not-supported-in-this-environment" })).toBe(true);
+  it("does not start redirect fallback on GitHub Pages", () => {
+    expect(shouldFallbackToRedirect({ code: "auth/popup-blocked" })).toBe(false);
+    expect(shouldFallbackToRedirect({ code: "auth/operation-not-supported-in-this-environment" })).toBe(false);
     expect(shouldFallbackToRedirect({ code: "auth/popup-closed-by-user" })).toBe(false);
     expect(shouldFallbackToRedirect({ code: "auth/unauthorized-domain" })).toBe(false);
   });

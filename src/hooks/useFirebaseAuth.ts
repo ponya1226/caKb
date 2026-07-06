@@ -40,8 +40,8 @@ function getFirebaseErrorCode(error: unknown): string | null {
 }
 
 export function shouldFallbackToRedirect(error: unknown): boolean {
-  const code = getFirebaseErrorCode(error);
-  return code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment";
+  void error;
+  return false;
 }
 
 export function getSafeAuthErrorMessage(error: unknown): string {
@@ -53,7 +53,9 @@ export function getSafeAuthErrorMessage(error: unknown): string {
     case "auth/operation-not-allowed":
       return "Firebase AuthenticationでGoogleログインが有効になっていません。Sign-in methodのGoogleを有効化してください。";
     case "auth/popup-blocked":
-      return "ブラウザにポップアップがブロックされました。ポップアップを許可するか、もう一度ログインしてください。";
+      return "ブラウザにポップアップがブロックされました。GitHub Pagesではリダイレクトログインが安定しないため、ポップアップを許可してもう一度ログインしてください。";
+    case "auth/operation-not-supported-in-this-environment":
+      return "このブラウザ環境ではポップアップログインを開始できませんでした。通常のブラウザで開くか、ポップアップを許可してもう一度ログインしてください。";
     case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request":
       return "Googleログイン画面が閉じられました。もう一度ログインしてください。";
@@ -108,6 +110,10 @@ export function useFirebaseAuth(): FirebaseAuthState {
           return;
         }
 
+        authModule.setPersistence(services.auth, authModule.browserLocalPersistence).catch(() => {
+          // If local persistence is unavailable, Firebase falls back to its current persistence.
+        });
+
         unsubscribe = authModule.onAuthStateChanged(
           services.auth,
           (nextUser) => {
@@ -129,7 +135,9 @@ export function useFirebaseAuth(): FirebaseAuthState {
             }
 
             setUser(toAuthenticatedUser(result.user));
-            return userProfileModule.upsertUserProfile(services.firestore, result.user);
+            return userProfileModule.upsertUserProfile(services.firestore, result.user).catch(() => {
+              setError("ログインは完了しましたが、プロフィール保存に失敗しました。Firestore Rulesを確認してください。");
+            });
           })
           .catch((unknownError) => {
             if (!isActive) {
@@ -164,23 +172,16 @@ export function useFirebaseAuth(): FirebaseAuthState {
     setIsWorking(true);
     setError(null);
     try {
-      const [{ signInWithPopup, signInWithRedirect }, { upsertUserProfile }] = await Promise.all([
+      const [{ signInWithPopup }, { upsertUserProfile }] = await Promise.all([
         import("firebase/auth"),
         import("../lib/userProfile"),
       ]);
 
-      try {
-        const credential = await signInWithPopup(services.auth, services.googleProvider);
-        setUser(toAuthenticatedUser(credential.user));
-        await upsertUserProfile(services.firestore, credential.user);
-      } catch (unknownError) {
-        if (shouldFallbackToRedirect(unknownError)) {
-          await signInWithRedirect(services.auth, services.googleProvider);
-          return;
-        }
-
-        throw unknownError;
-      }
+      const credential = await signInWithPopup(services.auth, services.googleProvider);
+      setUser(toAuthenticatedUser(credential.user));
+      await upsertUserProfile(services.firestore, credential.user).catch(() => {
+        setError("ログインは完了しましたが、プロフィール保存に失敗しました。Firestore Rulesを確認してください。");
+      });
     } catch (unknownError) {
       setError(getSafeAuthErrorMessage(unknownError));
     } finally {
