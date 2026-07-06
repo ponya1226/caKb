@@ -1,0 +1,73 @@
+name: Deploy Google Vision Proxy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-google-vision-proxy.yml
+      - server/google-vision-proxy/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: google-vision-proxy-live
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      GCP_PROJECT_ID: cakb-dev
+      GCP_REGION: asia-northeast1
+      CLOUD_RUN_SERVICE: cakb-google-vision-proxy
+      CLOUD_RUN_SERVICE_ACCOUNT: cakb-vision-proxy@cakb-dev.iam.gserviceaccount.com
+      CORS_ORIGINS: https://cakb-dev.web.app,https://cakb-dev.firebaseapp.com,https://ponya1226.github.io
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/google-vision-proxy/package-lock.json
+
+      - name: Install proxy dependencies
+        working-directory: server/google-vision-proxy
+        run: npm ci
+
+      - name: Verify proxy
+        working-directory: server/google-vision-proxy
+        run: |
+          npm run test
+          npm run build
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CAKB_DEV }}
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy "$CLOUD_RUN_SERVICE" \
+            --source server/google-vision-proxy \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --allow-unauthenticated \
+            --service-account "$CLOUD_RUN_SERVICE_ACCOUNT" \
+            --update-env-vars "^~^CORS_ORIGINS=$CORS_ORIGINS~REQUIRE_FIREBASE_AUTH=true~FIREBASE_PROJECT_ID=$GCP_PROJECT_ID~MAX_IMAGE_BYTES=5242880" \
+            --quiet
+
+      - name: Show service URL
+        run: |
+          gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format "value(status.url)"
