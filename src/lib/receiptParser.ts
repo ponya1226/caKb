@@ -9,7 +9,7 @@ const SHOP_EXCLUDE_PATTERN = /(領収|レシート|明細|登録番号|TEL|電�
 const MONEY_AMOUNT_PATTERN = /¥\s*[%A-Za-z]*\s*[\dOo〇○Cc¢][\dOo〇○Cc¢,\s.．()[\]（）]{0,14}(?:円)?/g;
 const PLAIN_AMOUNT_PATTERN = /[\d][\d,\s]{1,12}(?:円)?/g;
 const LINE_ITEM_EXCLUDE_PATTERN =
-  /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|領収|明細|登録番号|TEL|電話|レジ|伝票|No\.?|WAON|POINT|ポイント|クーポン|http|https|お買上|マーク|軽減税率|株式会社)/i;
+  /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|割\s*引|値\s*引|領収|明細|登録番号|TEL|電話|レジ|伝票|No\.?|WAON|POINT|ポイント|クーポン|http|https|お買上|マーク|軽減税率|株式会社)/i;
 const LINE_ITEM_NAME_EXCLUDE_PATTERN = /^[\s\-_=*※¥\d,.()（）[\]【】「」'"#]+$/;
 
 type ShopLine = {
@@ -23,6 +23,11 @@ type AmountMatch = {
   raw: string;
   index: number;
   hasMoneySymbol: boolean;
+};
+
+type PendingLineItemName = {
+  name: string;
+  line: string;
 };
 
 function normalizeText(value: string): string {
@@ -290,15 +295,20 @@ function removeAmountToken(line: string, match: AmountMatch): string {
   return `${line.slice(0, match.index)} ${line.slice(match.index + match.raw.length)}`;
 }
 
-function cleanLineItemName(line: string, match: AmountMatch): string {
-  return removeAmountToken(normalizeText(line), match)
+function normalizeLineItemName(value: string): string {
+  return normalizeText(value)
     .replace(/[¥￥]/g, "")
-    .replace(/[*※]/g, "")
-    .replace(/[|｜]/g, " ")
+    .replace(/[*※★]/g, "")
+    .replace(/[|｜{}]/g, " ")
+    .replace(/^\s*\d{1,2}\s+/, "")
     .replace(/^[\s\-_=・:：,.、。()（）[\]【】「」'"#]+/, "")
     .replace(/[\s\-_=・:：,.、。()（）[\]【】「」'"#]+$/, "")
     .replace(/\s{2,}/g, " ")
     .trim();
+}
+
+function cleanLineItemName(line: string, match: AmountMatch): string {
+  return normalizeLineItemName(removeAmountToken(normalizeText(line), match));
 }
 
 function isReceiptCodeLikeLine(line: string): boolean {
@@ -332,6 +342,35 @@ function isUsableLineItemName(name: string): boolean {
   return digitCount / name.length < 0.55;
 }
 
+function isPotentialSplitLineItemNameLine(line: string): boolean {
+  const normalizedLine = normalizeText(line);
+  if (!/^\s*\d{1,2}\s+\S/.test(normalizedLine)) {
+    return false;
+  }
+
+  return isUsableLineItemName(normalizeLineItemName(normalizedLine));
+}
+
+function createPendingLineItemName(line: string): PendingLineItemName | null {
+  const name = normalizeLineItemName(line);
+  if (!isUsableLineItemName(name)) {
+    return null;
+  }
+
+  return {
+    name,
+    line: normalizeText(line).trim(),
+  };
+}
+
+function isLineItemAmountOnlyLine(line: string, match: AmountMatch): boolean {
+  if (/^\s*-/.test(normalizeText(line))) {
+    return false;
+  }
+
+  return cleanLineItemName(line, match).length === 0;
+}
+
 function getLineItemConfidence(line: string, match: AmountMatch): number {
   let confidence = match.hasMoneySymbol ? 0.78 : 0.6;
 
@@ -360,9 +399,11 @@ function uniqueLineItemCandidates(candidates: ReceiptLineItemCandidate[]): Recei
 
 function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] {
   const candidates: ReceiptLineItemCandidate[] = [];
+  const pendingNames: PendingLineItemName[] = [];
 
   lines.forEach((line) => {
     if (shouldSkipLineItemLine(line)) {
+      pendingNames.length = 0;
       return;
     }
 
@@ -370,10 +411,35 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
       (match) => match.amount >= 10 && match.amount <= 1_000_000,
     );
     if (matches.length === 0) {
+      const pendingName = isPotentialSplitLineItemNameLine(line) ? createPendingLineItemName(line) : null;
+      if (pendingName) {
+        pendingNames.push(pendingName);
+        if (pendingNames.length > 4) {
+          pendingNames.shift();
+        }
+      } else {
+        pendingNames.length = 0;
+      }
       return;
     }
 
     const match = matches[matches.length - 1];
+    if (pendingNames.length > 0 && isLineItemAmountOnlyLine(line, match)) {
+      const pendingName = pendingNames.shift();
+      if (!pendingName) {
+        return;
+      }
+
+      candidates.push({
+        name: pendingName.name,
+        amount: match.amount,
+        line: `${pendingName.line} / ${normalizeText(line).trim()}`,
+        confidence: Math.max(0.72, getLineItemConfidence(line, match) - 0.04),
+      });
+      return;
+    }
+
+    pendingNames.length = 0;
     const name = cleanLineItemName(line, match);
     if (!isUsableLineItemName(name)) {
       return;
@@ -387,9 +453,7 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
     });
   });
 
-  return uniqueLineItemCandidates(candidates)
-    .sort((a, b) => b.confidence - a.confidence)
-    .slice(0, 20);
+  return uniqueLineItemCandidates(candidates).slice(0, 20);
 }
 
 function normalizeShopNameCandidate(line: string): { value: string; confidenceBoost: number } {

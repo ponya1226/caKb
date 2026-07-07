@@ -177,6 +177,47 @@ describe("parseReceiptText", () => {
     );
   });
 
+  it("pairs split line item names with following amount-only lines", () => {
+    const result = parseReceiptText(`
+      SAMPLE MARKET
+      2026年07月03日(金) 14:34
+      01 Cabbage
+      ¥159
+      01 Lettuce
+      ¥119
+      01 Mini Tomato Large Pack
+      ¥359
+      01 Banana Premium
+      ¥299
+      ★割引(20%)
+      -60
+      04 Chicken Breast 2pcs ¥741
+      07 Chocolate Cream
+      07 Pure Honey
+      ¥239
+      ¥499
+      小計 18点 ¥5,699
+      税込金額合計 ¥6,154
+      お買上計 ¥6,154
+      お預り計 ¥10,000
+      お釣り ¥3,846
+      登録番号 T0000000000000
+    `);
+
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["Cabbage", 159],
+      ["Lettuce", 119],
+      ["Mini Tomato Large Pack", 359],
+      ["Banana Premium", 299],
+      ["Chicken Breast 2pcs", 741],
+      ["Chocolate Cream", 239],
+      ["Pure Honey", 499],
+    ]);
+    expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toEqual(
+      expect.arrayContaining([60, 5699, 6154, 10000, 3846]),
+    );
+  });
+
   it("normalizes full-width numbers and Japanese date notation", () => {
     const result = parseReceiptText(`
       テスト薬局
