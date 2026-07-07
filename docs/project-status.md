@@ -29,6 +29,7 @@ Last Updated: 2026-07-07
 - Google Vision Proxyサンプル実装
 - Google Vision ProxyのCloud Run向けDockerfileとproduction start script
 - Google Vision ProxyのFirebase ID token検証
+- Google Vision ProxyのFirebase Authメールアドレス許可リスト制限
 - フロントエンドからGoogle Vision ProxyへのFirebase ID token送信
 - 未ログイン時の高精度OCR利用制限とローカルOCR導線
 - GitHub Pages build時の `VITE_GOOGLE_VISION_PROXY_URL` Repository variable連携
@@ -111,7 +112,7 @@ Last Updated: 2026-07-07
 - カテゴリ削除は支出で未使用の場合のみ可能。使用中カテゴリの統合や一括付け替えは未対応。
 - 店舗別カテゴリルールは店舗名の正規化一致、部分一致、共通ブランド接頭辞に基づくため、商品名やチェーン公式IDによる厳密な店舗識別は未対応。
 - Google Vision利用にはProxy運用、Google Cloud認証情報管理、API課金、CORS制御、将来のレート制限が必要。
-- Google Vision ProxyはFirebase ID token検証に対応したが、Cloud Run再デプロイと実機確認が必要。
+- Google Vision ProxyはFirebase ID token検証とメール許可リストに対応したが、許可メールのRepository variable設定とCloud Run再デプロイが必要。
 - Google Vision ProxyはCloud Runデプロイ可能な形にしたが、追加防御として `OCR_SHARED_TOKEN`、リクエスト制限、監査方針を追加検討する必要がある。
 - Google Vision Proxyの `firebase-admin` 導入により、`uuid` transitive dependencyのmoderate audit警告が残る。`npm audit fix --force` は破壊的なFirebase Admin downgradeになるため未適用。
 - 店舗候補抽出はブランド行と支店行の結合に対応したが、店舗ごとの例外ルールや誤候補抑制UIは未実装。
@@ -144,7 +145,7 @@ Last Updated: 2026-07-07
 
 - Firebase Hosting URLでのPC/スマホGoogleログイン確認
 - Firebase Hosting deploy workflowのsecret設定と実deploy
-- Google Vision ProxyのCloud Run再デプロイとログイン済みOCR確認
+- GitHub Repository variable `GOOGLE_VISION_ALLOWED_EMAILS` の設定とGoogle Vision ProxyのCloud Run再デプロイ
 - Firestore cloud repository実装とクラウド正本切替
 - 家族招待コード導線とmember権限UI
 - Google Sheets一方向同期の設定UIとエクスポートProxy

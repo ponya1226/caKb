@@ -55,7 +55,7 @@ gcloud run deploy cakb-google-vision-proxy \
   --source . \
   --allow-unauthenticated \
   --service-account="cakb-vision-proxy@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-  --set-env-vars="^~^CORS_ORIGINS=https://cakb-dev.firebaseapp.com,https://ponya1226.github.io~REQUIRE_FIREBASE_AUTH=true~FIREBASE_PROJECT_ID=YOUR_PROJECT_ID~MAX_IMAGE_BYTES=5242880"
+  --set-env-vars="^~^CORS_ORIGINS=https://cakb-dev.web.app,https://cakb-dev.firebaseapp.com,https://ponya1226.github.io~REQUIRE_FIREBASE_AUTH=true~FIREBASE_PROJECT_ID=YOUR_PROJECT_ID~MAX_IMAGE_BYTES=5242880~ALLOWED_AUTH_EMAILS=YOUR_ALLOWED_EMAILS"
 ```
 
 表示されたService URLを控えます。フロントエンドで使うURLは末尾に `/api/ocr` を付けたものです。
@@ -101,6 +101,13 @@ GitHubの `ponya1226/caKb` リポジトリで以下を設定します。Firebase
 ```text
 Name: VITE_GOOGLE_VISION_PROXY_URL
 Value: https://cakb-google-vision-proxy-xxxxx-an.a.run.app/api/ocr
+```
+
+Cloud Run ProxyをGitHub Actionsからデプロイする場合は、Google Vision OCRを許可するFirebase Authメールアドレスをカンマ区切りで設定します。
+
+```text
+Name: GOOGLE_VISION_ALLOWED_EMAILS
+Value: user1@example.com,user2@example.com
 ```
 
 この値はAPIキーではありません。ただし、公開URLなので無制限利用を許可するものではありません。

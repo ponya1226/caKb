@@ -1,7 +1,12 @@
 import vision, { protos } from "@google-cloud/vision";
 import cors from "cors";
 import express from "express";
-import { createFirebaseIdTokenVerifier, parseBooleanEnv, verifyFirebaseAuthorization } from "./auth.js";
+import {
+  createFirebaseIdTokenVerifier,
+  parseAllowedAuthEmails,
+  parseBooleanEnv,
+  verifyFirebaseAuthorization,
+} from "./auth.js";
 import { parseAllowedOrigins, parseMaxImageBytes, validateOcrRequestBody } from "./validation.js";
 
 type BoundingBox = {
@@ -22,6 +27,7 @@ const maxImageBytes = parseMaxImageBytes(process.env.MAX_IMAGE_BYTES);
 const allowedOrigins = parseAllowedOrigins(process.env.CORS_ORIGINS);
 const sharedToken = process.env.OCR_SHARED_TOKEN?.trim();
 const requireFirebaseAuth = parseBooleanEnv(process.env.REQUIRE_FIREBASE_AUTH, true);
+const allowedAuthEmails = parseAllowedAuthEmails(process.env.ALLOWED_AUTH_EMAILS);
 const verifyIdToken = requireFirebaseAuth ? createFirebaseIdTokenVerifier() : null;
 const visionClient = new vision.ImageAnnotatorClient();
 
@@ -87,7 +93,11 @@ app.post("/api/ocr", async (request, response) => {
   }
 
   if (verifyIdToken) {
-    const authValidation = await verifyFirebaseAuthorization(request.header("Authorization"), verifyIdToken);
+    const authValidation = await verifyFirebaseAuthorization(
+      request.header("Authorization"),
+      verifyIdToken,
+      allowedAuthEmails,
+    );
     if (!authValidation.ok) {
       response.status(authValidation.status).json({ error: authValidation.message });
       return;
