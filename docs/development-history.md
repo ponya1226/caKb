@@ -1,5 +1,30 @@
 # Development History
 
+## 2026-07-07 Expense Line Items Step
+
+目的: レシートOCRで取得できる品目名と品目金額を、支出総額・店舗・カテゴリを正本にする既存家計簿を壊さずに保存できるようにする。
+
+主な変更:
+
+- `Expense` に任意の `lineItems` を追加し、既存データは `lineItems` なしで有効なままにした
+- OCR候補抽出に品目名 + 金額の候補を追加し、合計、税、支払、釣り、電話番号、登録番号、日付、クーポン文言を除外
+- OCR確認、手入力、編集フォームに折りたたみの品目明細入力を追加
+- 支出一覧の詳細表示で品目数、品目合計、品目一覧を確認できるようにした
+- JSONバックアップのround-trip、旧JSONバックアップ読込、CSV `lineItemsJson`、Firestoreネストフィールド移行に対応
+- 保存形式変更のADR 0008を追加
+
+検証結果:
+
+- `npm run lint`
+- `npm run test`
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- 品目別カテゴリ集計、品目別自動カテゴライズ、数量/単価、商品マスタ、Google Sheets品目別出力は未対応
+- 実レシートのGoogle Vision OCR結果を使った品目候補抽出の回帰テストを継続的に増やす
+
 ## 2026-07-07 Google Vision Proxy Email Allowlist
 
 目的: Googleログイン済みであれば誰でもGoogle Vision OCRを利用できる状態を避け、許可したFirebase Authメールアドレスだけが高精度OCRを使えるようにする。

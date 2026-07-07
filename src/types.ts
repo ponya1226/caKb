@@ -28,8 +28,17 @@ export type Expense = {
   memo: string;
   source: ExpenseSource;
   receiptImageId?: string;
+  lineItems?: ExpenseLineItem[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type ExpenseLineItem = {
+  id: string;
+  name: string;
+  amount: number;
+  source: "ocr" | "manual";
+  confidence?: number;
 };
 
 export type Category = {
@@ -155,6 +164,14 @@ export type ReceiptParseResult = {
   dateCandidates: Array<ReceiptCandidate<string>>;
   shopNameCandidates: Array<ReceiptCandidate<string>>;
   amountCandidates: Array<ReceiptCandidate<number>>;
+  lineItemCandidates: ReceiptLineItemCandidate[];
+};
+
+export type ReceiptLineItemCandidate = {
+  name: string;
+  amount: number;
+  line: string;
+  confidence: number;
 };
 
 export type ReceiptCategorySuggestion = {
@@ -170,6 +187,7 @@ export type ExpenseFormValues = {
   amount: number;
   categoryId: string;
   memo: string;
+  lineItems?: ExpenseLineItem[];
 };
 
 export type ReceiptSaveOptions = {

@@ -120,6 +120,63 @@ describe("parseReceiptText", () => {
     );
   });
 
+  it("extracts line item candidates from convenience store style rows", () => {
+    const result = parseReceiptText(`
+      SAMPLE CONVENIENCE
+      2026年07月01日(水) 20:31
+      Potato Chips うすしお味 *168
+      Yam Snack 醤油仕立て *278
+      小計 (税抜 8%) ¥446
+      消費税等 (8%) ¥35
+      合計 ¥481
+      PayPay支払 ¥481
+    `);
+
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["Potato Chips うすしお味", 168],
+      ["Yam Snack 醤油仕立て", 278],
+    ]);
+  });
+
+  it("extracts line item candidates from tea shop style yen rows", () => {
+    const result = parseReceiptText(`
+      SAMPLE TEA
+      2026年04月05日(日) 16:37
+      DECAF SAMPLE TB10 ¥1,000 *
+      合計 ¥1,000
+      お預り ¥1,000
+      おつり ¥0
+    `);
+
+    expect(result.lineItemCandidates[0]).toMatchObject({
+      name: "DECAF SAMPLE TB10",
+      amount: 1000,
+    });
+    expect(result.lineItemCandidates.map((candidate) => candidate.name)).not.toContain("合計");
+  });
+
+  it("extracts line item candidates from supermarket rows with tax markers", () => {
+    const result = parseReceiptText(`
+      SAMPLE MARKET
+      レジ 0186 2026/7/5(日) 14:12
+      Baking Powder 158※
+      小計 ¥158
+      外税8% ¥12
+      合計 ¥170
+      現金 ¥1,020
+      お釣り ¥850
+      登録番号 T0000000000000
+      TEL 000-0000-0000
+    `);
+
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["Baking Powder", 158],
+    ]);
+    expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toEqual(
+      expect.arrayContaining([170, 850, 1020]),
+    );
+  });
+
   it("normalizes full-width numbers and Japanese date notation", () => {
     const result = parseReceiptText(`
       テスト薬局

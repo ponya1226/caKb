@@ -3,6 +3,7 @@ import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { ExpenseEditor } from "./ExpenseEditor";
 import { currentMonthKey, formatDateLabel, formatMonthLabel, toMonthKey } from "../lib/date";
 import { formatCurrency } from "../lib/format";
+import { sumExpenseLineItems } from "../lib/lineItems";
 import type { Category, Expense, ExpenseFormValues } from "../types";
 
 type ExpenseListScreenProps = {
@@ -184,6 +185,8 @@ export function ExpenseListScreen({
         ) : (
           visibleExpenses.map((expense) => {
             const category = categoryMap.get(expense.categoryId);
+            const lineItems = expense.lineItems ?? [];
+            const lineItemTotal = sumExpenseLineItems(lineItems);
             return (
               <article key={expense.id} className="expense-item">
                 <div className="expense-main">
@@ -211,6 +214,25 @@ export function ExpenseListScreen({
                     </button>
                   </div>
                 </div>
+                {lineItems.length > 0 && (
+                  <details className="expense-details">
+                    <summary>
+                      品目 {lineItems.length}件 / {formatCurrency(lineItemTotal)}
+                    </summary>
+                    <div className="expense-line-items">
+                      {lineItems.map((item) => (
+                        <div className="expense-line-item" key={item.id}>
+                          <span>{item.name}</span>
+                          <strong>{formatCurrency(item.amount)}</strong>
+                        </div>
+                      ))}
+                      <div className="expense-line-item expense-line-item-total">
+                        <span>品目合計</span>
+                        <strong>{formatCurrency(lineItemTotal)}</strong>
+                      </div>
+                    </div>
+                  </details>
+                )}
               </article>
             );
           })

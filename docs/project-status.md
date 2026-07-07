@@ -4,6 +4,8 @@ Last Updated: 2026-07-07
 
 ## Implemented
 
+- 支出の任意品目明細 `lineItems` 保存。OCR候補、手入力、編集、一覧詳細、JSONバックアップ、CSV `lineItemsJson`、Firestoreネストフィールド移行に対応
+- OCR全文からの品目名 + 金額候補抽出。合計、税、支払、釣り、電話番号、登録番号、日付、クーポン文言は候補から除外
 - 利用者によるカテゴリ追加、名称変更、色変更、未使用カテゴリ削除
 - 年間支出画面: 年間合計、レシート登録分、月別支出、カテゴリ別年間支出、年間明細
 - 家族共有、認証、クラウド正本化、Google Sheets一方向同期に向けた方針ADR
@@ -104,6 +106,7 @@ Last Updated: 2026-07-07
 
 ## Technical Debt
 
+- 品目明細は支出の付加情報として保存しており、品目別カテゴリ集計、品目別自動カテゴライズ、数量/単価、商品マスタ、Google Sheets品目別出力は未対応
 - 現在の支出データ正本はまだIndexedDB。Firestoreへのコピー移行UIはあるが、移行後の一覧表示・登録・編集はまだFirestoreを正本にしていない。
 - Firebase Hosting deploy workflowは手動実行のみ。GitHub Secret `FIREBASE_SERVICE_ACCOUNT_CAKB_DEV` の設定と実deploy確認が必要。
 - GitHub Pagesは移行完了まで残っているが、スマホのFirebase Auth安定性に課題があるため正規配信先から外す予定。
@@ -143,6 +146,7 @@ Last Updated: 2026-07-07
 
 ## Next Recommended Priorities
 
+- 品目候補抽出の実レシート回帰テストを増やし、Google Vision OCR結果で商品行と小計/支払行の誤分類を継続調整する
 - Firebase Hosting URLでのPC/スマホGoogleログイン確認
 - Firebase Hosting deploy workflowのsecret設定と実deploy
 - GitHub Repository secret `GOOGLE_VISION_ALLOWED_EMAILS` の設定とGoogle Vision ProxyのCloud Run再デプロイ

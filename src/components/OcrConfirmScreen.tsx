@@ -6,6 +6,7 @@ import { OcrCropPreview } from "./OcrCropPreview";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
 import type { OcrCropRatios, OcrPreprocessMode } from "../lib/ocr";
 import { getOcrProviderLabel } from "../lib/ocrProviders";
+import { createLineItemsFromCandidates } from "../lib/lineItems";
 import {
   FULL_OCR_CROP,
   getOcrPresets,
@@ -187,6 +188,7 @@ export function OcrConfirmScreen({
           shopName,
           amount: parsed.amountCandidates[0]?.value ?? draft.initialValues.amount,
           categoryId: categorySuggestion?.categoryId ?? draft.initialValues.categoryId ?? DEFAULT_CATEGORY_ID,
+          lineItems: createLineItemsFromCandidates(parsed.lineItemCandidates),
         },
         categorySuggestion: categorySuggestion ?? undefined,
       };

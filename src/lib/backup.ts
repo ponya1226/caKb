@@ -1,4 +1,4 @@
-import type { AppSettings, BackupData, Category, Expense } from "../types";
+import type { AppSettings, BackupData, Category, Expense, ExpenseLineItem } from "../types";
 import { normalizeShopCategoryRule } from "./categorySuggestion";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -20,8 +20,26 @@ function isExpense(value: unknown): value is Expense {
     typeof value.memo === "string" &&
     (value.source === "manual" || value.source === "receipt") &&
     (value.receiptImageId === undefined || typeof value.receiptImageId === "string") &&
+    (value.lineItems === undefined ||
+      (Array.isArray(value.lineItems) && value.lineItems.every(isExpenseLineItem))) &&
     typeof value.createdAt === "string" &&
     typeof value.updatedAt === "string"
+  );
+}
+
+function isExpenseLineItem(value: unknown): value is ExpenseLineItem {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    typeof value.amount === "number" &&
+    Number.isFinite(value.amount) &&
+    (value.source === "ocr" || value.source === "manual") &&
+    (value.confidence === undefined ||
+      (typeof value.confidence === "number" && Number.isFinite(value.confidence)))
   );
 }
 

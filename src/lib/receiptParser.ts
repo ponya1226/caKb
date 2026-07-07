@@ -1,4 +1,4 @@
-import type { ReceiptCandidate, ReceiptParseResult } from "../types";
+import type { ReceiptCandidate, ReceiptLineItemCandidate, ReceiptParseResult } from "../types";
 
 const FINAL_AMOUNT_KEYWORD_PATTERN =
   /(合\s*計|現\s*計|お\s*買\s*上\s*計|お\s*買\s*い\s*上\s*げ\s*計|総\s*合\s*計|請\s*求|支\s*払|お\s*支\s*払|Pay\s*Pay|y\s*Pay|計\s*$)/i;
@@ -8,11 +8,21 @@ const CHANGE_AMOUNT_KEYWORD_PATTERN = /(お\s*釣|おつり|釣\s*り|釣銭)/;
 const SHOP_EXCLUDE_PATTERN = /(領収|レシート|明細|登録番号|TEL|電話|合計|税込|小計|現計|釣|お預|クレジット|ポイント)/i;
 const MONEY_AMOUNT_PATTERN = /¥\s*[%A-Za-z]*\s*[\dOo〇○Cc¢][\dOo〇○Cc¢,\s.．()[\]（）]{0,14}(?:円)?/g;
 const PLAIN_AMOUNT_PATTERN = /[\d][\d,\s]{1,12}(?:円)?/g;
+const LINE_ITEM_EXCLUDE_PATTERN =
+  /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|領収|明細|登録番号|TEL|電話|レジ|伝票|No\.?|WAON|POINT|ポイント|クーポン|http|https|お買上|マーク|軽減税率|株式会社)/i;
+const LINE_ITEM_NAME_EXCLUDE_PATTERN = /^[\s\-_=*※¥\d,.()（）[\]【】「」'"#]+$/;
 
 type ShopLine = {
   value: string;
   line: string;
   index: number;
+};
+
+type AmountMatch = {
+  amount: number;
+  raw: string;
+  index: number;
+  hasMoneySymbol: boolean;
 };
 
 function normalizeText(value: string): string {
@@ -129,16 +139,53 @@ function isPlainAmountMatchSkippable(line: string, match: RegExpMatchArray): boo
   return after === "%" || /[A-Za-z]/.test(before);
 }
 
-function extractAmountsFromLine(line: string): number[] {
-  const normalizedLine = normalizeText(line);
-  const moneyMatches = Array.from(normalizedLine.matchAll(MONEY_AMOUNT_PATTERN));
-  const plainMatches = Array.from(normalizedLine.matchAll(PLAIN_AMOUNT_PATTERN)).filter(
-    (match) => !isPlainAmountMatchSkippable(normalizedLine, match),
-  );
+function uniqueAmountMatches(matches: AmountMatch[]): AmountMatch[] {
+  const seen = new Set<number>();
+  return matches.filter((match) => {
+    if (seen.has(match.amount)) {
+      return false;
+    }
+    seen.add(match.amount);
+    return true;
+  });
+}
 
-  return [...moneyMatches, ...plainMatches]
-    .map((match) => parseAmountValue(match[0]))
-    .filter((amount): amount is number => amount !== null)
+function extractAmountMatchesFromLine(line: string): AmountMatch[] {
+  const normalizedLine = normalizeText(line);
+  const moneyMatches = Array.from(normalizedLine.matchAll(MONEY_AMOUNT_PATTERN)).map((match) => ({
+    match,
+    hasMoneySymbol: true,
+  }));
+  const plainMatches = Array.from(normalizedLine.matchAll(PLAIN_AMOUNT_PATTERN))
+    .filter((match) => !isPlainAmountMatchSkippable(normalizedLine, match))
+    .map((match) => ({
+      match,
+      hasMoneySymbol: false,
+    }));
+
+  return uniqueAmountMatches(
+    [...moneyMatches, ...plainMatches]
+      .map(({ match, hasMoneySymbol }) => {
+        const amount = parseAmountValue(match[0]);
+        if (amount === null) {
+          return null;
+        }
+
+        return {
+          amount,
+          raw: match[0],
+          index: match.index ?? 0,
+          hasMoneySymbol,
+        };
+      })
+      .filter((match): match is AmountMatch => match !== null)
+      .sort((a, b) => a.index - b.index),
+  ).filter((match) => match.amount >= 10);
+}
+
+function extractAmountsFromLine(line: string): number[] {
+  return extractAmountMatchesFromLine(line)
+    .map((match) => match.amount)
     .filter((amount) => amount >= 10)
     .filter((amount, index, amounts) => amounts.indexOf(amount) === index);
 }
@@ -237,6 +284,112 @@ function extractAmountCandidates(lines: string[]): Array<ReceiptCandidate<number
       ? keywordCandidates.sort((a, b) => b.confidence - a.confidence || b.value - a.value)
       : fallbackCandidates.sort((a, b) => b.value - a.value);
   return uniqueCandidates(candidates).slice(0, 6);
+}
+
+function removeAmountToken(line: string, match: AmountMatch): string {
+  return `${line.slice(0, match.index)} ${line.slice(match.index + match.raw.length)}`;
+}
+
+function cleanLineItemName(line: string, match: AmountMatch): string {
+  return removeAmountToken(normalizeText(line), match)
+    .replace(/[¥￥]/g, "")
+    .replace(/[*※]/g, "")
+    .replace(/[|｜]/g, " ")
+    .replace(/^[\s\-_=・:：,.、。()（）[\]【】「」'"#]+/, "")
+    .replace(/[\s\-_=・:：,.、。()（）[\]【】「」'"#]+$/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function isReceiptCodeLikeLine(line: string): boolean {
+  const compactLine = normalizeText(line).replace(/\s/g, "");
+  return /\d{12,}/.test(compactLine) || /\d{2,4}-\d{2,4}-\d{2,4}/.test(compactLine);
+}
+
+function shouldSkipLineItemLine(line: string): boolean {
+  const normalizedLine = normalizeText(line);
+  if (LINE_ITEM_EXCLUDE_PATTERN.test(normalizedLine)) {
+    return true;
+  }
+
+  if (isReceiptCodeLikeLine(normalizedLine)) {
+    return true;
+  }
+
+  return /\d{1,4}\s*(?:年|\/|-|\.)\s*\d{1,2}/.test(normalizedLine);
+}
+
+function isUsableLineItemName(name: string): boolean {
+  if (name.length < 2 || name.length > 48) {
+    return false;
+  }
+
+  if (LINE_ITEM_NAME_EXCLUDE_PATTERN.test(name)) {
+    return false;
+  }
+
+  const digitCount = name.match(/\d/g)?.length ?? 0;
+  return digitCount / name.length < 0.55;
+}
+
+function getLineItemConfidence(line: string, match: AmountMatch): number {
+  let confidence = match.hasMoneySymbol ? 0.78 : 0.6;
+
+  if (/[*※]/.test(line)) {
+    confidence += 0.08;
+  }
+
+  if (match.index > line.length * 0.45) {
+    confidence += 0.08;
+  }
+
+  return Math.min(confidence, 0.94);
+}
+
+function uniqueLineItemCandidates(candidates: ReceiptLineItemCandidate[]): ReceiptLineItemCandidate[] {
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    const key = `${candidate.name}:${candidate.amount}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] {
+  const candidates: ReceiptLineItemCandidate[] = [];
+
+  lines.forEach((line) => {
+    if (shouldSkipLineItemLine(line)) {
+      return;
+    }
+
+    const matches = extractAmountMatchesFromLine(line).filter(
+      (match) => match.amount >= 10 && match.amount <= 1_000_000,
+    );
+    if (matches.length === 0) {
+      return;
+    }
+
+    const match = matches[matches.length - 1];
+    const name = cleanLineItemName(line, match);
+    if (!isUsableLineItemName(name)) {
+      return;
+    }
+
+    candidates.push({
+      name,
+      amount: match.amount,
+      line: normalizeText(line).trim(),
+      confidence: getLineItemConfidence(line, match),
+    });
+  });
+
+  return uniqueLineItemCandidates(candidates)
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 20);
 }
 
 function normalizeShopNameCandidate(line: string): { value: string; confidenceBoost: number } {
@@ -417,6 +570,7 @@ export function parseReceiptText(text: string): ReceiptParseResult {
     dateCandidates: extractDateCandidates(lines),
     shopNameCandidates: extractShopNameCandidates(lines),
     amountCandidates: extractAmountCandidates(lines),
+    lineItemCandidates: extractLineItemCandidates(lines),
   };
 }
 

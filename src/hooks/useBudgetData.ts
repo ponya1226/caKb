@@ -6,6 +6,7 @@ import {
   upsertShopCategoryRule as upsertCategoryRule,
 } from "../lib/categorySuggestion";
 import { createId } from "../lib/id";
+import { normalizeExpenseLineItems } from "../lib/lineItems";
 import { localBudgetRepository } from "../lib/repositories/localBudgetRepository";
 import { loadSettings, resetSettings, saveSettings } from "../lib/settings";
 import { checkStorageHealth, requestPersistentStorage as requestBrowserPersistentStorage } from "../lib/storageHealth";
@@ -52,6 +53,7 @@ function normalizeCategoryColor(color: string): string {
 
 function createExpenseRecord(values: ExpenseFormValues, source: Expense["source"], receiptImageId?: string): Expense {
   const now = new Date().toISOString();
+  const lineItems = normalizeExpenseLineItems(values.lineItems);
 
   return {
     id: createId("expense"),
@@ -62,6 +64,7 @@ function createExpenseRecord(values: ExpenseFormValues, source: Expense["source"
     memo: values.memo.trim(),
     source,
     receiptImageId,
+    ...(lineItems ? { lineItems } : {}),
     createdAt: now,
     updatedAt: now,
   };
@@ -139,13 +142,17 @@ export function useBudgetData(): UseBudgetDataResult {
 
   const updateExpense = useCallback(
     async (expense: Expense, values: ExpenseFormValues) => {
+      const lineItems = normalizeExpenseLineItems(values.lineItems);
+      const expenseWithoutLineItems = { ...expense };
+      delete expenseWithoutLineItems.lineItems;
       await localBudgetRepository.saveExpense({
-        ...expense,
+        ...expenseWithoutLineItems,
         date: values.date,
         shopName: values.shopName.trim(),
         amount: Math.round(values.amount),
         categoryId: values.categoryId || DEFAULT_CATEGORY_ID,
         memo: values.memo.trim(),
+        ...(lineItems ? { lineItems } : {}),
         updatedAt: new Date().toISOString(),
       });
       await refresh();

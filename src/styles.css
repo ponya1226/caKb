@@ -388,6 +388,66 @@ h3 {
   font-weight: 700;
 }
 
+.line-item-editor {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.line-item-editor summary {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #334155;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.line-item-editor summary small {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.line-item-editor-body {
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.line-item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 132px) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.line-item-delete {
+  margin-bottom: 4px;
+}
+
+.line-item-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  color: #334155;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.line-item-diff {
+  color: #b45309;
+}
+
+.line-item-diff.matched {
+  color: #047857;
+}
+
 .compact-field {
   min-width: 180px;
   flex: 1 1 180px;
@@ -488,6 +548,46 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
+}
+
+.expense-details {
+  grid-column: 1 / -1;
+  padding-top: 4px;
+}
+
+.expense-details summary {
+  width: fit-content;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.expense-line-items {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.expense-line-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  color: #334155;
+  font-size: 0.84rem;
+}
+
+.expense-line-item span:first-child {
+  overflow-wrap: anywhere;
+}
+
+.expense-line-item-total {
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  font-weight: 800;
 }
 
 .expense-main,
@@ -1203,6 +1303,7 @@ textarea {
   .account-panel,
   .cloud-form,
   .cloud-panel,
+  .line-item-row,
   .metrics-grid,
   .expense-item,
   .picked-summary,
@@ -1214,6 +1315,11 @@ textarea {
 
   .expense-side {
     justify-items: start;
+  }
+
+  .line-item-delete {
+    width: 44px;
+    margin-bottom: 0;
   }
 
   .capture-actions .button,

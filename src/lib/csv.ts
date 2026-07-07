@@ -22,6 +22,7 @@ export function buildExpensesCsv(expenses: Expense[], categories: Category[]): s
     "receiptImageId",
     "createdAt",
     "updatedAt",
+    "lineItemsJson",
   ];
 
   const rows = expenses.map((expense) => [
@@ -35,6 +36,7 @@ export function buildExpensesCsv(expenses: Expense[], categories: Category[]): s
     expense.receiptImageId,
     expense.createdAt,
     expense.updatedAt,
+    JSON.stringify(expense.lineItems ?? []),
   ]);
 
   return [headers, ...rows].map((row) => row.map(escapeCsvValue).join(",")).join("\r\n");

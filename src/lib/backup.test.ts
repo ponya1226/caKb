@@ -45,6 +45,37 @@ describe("backup", () => {
     expect(backup.settings).toEqual(settings);
   });
 
+  it("round-trips optional expense line items", () => {
+    const expenseWithLineItems: Expense = {
+      ...expenses[0],
+      lineItems: [
+        {
+          id: "line-item-1",
+          name: "Sample Item",
+          amount: 168,
+          source: "ocr",
+          confidence: 0.9,
+        },
+      ],
+    };
+
+    const backup = parseBackupJson(buildBackupJson([expenseWithLineItems], categories, settings));
+
+    expect(backup.expenses[0].lineItems).toEqual(expenseWithLineItems.lineItems);
+  });
+
+  it("accepts old backups without expense line items", () => {
+    const backup = parseBackupJson(JSON.stringify({
+      app: "caKb",
+      version: 1,
+      expenses,
+      categories,
+      settings,
+    }));
+
+    expect(backup.expenses[0].lineItems).toBeUndefined();
+  });
+
   it("rejects unsupported backup data", () => {
     expect(() => parseBackupJson(JSON.stringify({ app: "other", version: 1 }))).toThrow(
       "対応していないバックアップ形式です",

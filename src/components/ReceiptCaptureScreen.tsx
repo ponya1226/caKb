@@ -17,6 +17,7 @@ import {
 } from "../lib/ocrRange";
 import type { OcrMode, OcrPreset, OcrRunResult } from "../lib/ocrRange";
 import { parseReceiptText } from "../lib/receiptParser";
+import { createLineItemsFromCandidates } from "../lib/lineItems";
 import type { OcrProgress, OcrProvider, ReceiptCandidate, ReceiptCategorySuggestion, ReceiptDraft } from "../types";
 
 const LARGE_RECEIPT_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -329,6 +330,7 @@ export function ReceiptCaptureScreen({
         amount: parsed.amountCandidates[0]?.value ?? 0,
         categoryId: categorySuggestion?.categoryId ?? DEFAULT_CATEGORY_ID,
         memo: "",
+        lineItems: createLineItemsFromCandidates(parsed.lineItemCandidates),
       },
       ...(categorySuggestion ? { categorySuggestion } : {}),
     };
@@ -546,6 +548,7 @@ export function ReceiptCaptureScreen({
         amount: pickedAmount,
         categoryId: categorySuggestion?.categoryId ?? DEFAULT_CATEGORY_ID,
         memo: "",
+        lineItems: createLineItemsFromCandidates(parseResult.lineItemCandidates),
       },
       ...(categorySuggestion ? { categorySuggestion } : {}),
     }]);

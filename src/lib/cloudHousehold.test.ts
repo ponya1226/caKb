@@ -70,4 +70,15 @@ describe("cloudHousehold", () => {
       householdId: "household-1",
     });
   });
+
+  it("keeps expense line items as nested cloud fields", () => {
+    const expenseWithLineItems: Expense = {
+      ...expense,
+      lineItems: [{ id: "line-item-1", name: "Sample Item", amount: 168, source: "manual" }],
+    };
+
+    expect(toCloudExpense(expenseWithLineItems, "household-1", "user-1").lineItems).toEqual(
+      expenseWithLineItems.lineItems,
+    );
+  });
 });

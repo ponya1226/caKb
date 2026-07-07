@@ -1,7 +1,9 @@
 import { FormEvent, useMemo, useState } from "react";
-import { Check, X } from "lucide-react";
+import { Check, Plus, Trash2, X } from "lucide-react";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
 import { isValidDateInput, toDateInputValue } from "../lib/date";
+import { formatCurrency } from "../lib/format";
+import { createEmptyLineItem, normalizeExpenseLineItems, sumExpenseLineItems } from "../lib/lineItems";
 import type { Category, ExpenseFormValues } from "../types";
 
 type ExpenseEditorProps = {
@@ -20,12 +22,37 @@ export function ExpenseEditor({ categories, initialValues, submitLabel, onSubmit
       amount: initialValues?.amount ?? 0,
       categoryId: initialValues?.categoryId ?? DEFAULT_CATEGORY_ID,
       memo: initialValues?.memo ?? "",
+      lineItems: initialValues?.lineItems ?? [],
     }),
     [initialValues],
   );
   const [values, setValues] = useState<ExpenseFormValues>(defaultValues);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const lineItems = values.lineItems ?? [];
+  const lineItemTotal = useMemo(() => sumExpenseLineItems(lineItems), [lineItems]);
+  const lineItemDiff = lineItemTotal - values.amount;
+
+  function updateLineItem(id: string, updates: Partial<NonNullable<ExpenseFormValues["lineItems"]>[number]>) {
+    setValues((current) => ({
+      ...current,
+      lineItems: (current.lineItems ?? []).map((item) => (item.id === id ? { ...item, ...updates } : item)),
+    }));
+  }
+
+  function addLineItem() {
+    setValues((current) => ({
+      ...current,
+      lineItems: [...(current.lineItems ?? []), createEmptyLineItem()],
+    }));
+  }
+
+  function removeLineItem(id: string) {
+    setValues((current) => ({
+      ...current,
+      lineItems: (current.lineItems ?? []).filter((item) => item.id !== id),
+    }));
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,7 +75,15 @@ export function ExpenseEditor({ categories, initialValues, submitLabel, onSubmit
 
     setIsSaving(true);
     try {
-      await onSubmit({ ...values, amount: Math.round(values.amount) });
+      const normalizedLineItems = normalizeExpenseLineItems(values.lineItems);
+      await onSubmit({
+        date: values.date,
+        shopName: values.shopName,
+        amount: Math.round(values.amount),
+        categoryId: values.categoryId,
+        memo: values.memo,
+        ...(normalizedLineItems ? { lineItems: normalizedLineItems } : {}),
+      });
     } finally {
       setIsSaving(false);
     }
@@ -114,6 +149,68 @@ export function ExpenseEditor({ categories, initialValues, submitLabel, onSubmit
           placeholder="メモ"
         />
       </label>
+
+      <details className="line-item-editor">
+        <summary>
+          <span>品目明細</span>
+          <small>
+            {lineItems.length > 0
+              ? `${lineItems.length}件 / ${formatCurrency(lineItemTotal)}`
+              : "未入力"}
+          </small>
+        </summary>
+        <div className="line-item-editor-body">
+          {lineItems.length > 0 ? (
+            lineItems.map((item) => (
+              <div className="line-item-row" key={item.id}>
+                <label className="field">
+                  <span>品目名</span>
+                  <input
+                    type="text"
+                    value={item.name}
+                    onChange={(event) => updateLineItem(item.id, { name: event.target.value })}
+                    placeholder="品目名"
+                  />
+                </label>
+                <label className="field line-item-amount-field">
+                  <span>金額</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="1"
+                    value={item.amount || ""}
+                    onChange={(event) => updateLineItem(item.id, { amount: Number(event.target.value) })}
+                    placeholder="0"
+                  />
+                </label>
+                <button
+                  className="icon-button small danger line-item-delete"
+                  type="button"
+                  onClick={() => removeLineItem(item.id)}
+                  aria-label="品目を削除"
+                >
+                  <Trash2 size={17} aria-hidden="true" />
+                </button>
+              </div>
+            ))
+          ) : (
+            <p className="subtle-text">品目明細は未入力です。</p>
+          )}
+          <div className="line-item-summary">
+            <span>品目合計 {formatCurrency(lineItemTotal)}</span>
+            {lineItems.length > 0 && (
+              <span className={lineItemDiff === 0 ? "line-item-diff matched" : "line-item-diff"}>
+                総額との差分 {formatCurrency(lineItemDiff)}
+              </span>
+            )}
+          </div>
+          <button className="button button-secondary button-compact" type="button" onClick={addLineItem}>
+            <Plus size={16} aria-hidden="true" />
+            品目を追加
+          </button>
+        </div>
+      </details>
 
       {error && <p className="inline-error">{error}</p>}
 
