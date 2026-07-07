@@ -8,7 +8,7 @@
 
 - Google Vision ProxyでFirebase ID tokenの `email` を取得し、`ALLOWED_AUTH_EMAILS` と照合する処理を追加
 - 許可リスト外のユーザーには `/api/ocr` で `403 Forbidden` を返す
-- GitHub ActionsのCloud Run deploy workflowで `GOOGLE_VISION_ALLOWED_EMAILS` Repository variableを必須化
+- GitHub ActionsのCloud Run deploy workflowで `GOOGLE_VISION_ALLOWED_EMAILS` Repository secretを必須化
 - Cloud Runへ `ALLOWED_AUTH_EMAILS` を環境変数として反映
 - proxy認証テストにメール許可リストの正規化、許可、拒否ケースを追加
 
@@ -21,7 +21,7 @@
 
 残課題:
 
-- GitHub Repository variable `GOOGLE_VISION_ALLOWED_EMAILS` に実際の許可メールを設定してからCloud Run deploy workflowを再実行する
+- GitHub Repository secret `GOOGLE_VISION_ALLOWED_EMAILS` に実際の許可メールを設定してからCloud Run deploy workflowを再実行する
 - 将来的にはFirestore上のユーザー権限、日次/月次利用回数制限、レート制限へ拡張する
 
 ## 2026-07-07 Google Vision Proxy Auth Step

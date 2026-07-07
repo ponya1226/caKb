@@ -25,7 +25,6 @@ jobs:
       CLOUD_RUN_SERVICE: cakb-google-vision-proxy
       CLOUD_RUN_SERVICE_ACCOUNT: cakb-vision-proxy@cakb-dev.iam.gserviceaccount.com
       CORS_ORIGINS: https://cakb-dev.web.app,https://cakb-dev.firebaseapp.com,https://ponya1226.github.io
-      ALLOWED_AUTH_EMAILS: ${{ vars.GOOGLE_VISION_ALLOWED_EMAILS }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,9 +47,11 @@ jobs:
           npm run build
 
       - name: Validate OCR allowlist
+        env:
+          ALLOWED_AUTH_EMAILS: ${{ secrets.GOOGLE_VISION_ALLOWED_EMAILS }}
         run: |
           if [ -z "${ALLOWED_AUTH_EMAILS// }" ]; then
-            echo "::error::Set repository variable GOOGLE_VISION_ALLOWED_EMAILS before deploying the Google Vision proxy."
+            echo "::error::Set repository secret GOOGLE_VISION_ALLOWED_EMAILS before deploying the Google Vision proxy."
             exit 1
           fi
 
@@ -63,6 +64,8 @@ jobs:
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Deploy to Cloud Run
+        env:
+          ALLOWED_AUTH_EMAILS: ${{ secrets.GOOGLE_VISION_ALLOWED_EMAILS }}
         run: |
           gcloud run deploy "$CLOUD_RUN_SERVICE" \
             --source server/google-vision-proxy \

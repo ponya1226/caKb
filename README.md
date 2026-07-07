@@ -63,7 +63,7 @@ VITE_GOOGLE_VISION_PROXY_URL=
 
 Proxyサンプルは `server/google-vision-proxy/` にあります。Google Cloud認証情報、APIキー、token、secretはリポジトリへ追加しないでください。Google Vision利用時は、レシート画像がOCR処理のために外部サービスへ送信されます。
 
-Cloud Runへの疎通確認手順は `docs/google-vision-proxy-deploy.md` を参照してください。Firebase Hosting / GitHub Actionsでは `VITE_GOOGLE_VISION_PROXY_URL` をRepository variableとして設定し、ビルド時に埋め込みます。Google Vision ProxyをGitHub Actionsからデプロイする場合は、OCR利用を許可するFirebase Authメールを `GOOGLE_VISION_ALLOWED_EMAILS` Repository variableで設定します。
+Cloud Runへの疎通確認手順は `docs/google-vision-proxy-deploy.md` を参照してください。Firebase Hosting / GitHub Actionsでは `VITE_GOOGLE_VISION_PROXY_URL` をRepository variableとして設定し、ビルド時に埋め込みます。Google Vision ProxyをGitHub Actionsからデプロイする場合は、OCR利用を許可するFirebase Authメールを `GOOGLE_VISION_ALLOWED_EMAILS` Repository secretで設定します。
 
 Google Vision ProxyはFirebase ID tokenを検証するため、高精度OCRはGoogleログイン後に利用します。未ログイン時は従来どおりローカルOCRを利用できます。
 

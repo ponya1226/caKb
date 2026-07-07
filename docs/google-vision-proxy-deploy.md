@@ -103,7 +103,7 @@ Name: VITE_GOOGLE_VISION_PROXY_URL
 Value: https://cakb-google-vision-proxy-xxxxx-an.a.run.app/api/ocr
 ```
 
-Cloud Run ProxyをGitHub Actionsからデプロイする場合は、Google Vision OCRを許可するFirebase Authメールアドレスをカンマ区切りで設定します。
+Cloud Run ProxyをGitHub Actionsからデプロイする場合は、Google Vision OCRを許可するFirebase Authメールアドレスをカンマ区切りのRepository secretとして設定します。
 
 ```text
 Name: GOOGLE_VISION_ALLOWED_EMAILS

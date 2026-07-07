@@ -129,7 +129,7 @@ Firebase Hosting, Firebase Auth, Cloud Firestore, and Google Sheets export sync 
 - Keep Tesseract.js available as `localTesseract` fallback.
 - External OCR use must be visible to the user before sending an image.
 - Google Vision Proxy must verify Firebase ID tokens when `REQUIRE_FIREBASE_AUTH=true`; keep this enabled for hosted environments.
-- Hosted Google Vision Proxy deployments must set an email allowlist via `ALLOWED_AUTH_EMAILS` / `GOOGLE_VISION_ALLOWED_EMAILS`; do not hard-code real user email addresses in the repository.
+- Hosted Google Vision Proxy deployments must set an email allowlist via Cloud Run `ALLOWED_AUTH_EMAILS` sourced from the GitHub secret `GOOGLE_VISION_ALLOWED_EMAILS`; do not hard-code real user email addresses in the repository or expose them via GitHub variables.
 - Firebase client config must come from `VITE_FIREBASE_*`; do not commit real `.env` values or service account keys.
 - Firebase Hosting deploy credentials must stay in GitHub Secrets or local Firebase CLI auth; do not commit deploy tokens or service account JSON.
 - Adding other external services, paid APIs, bidirectional sync, or receipt-image cloud storage still requires explicit user approval and an ADR.
