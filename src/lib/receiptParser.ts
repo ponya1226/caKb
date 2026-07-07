@@ -11,6 +11,8 @@ const PLAIN_AMOUNT_PATTERN = /[\d][\d,\s]{1,12}(?:円)?/g;
 const LINE_ITEM_EXCLUDE_PATTERN =
   /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|割\s*引|値\s*引|領収|明細|登録番号|TEL|電話|レジ|伝票|No\.?|WAON|POINT|ポイント|クーポン|http|https|お買上|マーク|軽減税率|株式会社)/i;
 const LINE_ITEM_NAME_EXCLUDE_PATTERN = /^[\s\-_=*※¥\d,.()（）[\]【】「」'"#]+$/;
+const AMOUNT_SECTION_LABEL_PATTERN =
+  /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|お\s*買\s*上\s*計)/i;
 
 type ShopLine = {
   value: string;
@@ -28,6 +30,7 @@ type AmountMatch = {
 type PendingLineItemName = {
   name: string;
   line: string;
+  hasItemCode: boolean;
 };
 
 function normalizeText(value: string): string {
@@ -141,7 +144,12 @@ function isPlainAmountMatchSkippable(line: string, match: RegExpMatchArray): boo
   const before = line[index - 1] ?? "";
   const after = line[index + token.length] ?? "";
 
-  return after === "%" || /[A-Za-z]/.test(before);
+  return (
+    after === "%" ||
+    /[A-Za-z]/.test(before) ||
+    /[A-Za-z]/.test(after) ||
+    (index === 0 && /^\d{1,2}\s+\S/.test(line))
+  );
 }
 
 function uniqueAmountMatches(matches: AmountMatch[]): AmountMatch[] {
@@ -326,7 +334,11 @@ function shouldSkipLineItemLine(line: string): boolean {
     return true;
   }
 
-  return /\d{1,4}\s*(?:年|\/|-|\.)\s*\d{1,2}/.test(normalizedLine);
+  return (
+    /\d{1,4}\s*(?:年|\/|-|\.)\s*\d{1,2}/.test(normalizedLine) ||
+    /\d{1,2}\s*月\s*\d{1,2}\s*日/.test(normalizedLine) ||
+    /^\d{1,2}:\d{2}(?::\d{2})?$/.test(normalizedLine)
+  );
 }
 
 function isUsableLineItemName(name: string): boolean {
@@ -344,14 +356,20 @@ function isUsableLineItemName(name: string): boolean {
 
 function isPotentialSplitLineItemNameLine(line: string): boolean {
   const normalizedLine = normalizeText(line);
-  if (!/^\s*\d{1,2}\s+\S/.test(normalizedLine)) {
+  const name = normalizeLineItemName(normalizedLine);
+  if (/^\s*\d{1,2}\s+\S/.test(normalizedLine)) {
+    return isUsableLineItemName(name);
+  }
+
+  if (!/[一-龯ぁ-んァ-ヶA-Za-z]/.test(name)) {
     return false;
   }
 
-  return isUsableLineItemName(normalizeLineItemName(normalizedLine));
+  return isUsableLineItemName(name);
 }
 
 function createPendingLineItemName(line: string): PendingLineItemName | null {
+  const normalizedLine = normalizeText(line);
   const name = normalizeLineItemName(line);
   if (!isUsableLineItemName(name)) {
     return null;
@@ -359,7 +377,8 @@ function createPendingLineItemName(line: string): PendingLineItemName | null {
 
   return {
     name,
-    line: normalizeText(line).trim(),
+    line: normalizedLine.trim(),
+    hasItemCode: /^\s*\d{1,2}\s+\S/.test(normalizedLine),
   };
 }
 
@@ -369,6 +388,17 @@ function isLineItemAmountOnlyLine(line: string, match: AmountMatch): boolean {
   }
 
   return cleanLineItemName(line, match).length === 0;
+}
+
+function shouldSuppressNextAmountOnlyLine(line: string): boolean {
+  return AMOUNT_SECTION_LABEL_PATTERN.test(normalizeText(line));
+}
+
+function shouldSkipSuppressedAmountLine(line: string, match: AmountMatch): boolean {
+  const normalizedLine = normalizeText(line).trim();
+  const residualName = cleanLineItemName(line, match);
+
+  return normalizedLine.startsWith("¥") || residualName.length <= 3;
 }
 
 function getLineItemConfidence(line: string, match: AmountMatch): number {
@@ -400,10 +430,12 @@ function uniqueLineItemCandidates(candidates: ReceiptLineItemCandidate[]): Recei
 function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] {
   const candidates: ReceiptLineItemCandidate[] = [];
   const pendingNames: PendingLineItemName[] = [];
+  let suppressNextAmountOnlyLine = false;
 
   lines.forEach((line) => {
     if (shouldSkipLineItemLine(line)) {
       pendingNames.length = 0;
+      suppressNextAmountOnlyLine = shouldSuppressNextAmountOnlyLine(line);
       return;
     }
 
@@ -411,8 +443,12 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
       (match) => match.amount >= 10 && match.amount <= 1_000_000,
     );
     if (matches.length === 0) {
+      suppressNextAmountOnlyLine = false;
       const pendingName = isPotentialSplitLineItemNameLine(line) ? createPendingLineItemName(line) : null;
       if (pendingName) {
+        if (pendingName.hasItemCode && pendingNames.some((item) => !item.hasItemCode)) {
+          pendingNames.length = 0;
+        }
         pendingNames.push(pendingName);
         if (pendingNames.length > 4) {
           pendingNames.shift();
@@ -424,6 +460,13 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
     }
 
     const match = matches[matches.length - 1];
+    if (suppressNextAmountOnlyLine && shouldSkipSuppressedAmountLine(line, match)) {
+      suppressNextAmountOnlyLine = false;
+      pendingNames.length = 0;
+      return;
+    }
+    suppressNextAmountOnlyLine = false;
+
     if (pendingNames.length > 0 && isLineItemAmountOnlyLine(line, match)) {
       const pendingName = pendingNames.shift();
       if (!pendingName) {

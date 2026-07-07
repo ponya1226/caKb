@@ -138,6 +138,25 @@ describe("parseReceiptText", () => {
     ]);
   });
 
+  it("pairs convenience store split item names with star amount lines", () => {
+    const result = parseReceiptText(`
+      SAMPLE CONVENIENCE
+      2026年07月01日(水) 20:31
+      Potato Chips うすしお味
+      *168
+      Yam Snack 醤油仕立て
+      *278
+      小計 (税抜 8%) ¥446
+      消費税等 (8%) ¥35
+      合計 ¥481
+    `);
+
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["Potato Chips うすしお味", 168],
+      ["Yam Snack 醤油仕立て", 278],
+    ]);
+  });
+
   it("extracts line item candidates from tea shop style yen rows", () => {
     const result = parseReceiptText(`
       SAMPLE TEA
@@ -175,6 +194,28 @@ describe("parseReceiptText", () => {
     expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toEqual(
       expect.arrayContaining([170, 850, 1020]),
     );
+  });
+
+  it("does not treat change amount remnants as line items", () => {
+    const result = parseReceiptText(`
+      SAMPLE MARKET
+      Baking Powder 158※
+      小計
+      ¥158
+      合計
+      ¥170
+      現金
+      ¥1,020
+      お釣り
+      ¥850 らむ
+      お買上商品数:1
+    `);
+
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["Baking Powder", 158],
+    ]);
+    expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toContain(850);
+    expect(result.lineItemCandidates.map((candidate) => candidate.name)).not.toContain("らむ");
   });
 
   it("pairs split line item names with following amount-only lines", () => {
@@ -216,6 +257,53 @@ describe("parseReceiptText", () => {
     expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toEqual(
       expect.arrayContaining([60, 5699, 6154, 10000, 3846]),
     );
+  });
+
+  it("ignores department codes and gram notation when pairing split supermarket rows", () => {
+    const result = parseReceiptText(`
+      SAMPLE MARKET
+      24 Morning Fresh Half
+      ¥299
+      24 Raw Ham 110g
+      ¥299
+      24 Smoked Sausage Special ¥279
+      24 Salad Chicken 3 Pack ¥299
+      24 Salad Chicken Premium
+      ¥299
+      小計 18点 ¥5,699
+      お買上計 ¥6,154
+    `);
+
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["Morning Fresh Half", 299],
+      ["Raw Ham 110g", 299],
+      ["Smoked Sausage Special", 279],
+      ["Salad Chicken 3 Pack", 299],
+      ["Salad Chicken Premium", 299],
+    ]);
+    expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toEqual(
+      expect.arrayContaining([24, 110, 5699, 6154]),
+    );
+  });
+
+  it("does not treat promotional month-day text as a line item amount", () => {
+    const result = parseReceiptText(`
+      SAMPLE TEA
+      5月10日は母の日
+      お花の香りに包まれる華やかな
+      ティータイムを贈りませんか
+      2026年04月05日(日)
+      DECAF SAMPLE TB10 ¥1,000 *
+      合計
+      ¥1,000
+    `);
+
+    expect(result.lineItemCandidates[0]).toMatchObject({
+      name: "DECAF SAMPLE TB10",
+      amount: 1000,
+    });
+    expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toContain(10);
+    expect(result.lineItemCandidates.map((candidate) => candidate.name)).not.toContain("5月 日は母の日");
   });
 
   it("normalizes full-width numbers and Japanese date notation", () => {
