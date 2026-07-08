@@ -205,6 +205,9 @@ export function ExpenseEditor({ categories, initialValues, submitLabel, onSubmit
               </span>
             )}
           </div>
+          {lineItems.length > 0 && (
+            <p className="subtle-text">税・割引・支払調整により、総額と一致しない場合があります。</p>
+          )}
           <button className="button button-secondary button-compact" type="button" onClick={addLineItem}>
             <Plus size={16} aria-hidden="true" />
             品目を追加

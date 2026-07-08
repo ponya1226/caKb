@@ -250,12 +250,100 @@ describe("parseReceiptText", () => {
       ["Lettuce", 119],
       ["Mini Tomato Large Pack", 359],
       ["Banana Premium", 299],
+      ["割引(20%)", -60],
       ["Chicken Breast 2pcs", 741],
       ["Chocolate Cream", 239],
       ["Pure Honey", 499],
     ]);
     expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toEqual(
       expect.arrayContaining([60, 5699, 6154, 10000, 3846]),
+    );
+  });
+
+  it("extracts Belc style items while excluding tax, receipt footer, quantities, and points", () => {
+    const result = parseReceiptText(`
+      Belc
+      ベルク
+      足立新田店
+      2026年07月03日 (金) 14:34
+      01 きゃべつ
+      ¥159
+      01 レタス
+      ¥119
+      01 ミニトマト (大パック
+      ¥359
+      01 甘熟王ゴールドプレミ
+      ¥299
+      ★割引(20%)
+      -60
+      01 *生椎茸得用 (菌床)
+      ¥299
+      04 国産若鶏むね肉 2枚 ¥741
+      04 穀物肥育牛肩ロースス ¥474
+      05 *ごろジュワ~ 大粒唐 ¥399
+      06 コーンフロスティ 大 ¥459
+      07 * {} ちょこれーとくり
+      07 中国産 純粋はちみつ
+      ¥239
+      ¥499
+      24 朝のフレッシュハーフ
+      ¥299
+      24 生ハム 110g
+      ¥299
+      24 プリマハム香薫あら 特 ¥279
+      24 サラダチキン3レン ¥299
+      24 サラダチキン3連プレ
+      ¥299
+      25 たまご醤油たれ納豆
+      ¥238
+      (0119×2個)
+      小計
+      18点 ¥5,699
+      税込金額合計
+      ¥6,154
+      8%税抜対象額
+      ¥5,699
+      8%税
+      ¥455
+      お買上計 ¥6,154
+      お預り計¥10,000
+      お釣り ¥3,846
+      株式会社ベルク
+      登録番号
+      T8030001085963
+      収いたしました
+      ***116
+      56P
+      イント
+      496P
+      絶対満足宣言
+    `);
+
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["きゃべつ", 159],
+      ["レタス", 119],
+      ["ミニトマト (大パック", 359],
+      ["甘熟王ゴールドプレミ", 299],
+      ["割引(20%)", -60],
+      ["生椎茸得用 (菌床)", 299],
+      ["国産若鶏むね肉 2枚", 741],
+      ["穀物肥育牛肩ロースス", 474],
+      ["ごろジュワ~ 大粒唐", 399],
+      ["コーンフロスティ 大", 459],
+      ["ちょこれーとくり", 239],
+      ["中国産 純粋はちみつ", 499],
+      ["朝のフレッシュハーフ", 299],
+      ["生ハム 110g", 299],
+      ["プリマハム香薫あら 特", 279],
+      ["サラダチキン3レン", 299],
+      ["サラダチキン3連プレ", 299],
+      ["たまご醤油たれ納豆", 238],
+    ]);
+    expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toEqual(
+      expect.arrayContaining([18, 110, 455, 5699, 6154, 10000, 3846, 116, 56, 496]),
+    );
+    expect(result.lineItemCandidates.map((candidate) => candidate.name)).not.toEqual(
+      expect.arrayContaining(["8%税", "収いたしました", "絶対満足宣言"]),
     );
   });
 
