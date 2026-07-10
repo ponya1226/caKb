@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildHousehold, buildOwnerMember, toCloudCategory, toCloudExpense, toCloudShopCategoryRule } from "./cloudHousehold";
-import type { Category, Expense, ShopCategoryRule } from "../types";
+import type { Category, Expense, ShopCategoryRule, UserProfile } from "../types";
 
 const expense: Expense = {
   id: "expense-1",
@@ -80,5 +80,18 @@ describe("cloudHousehold", () => {
     expect(toCloudExpense(expenseWithLineItems, "household-1", "user-1").lineItems).toEqual(
       expenseWithLineItems.lineItems,
     );
+  });
+
+  it("allows user profiles to keep an active household pointer", () => {
+    const profile: UserProfile = {
+      uid: "user-1",
+      displayName: "Sample User",
+      email: "sample@example.invalid",
+      activeHouseholdId: "household-1",
+      createdAt: "2026-07-05T00:00:00.000Z",
+      updatedAt: "2026-07-05T00:00:00.000Z",
+    };
+
+    expect(profile.activeHouseholdId).toBe("household-1");
   });
 });

@@ -19,6 +19,7 @@ import type {
   Household,
   HouseholdMember,
   ShopCategoryRule,
+  UserProfile,
 } from "../types";
 import { removeUndefinedFields } from "./firestoreSanitizer";
 import { createId } from "./id";
@@ -28,6 +29,7 @@ import {
   householdMemberPath,
   householdPath,
   householdShopCategoryRulesPath,
+  userProfilePath,
 } from "./firestorePaths";
 
 const FIRESTORE_BATCH_LIMIT = 450;
@@ -48,6 +50,26 @@ export type CloudUser = {
   uid: string;
   displayName: string;
 };
+
+async function getHouseholdSummaryById(
+  firestore: Firestore,
+  householdId: string,
+  uid: string,
+): Promise<CloudHouseholdSummary | null> {
+  const [householdSnapshot, memberSnapshot] = await Promise.all([
+    getDoc(doc(firestore, householdPath(householdId))),
+    getDoc(doc(firestore, householdMemberPath(householdId, uid))),
+  ]);
+
+  if (!householdSnapshot.exists() || !memberSnapshot.exists()) {
+    return null;
+  }
+
+  return {
+    household: householdSnapshot.data() as Household,
+    member: memberSnapshot.data() as HouseholdMember,
+  };
+}
 
 export function buildHousehold(name: string, ownerUid: string, now = new Date().toISOString()): Household {
   return {
@@ -116,13 +138,36 @@ export async function createHouseholdForUser(
 
   await setDoc(doc(firestore, householdPath(household.id)), household);
   await setDoc(doc(firestore, householdMemberPath(household.id, user.uid)), member);
+  await setDoc(
+    doc(firestore, userProfilePath(user.uid)),
+    {
+      activeHouseholdId: household.id,
+      updatedAt: now,
+    },
+    { merge: true },
+  );
 
   return { household, member };
 }
 
 export async function findFirstHouseholdForUser(firestore: Firestore, uid: string): Promise<CloudHouseholdSummary | null> {
-  const memberQuery = query(collectionGroup(firestore, "members"), where("uid", "==", uid));
-  const memberSnapshots = await getDocs(memberQuery);
+  const userSnapshot = await getDoc(doc(firestore, userProfilePath(uid)));
+  const activeHouseholdId = userSnapshot.exists() ? (userSnapshot.data() as Partial<UserProfile>).activeHouseholdId : undefined;
+  if (activeHouseholdId) {
+    const activeHousehold = await getHouseholdSummaryById(firestore, activeHouseholdId, uid);
+    if (activeHousehold) {
+      return activeHousehold;
+    }
+  }
+
+  let memberSnapshots;
+  try {
+    const memberQuery = query(collectionGroup(firestore, "members"), where("uid", "==", uid));
+    memberSnapshots = await getDocs(memberQuery);
+  } catch {
+    return null;
+  }
+
   const memberSnapshot = memberSnapshots.docs[0];
 
   if (!memberSnapshot) {
@@ -134,6 +179,8 @@ export async function findFirstHouseholdForUser(firestore: Firestore, uid: strin
   if (!householdSnapshot.exists()) {
     return null;
   }
+
+  await setDoc(doc(firestore, userProfilePath(uid)), { activeHouseholdId: member.householdId }, { merge: true });
 
   return {
     household: householdSnapshot.data() as Household,
