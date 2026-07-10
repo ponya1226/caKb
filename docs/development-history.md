@@ -1,5 +1,30 @@
 # Development History
 
+## 2026-07-10 Roadmap and Hosting Policy Step
+
+目的: 不具合修正後の開発方針を整理し、Firebase Hostingを正規配信先とする運用に合わせてドキュメントとworkflowを整える。
+
+主な変更:
+
+- 今後の開発方針を `docs/development-roadmap.md` として追加
+- 短期はOCR確認体験と品目明細安定化、中期はFirestore正本化と家族共有、長期はGoogle Sheets一方向同期と品目別活用に整理
+- GitHub Pages deploy workflowを `main` push対象から外し、手動実行のみへ変更
+- READMEの正規確認URLとFirebase Hosting自動deploy説明を更新
+- `docs/project-status.md` のFirebase Hosting、GitHub Pages、Next Recommended Prioritiesを現状に合わせて更新
+
+検証結果:
+
+- `npm run lint`
+- `npm run test`
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- Firestore正本化は未実装
+- 家族招待、Google Sheets同期、品目別集計は今後の段階的実装対象
+- GitHub PagesのRepository設定そのものを完全停止するかは未決定
+
 ## 2026-07-07 Expense Line Items Step
 
 目的: レシートOCRで取得できる品目名と品目金額を、支出総額・店舗・カテゴリを正本にする既存家計簿を壊さずに保存できるようにする。

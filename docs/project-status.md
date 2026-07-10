@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-07-07
+Last Updated: 2026-07-10
 
 ## Implemented
 
@@ -14,8 +14,10 @@ Last Updated: 2026-07-07
 - Firestore Security Rules雛形とFirebase初期設定ドキュメント
 - Firebase Auth Googleログイン/ログアウトUI
 - Firebase Hosting移行ADR
-- Firebase Hosting配信設定と手動deploy workflow
+- Firebase Hosting配信設定と `main` push時の自動deploy workflow
 - Firebase Hosting上のスマホ/PWA向けGoogle redirectログイン導線
+- GitHub Pages deploy workflowを通常push対象から外し、Firebase Hostingを正規確認URLに整理
+- 今後の開発方針を `docs/development-roadmap.md` に整理
 - ログイン成功時の `users/{uid}` profile作成/更新
 - Firestore上のhousehold作成とowner member作成
 - IndexedDB内の支出、カテゴリ、店舗別カテゴリルールをFirestoreへ手動コピーする移行UI
@@ -108,8 +110,8 @@ Last Updated: 2026-07-07
 
 - 品目明細は支出の付加情報として保存しており、品目別カテゴリ集計、品目別自動カテゴライズ、数量/単価、商品マスタ、Google Sheets品目別出力は未対応
 - 現在の支出データ正本はまだIndexedDB。Firestoreへのコピー移行UIはあるが、移行後の一覧表示・登録・編集はまだFirestoreを正本にしていない。
-- Firebase Hosting deploy workflowは手動実行のみ。GitHub Secret `FIREBASE_SERVICE_ACCOUNT_CAKB_DEV` の設定と実deploy確認が必要。
-- GitHub Pagesは移行完了まで残っているが、スマホのFirebase Auth安定性に課題があるため正規配信先から外す予定。
+- Firebase Hosting deploy workflowは `main` pushで自動実行される。GitHub Secret `FIREBASE_SERVICE_ACCOUNT_CAKB_DEV` の継続管理が必要。
+- GitHub Pagesは通常push対象から外したが、workflow自体は手動実行用に残っている。公開URL案内やGitHub Pages設定の整理は残る。
 - Firestore Security Rulesは雛形段階で、Firebase EmulatorまたはRules testによる検証は未実施。
 - Google Sheets同期は方針のみで、Sheets API連携、認可、同期ログ、失敗時再試行は未実装。
 - カテゴリ削除は支出で未使用の場合のみ可能。使用中カテゴリの統合や一括付け替えは未対応。
@@ -135,7 +137,7 @@ Last Updated: 2026-07-07
 - レシート画像容量は警告のみで、圧縮やリサイズは未対応。
 - OCR範囲指定は矩形切り抜きのみで、傾き補正や台形補正は未対応。
 - 店舗名の補正は限定的なヒューリスティックで、店舗網羅は未対応。
-- Firebase Hosting移行完了後、GitHub Pages workflow停止と公開URL案内の整理が必要。
+- Firebase Hosting移行後の公開URL案内はREADME上では整理済み。GitHub Pages設定の完全停止は未対応。
 - 自動カテゴライズは店舗名の正規化一致のみで、商品名や明細内容は考慮していない。
 - 複数レシートの一括登録は逐次OCRのため、枚数が多い場合は待ち時間が長くなる。
 - 自動OCR範囲比較は複数回OCRするため、単発OCRより時間がかかる。
@@ -147,8 +149,8 @@ Last Updated: 2026-07-07
 ## Next Recommended Priorities
 
 - 品目候補抽出の実レシート回帰テストを増やし、Google Vision OCR結果で商品行と小計/支払行の誤分類を継続調整する
-- Firebase Hosting URLでのPC/スマホGoogleログイン確認
-- Firebase Hosting deploy workflowのsecret設定と実deploy
+- Firebase Hosting URLでのPC/スマホGoogleログイン継続確認
+- GitHub Pages設定の完全停止またはアーカイブ方針決定
 - GitHub Repository secret `GOOGLE_VISION_ALLOWED_EMAILS` の設定とGoogle Vision ProxyのCloud Run再デプロイ
 - Firestore cloud repository実装とクラウド正本切替
 - 家族招待コード導線とmember権限UI

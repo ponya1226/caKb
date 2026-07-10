@@ -49,6 +49,7 @@ npm run build
 - `AGENTS.md`: 開発ルールと完了条件
 - `CONTRIBUTING.md`: 作業手順と検証
 - `docs/architecture.md`: 構成と依存方向
+- `docs/development-roadmap.md`: 今後の開発方針
 - `docs/project-status.md`: 実装状況
 - `docs/development-history.md`: 作業履歴
 - `docs/decisions/`: ADR
@@ -83,6 +84,6 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=
 
 Firebase設定後は、設定画面のアカウント欄からGoogleログインできます。ログイン後はクラウド家計簿を作成し、IndexedDB内の支出、カテゴリ、店舗別カテゴリルールをFirestoreへ手動コピーできます。現時点では移行後もアプリの支出登録・一覧表示はIndexedDBを正本として使います。
 
-スマホのGoogleログイン安定化のため、配信基盤はGitHub PagesからFirebase Hostingへ移行します。初期の正規URLは `https://cakb-dev.firebaseapp.com` を想定します。Hosting移行の方針は `docs/decisions/0007-firebase-hosting-auth-migration.md` を参照してください。
+スマホのGoogleログイン安定化のため、正規の確認URLは Firebase Hosting の `https://cakb-dev.firebaseapp.com` です。Hosting移行の方針は `docs/decisions/0007-firebase-hosting-auth-migration.md` を参照してください。
 
-Firebase Hostingへの手動deployは、GitHub Secret `FIREBASE_SERVICE_ACCOUNT_CAKB_DEV` を設定したうえで `Deploy Firebase Hosting` workflowを実行します。secretやservice account keyはrepoへコミットしません。
+Firebase Hostingへのdeployは、GitHub Secret `FIREBASE_SERVICE_ACCOUNT_CAKB_DEV` を設定したうえで `main` へpushすると `Deploy Firebase Hosting` workflowが自動実行されます。手動実行も可能です。secretやservice account keyはrepoへコミットしません。
