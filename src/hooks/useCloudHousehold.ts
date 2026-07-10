@@ -41,7 +41,9 @@ function formatCloudMigrationError(unknownError: unknown): string {
     return "クラウド移行用に変換できないデータが含まれています。画面を再読み込みしてからもう一度実行してください。";
   }
 
-  return "ローカルデータのクラウド移行に失敗しました。";
+  return typeof code === "string"
+    ? `ローカルデータのクラウド移行に失敗しました。エラーコード: ${code}`
+    : "ローカルデータのクラウド移行に失敗しました。";
 }
 
 export function useCloudHousehold(user: AuthenticatedUser | null): CloudHouseholdState {

@@ -366,6 +366,9 @@ export function SettingsScreen({
         {cloudHousehold.lastMigration && (
           <div className="inline-status">
             Firestoreへコピーしました: 支出{cloudHousehold.lastMigration.expenses}件、カテゴリ{cloudHousehold.lastMigration.categories}件、店舗ルール{cloudHousehold.lastMigration.shopCategoryRules}件
+            {cloudHousehold.lastMigration.warnings?.map((warning) => (
+              <p key={warning}>{warning}</p>
+            ))}
           </div>
         )}
 

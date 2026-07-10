@@ -41,6 +41,7 @@ export type CloudMigrationSummary = {
   expenses: number;
   categories: number;
   shopCategoryRules: number;
+  warnings?: string[];
 };
 
 export type CloudUser = {
@@ -171,17 +172,26 @@ export async function migrateLocalDataToHousehold(
     firestore,
   );
 
-  await commitBatchItems(
-    cloudShopCategoryRules,
-    (batch, rule) => {
-      batch.set(doc(firestore, householdShopCategoryRulesPath(householdId), rule.id), rule);
-    },
-    firestore,
-  );
+  const warnings: string[] = [];
+  let migratedShopCategoryRules = cloudShopCategoryRules.length;
+
+  try {
+    await commitBatchItems(
+      cloudShopCategoryRules,
+      (batch, rule) => {
+        batch.set(doc(firestore, householdShopCategoryRulesPath(householdId), rule.id), rule);
+      },
+      firestore,
+    );
+  } catch (unknownError) {
+    migratedShopCategoryRules = 0;
+    warnings.push("店舗別カテゴリルールは移行できませんでした。支出とカテゴリは移行済みです。");
+  }
 
   return {
     expenses: cloudExpenses.length,
     categories: cloudCategories.length,
-    shopCategoryRules: cloudShopCategoryRules.length,
+    shopCategoryRules: migratedShopCategoryRules,
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
 }
