@@ -28,6 +28,22 @@ async function loadFirebaseServices(): Promise<FirebaseClientServices | null> {
   return getFirebaseClientServices();
 }
 
+function formatCloudMigrationError(unknownError: unknown): string {
+  const error = unknownError instanceof Error ? unknownError : null;
+  const message = error?.message ?? "";
+  const code = typeof unknownError === "object" && unknownError && "code" in unknownError ? unknownError.code : null;
+
+  if (code === "permission-denied") {
+    return "Firestoreへの書き込み権限がありません。ログイン状態とクラウド家計簿の権限を確認してください。";
+  }
+
+  if (message.includes("Unsupported field value: undefined")) {
+    return "クラウド移行用に変換できないデータが含まれています。画面を再読み込みしてからもう一度実行してください。";
+  }
+
+  return "ローカルデータのクラウド移行に失敗しました。";
+}
+
 export function useCloudHousehold(user: AuthenticatedUser | null): CloudHouseholdState {
   const servicesRef = useRef<FirebaseClientServices | null>(null);
   const [household, setHousehold] = useState<CloudHouseholdSummary | null>(null);
@@ -127,7 +143,7 @@ export function useCloudHousehold(user: AuthenticatedUser | null): CloudHousehol
         ),
       );
     } catch (unknownError) {
-      setError("ローカルデータのクラウド移行に失敗しました。");
+      setError(formatCloudMigrationError(unknownError));
     } finally {
       setIsWorking(false);
     }

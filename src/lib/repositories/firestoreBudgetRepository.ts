@@ -10,14 +10,11 @@ import {
 } from "firebase/firestore";
 import type { BackupImportMode, Category, CloudCategory, CloudExpense, Expense, ReceiptImage } from "../../types";
 import { toCloudCategory, toCloudExpense } from "../cloudHousehold";
+import { removeUndefinedFields } from "../firestoreSanitizer";
 import { householdCategoriesPath, householdExpensesPath } from "../firestorePaths";
 import type { BudgetRepository, BudgetSnapshot } from "./budgetRepository";
 
 const FIRESTORE_BATCH_LIMIT = 450;
-
-function stripUndefinedValues<T extends Record<string, unknown>>(value: T): T {
-  return Object.fromEntries(Object.entries(value).filter(([, entryValue]) => entryValue !== undefined)) as T;
-}
 
 export function fromCloudExpense(expense: CloudExpense): Expense {
   const { householdId: _householdId, createdByUid: _createdByUid, updatedByUid: _updatedByUid, ...localExpense } = expense;
@@ -77,12 +74,12 @@ export function createFirestoreBudgetRepository(
   }
 
   async function saveExpense(expense: Expense): Promise<void> {
-    const cloudExpense = stripUndefinedValues(toCloudExpense(expense, householdId, uid));
+    const cloudExpense = removeUndefinedFields(toCloudExpense(expense, householdId, uid));
     await setDoc(doc(firestore, expensesPath, expense.id), cloudExpense);
   }
 
   async function saveCategory(category: Category): Promise<void> {
-    const cloudCategory = stripUndefinedValues(toCloudCategory(category, householdId));
+    const cloudCategory = removeUndefinedFields(toCloudCategory(category, householdId));
     await setDoc(doc(firestore, categoriesPath, category.id), cloudCategory);
   }
 
@@ -110,14 +107,14 @@ export function createFirestoreBudgetRepository(
         commitBatchItems(
           categories,
           (batch, category) => {
-            batch.set(doc(firestore, categoriesPath, category.id), stripUndefinedValues(toCloudCategory(category, householdId)));
+            batch.set(doc(firestore, categoriesPath, category.id), removeUndefinedFields(toCloudCategory(category, householdId)));
           },
           firestore,
         ),
         commitBatchItems(
           expenses,
           (batch, expense) => {
-            batch.set(doc(firestore, expensesPath, expense.id), stripUndefinedValues(toCloudExpense(expense, householdId, uid)));
+            batch.set(doc(firestore, expensesPath, expense.id), removeUndefinedFields(toCloudExpense(expense, householdId, uid)));
           },
           firestore,
         ),

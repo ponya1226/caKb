@@ -20,6 +20,7 @@ import type {
   HouseholdMember,
   ShopCategoryRule,
 } from "../types";
+import { removeUndefinedFields } from "./firestoreSanitizer";
 import { createId } from "./id";
 import {
   householdCategoriesPath,
@@ -148,9 +149,11 @@ export async function migrateLocalDataToHousehold(
   settings: AppSettings,
 ): Promise<CloudMigrationSummary> {
   const now = new Date().toISOString();
-  const cloudExpenses = expenses.map((expense) => toCloudExpense(expense, householdId, uid));
-  const cloudCategories = categories.map((category) => toCloudCategory(category, householdId, now));
-  const cloudShopCategoryRules = (settings.shopCategoryRules ?? []).map((rule) => toCloudShopCategoryRule(rule, householdId));
+  const cloudExpenses = expenses.map((expense) => removeUndefinedFields(toCloudExpense(expense, householdId, uid)));
+  const cloudCategories = categories.map((category) => removeUndefinedFields(toCloudCategory(category, householdId, now)));
+  const cloudShopCategoryRules = (settings.shopCategoryRules ?? []).map((rule) =>
+    removeUndefinedFields(toCloudShopCategoryRule(rule, householdId)),
+  );
 
   await commitBatchItems(
     cloudCategories,
