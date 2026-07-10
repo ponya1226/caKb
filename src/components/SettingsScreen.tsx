@@ -5,6 +5,7 @@ import { upsertShopCategoryRule } from "../lib/categorySuggestion";
 import { buildExpensesCsv, downloadCsv } from "../lib/csv";
 import { currentMonthKey, formatMonthLabel } from "../lib/date";
 import { formatFileSize } from "../lib/format";
+import type { BudgetStorageMode } from "../hooks/useBudgetData";
 import type { CloudHouseholdState } from "../hooks/useCloudHousehold";
 import type { FirebaseAuthState } from "../hooks/useFirebaseAuth";
 import type { AppSettings, BackupImportMode, Category, Expense, StorageHealth } from "../types";
@@ -19,11 +20,13 @@ type SettingsScreenProps = {
   onRequestPersistentStorage: () => Promise<boolean>;
   onRefreshStorageHealth: () => Promise<void>;
   onResetData: () => Promise<void>;
+  onRefreshData: () => Promise<void>;
   onAddCategory: (values: Pick<Category, "name" | "color">) => Promise<void>;
   onUpdateCategory: (category: Category, values: Pick<Category, "name" | "color">) => Promise<void>;
   onDeleteCategory: (category: Category) => Promise<void>;
   firebaseAuth: FirebaseAuthState;
   cloudHousehold: CloudHouseholdState;
+  storageMode: BudgetStorageMode;
 };
 
 type CategoryDraft = Pick<Category, "name" | "color">;
@@ -74,11 +77,13 @@ export function SettingsScreen({
   onRequestPersistentStorage,
   onRefreshStorageHealth,
   onResetData,
+  onRefreshData,
   onAddCategory,
   onUpdateCategory,
   onDeleteCategory,
   firebaseAuth,
   cloudHousehold,
+  storageMode,
 }: SettingsScreenProps) {
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importMode, setImportMode] = useState<BackupImportMode>("append");
@@ -253,6 +258,7 @@ export function SettingsScreen({
     }
 
     await cloudHousehold.migrateLocalData();
+    await onRefreshData();
   }
 
   return (
@@ -311,7 +317,9 @@ export function SettingsScreen({
         )}
 
         <p className="subtle-text storage-note">
-          現時点ではログインしても支出データの保存先はIndexedDBです。クラウド移行は下のクラウド家計簿から明示操作で実行できます。
+          {storageMode === "cloud"
+            ? "現在の保存先はFirestoreです。支出、カテゴリ、JSONインポートはクラウド家計簿へ保存されます。"
+            : "現在の保存先はIndexedDBです。ログイン後にクラウド家計簿を作成するとFirestore保存に切り替わります。"}
         </p>
       </section>
 
@@ -371,7 +379,7 @@ export function SettingsScreen({
         )}
 
         <p className="subtle-text storage-note">
-          移行はコピーのみです。移行後もこの画面の支出登録・一覧表示は、次ステップまでIndexedDBを使用します。
+          移行はコピーのみです。クラウド家計簿がある場合、この画面の支出登録・一覧表示はFirestore保存を使用します。
         </p>
       </section>
 

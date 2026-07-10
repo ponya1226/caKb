@@ -1,10 +1,12 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { CalendarDays, Camera, Home, List, Plus, ReceiptText, Settings } from "lucide-react";
 import { ExpenseEditor } from "./components/ExpenseEditor";
 import { useBudgetData } from "./hooks/useBudgetData";
 import { useCloudHousehold } from "./hooks/useCloudHousehold";
 import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { normalizeShopNameForCategory } from "./lib/categorySuggestion";
+import { getFirebaseClientServices } from "./lib/firebaseConfig";
+import { createFirestoreBudgetRepository } from "./lib/repositories/firestoreBudgetRepository";
 import type { ExpenseFormValues, ReceiptDraft, ReceiptSaveOptions } from "./types";
 
 type View = "dashboard" | "expenses" | "yearly" | "receipt" | "confirm" | "settings";
@@ -41,14 +43,25 @@ export default function App() {
   const [receiptDrafts, setReceiptDrafts] = useState<ReceiptDraft[]>([]);
   const [receiptBatchTotal, setReceiptBatchTotal] = useState(0);
   const [isManualQuickAddOpen, setIsManualQuickAddOpen] = useState(false);
-  const budgetData = useBudgetData();
   const firebaseAuth = useFirebaseAuth();
-  const cloudHousehold = useCloudHousehold(
-    firebaseAuth.user,
-    budgetData.expenses,
-    budgetData.categories,
-    budgetData.settings,
-  );
+  const cloudHousehold = useCloudHousehold(firebaseAuth.user);
+  const cloudBudgetRepository = useMemo(() => {
+    const householdId = cloudHousehold.household?.household.id;
+    if (!firebaseAuth.user || !householdId) {
+      return null;
+    }
+
+    const services = getFirebaseClientServices();
+    if (!services) {
+      return null;
+    }
+
+    return createFirestoreBudgetRepository(services.firestore, householdId, firebaseAuth.user.uid);
+  }, [cloudHousehold.household?.household.id, firebaseAuth.user]);
+  const budgetData = useBudgetData({
+    repository: cloudBudgetRepository ?? undefined,
+    storageMode: cloudBudgetRepository ? "cloud" : "local",
+  });
   const receiptDraft = receiptDrafts[0] ?? null;
   const receiptQueuePosition = receiptDraft
     ? {
@@ -205,7 +218,13 @@ export default function App() {
         </div>
         <div>
           <span className="app-name">ローカル家計簿</span>
-          <span className="app-subtitle">{firebaseAuth.user ? "ログイン中 / IndexedDB保存" : "IndexedDB保存"}</span>
+          <span className="app-subtitle">
+            {budgetData.storageMode === "cloud"
+              ? "ログイン中 / Firestore保存"
+              : firebaseAuth.user
+                ? "ログイン中 / IndexedDB保存"
+                : "IndexedDB保存"}
+          </span>
         </div>
       </header>
 
@@ -277,11 +296,13 @@ export default function App() {
               onRequestPersistentStorage={budgetData.requestPersistentStorage}
               onRefreshStorageHealth={budgetData.refreshStorageHealth}
               onResetData={budgetData.resetData}
+              onRefreshData={budgetData.refresh}
               onAddCategory={budgetData.addCategory}
               onUpdateCategory={budgetData.updateCategory}
               onDeleteCategory={budgetData.removeCategory}
               firebaseAuth={firebaseAuth}
               cloudHousehold={cloudHousehold}
+              storageMode={budgetData.storageMode}
             />
           )}
         </Suspense>

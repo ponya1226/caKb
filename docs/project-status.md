@@ -4,6 +4,11 @@ Last Updated: 2026-07-10
 
 ## Implemented
 
+- Firestore cloud repositoryへの正本切替: ログイン済みかつクラウド家計簿が存在する場合、支出・カテゴリ・JSONインポート・データ初期化はFirestoreを保存先として使用
+- IndexedDB local repositoryは未ログイン時、Firebase未設定時、クラウド家計簿未作成時のフォールバックとして継続
+- レシート画像BlobはFirestoreへ保存せず、クラウド保存時もOCR確認後の支出データだけを保存
+- クラウド移行UIはIndexedDB内データをFirestoreへコピーする入口として継続
+
 - 支出の任意品目明細 `lineItems` 保存。OCR候補、手入力、編集、一覧詳細、JSONバックアップ、CSV `lineItemsJson`、Firestoreネストフィールド移行に対応
 - OCR全文からの品目名 + 金額候補抽出。合計、税、支払、釣り、電話番号、登録番号、日付、クーポン文言は候補から除外
 - 利用者によるカテゴリ追加、名称変更、色変更、未使用カテゴリ削除
@@ -99,7 +104,6 @@ Last Updated: 2026-07-10
 
 ## Not Started
 
-- Firestore cloud repositoryへの正本切替
 - 家族共有
 - Google Sheets一方向同期
 - AI分析
@@ -109,7 +113,7 @@ Last Updated: 2026-07-10
 ## Technical Debt
 
 - 品目明細は支出の付加情報として保存しており、品目別カテゴリ集計、品目別自動カテゴライズ、数量/単価、商品マスタ、Google Sheets品目別出力は未対応
-- 現在の支出データ正本はまだIndexedDB。Firestoreへのコピー移行UIはあるが、移行後の一覧表示・登録・編集はまだFirestoreを正本にしていない。
+- ログイン済みかつクラウド家計簿がある場合の支出データ正本はFirestore。未ログイン時やクラウド家計簿未作成時はIndexedDBへフォールバックするため、保存先表示と移行手順の継続的な分かりやすさ改善が必要。
 - Firebase Hosting deploy workflowは `main` pushで自動実行される。GitHub Secret `FIREBASE_SERVICE_ACCOUNT_CAKB_DEV` の継続管理が必要。
 - GitHub Pagesは通常push対象から外したが、workflow自体は手動実行用に残っている。公開URL案内やGitHub Pages設定の整理は残る。
 - Firestore Security Rulesは雛形段階で、Firebase EmulatorまたはRules testによる検証は未実施。
@@ -152,7 +156,6 @@ Last Updated: 2026-07-10
 - Firebase Hosting URLでのPC/スマホGoogleログイン継続確認
 - GitHub Pages設定の完全停止またはアーカイブ方針決定
 - GitHub Repository secret `GOOGLE_VISION_ALLOWED_EMAILS` の設定とGoogle Vision ProxyのCloud Run再デプロイ
-- Firestore cloud repository実装とクラウド正本切替
 - 家族招待コード導線とmember権限UI
 - Google Sheets一方向同期の設定UIとエクスポートProxy
 - 高精度OCRの実レシート結果を匿名化し、候補抽出の回帰テストへ追加する。

@@ -1,5 +1,31 @@
 # Development History
 
+## 2026-07-10 Firestore Cloud Repository Step
+
+目的: ログイン済みかつクラウド家計簿が作成済みの場合に、支出・カテゴリの保存先をIndexedDBからFirestoreへ切り替え、過去データをクラウド正本として残せる構成にする。
+
+主な変更:
+
+- `BudgetRepository` のFirestore実装を追加し、支出・カテゴリの取得、保存、削除、JSONインポート、初期化をFirestore household配下で実行できるようにした。
+- `useBudgetData` をRepository注入型に変更し、未ログイン時やクラウド家計簿未作成時は従来どおりIndexedDBへフォールバックするようにした。
+- クラウド保存時はレシート画像BlobをFirestoreへ保存せず、OCR確認後の支出データだけを保存する方針を維持した。
+- ローカルデータ移行は、現在表示中の保存先に依存せずIndexedDBから読み取ってFirestoreへコピーするようにした。
+- 設定画面とヘッダーに現在の保存先がFirestoreかIndexedDBか分かる表示を追加した。
+
+検証結果:
+
+- `npm run lint`
+- `npm run test`
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- 家族招待・member権限UIは未実装。
+- Firestore Rulesの自動テストは未実装。
+- Google Sheets一方向同期は未実装。
+- 実機でログイン、クラウド家計簿作成、移行、再読み込み後のFirestore表示を確認する必要がある。
+
 ## 2026-07-10 Roadmap and Hosting Policy Step
 
 目的: 不具合修正後の開発方針を整理し、Firebase Hostingを正規配信先とする運用に合わせてドキュメントとworkflowを整える。

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AppSettings, Category, Expense } from "../types";
 import type { AuthenticatedUser } from "./useFirebaseAuth";
 import type { FirebaseClientServices } from "../lib/firebaseConfig";
 import {
@@ -9,6 +8,8 @@ import {
   type CloudHouseholdSummary,
   type CloudMigrationSummary,
 } from "../lib/cloudHousehold";
+import { localBudgetRepository } from "../lib/repositories/localBudgetRepository";
+import { loadSettings } from "../lib/settings";
 
 export type CloudHouseholdState = {
   isLoading: boolean;
@@ -27,12 +28,7 @@ async function loadFirebaseServices(): Promise<FirebaseClientServices | null> {
   return getFirebaseClientServices();
 }
 
-export function useCloudHousehold(
-  user: AuthenticatedUser | null,
-  expenses: Expense[],
-  categories: Category[],
-  settings: AppSettings,
-): CloudHouseholdState {
+export function useCloudHousehold(user: AuthenticatedUser | null): CloudHouseholdState {
   const servicesRef = useRef<FirebaseClientServices | null>(null);
   const [household, setHousehold] = useState<CloudHouseholdSummary | null>(null);
   const [lastMigration, setLastMigration] = useState<CloudMigrationSummary | null>(null);
@@ -118,14 +114,16 @@ export function useCloudHousehold(
         return;
       }
 
+      await localBudgetRepository.initialize();
+      const localSnapshot = await localBudgetRepository.getSnapshot();
       setLastMigration(
         await migrateLocalDataToHousehold(
           services.firestore,
           household.household.id,
           user.uid,
-          expenses,
-          categories,
-          settings,
+          localSnapshot.expenses,
+          localSnapshot.categories,
+          loadSettings(),
         ),
       );
     } catch (unknownError) {
@@ -133,7 +131,7 @@ export function useCloudHousehold(
     } finally {
       setIsWorking(false);
     }
-  }, [categories, expenses, getServices, household, settings, user]);
+  }, [getServices, household, user]);
 
   return {
     isLoading,
