@@ -38,7 +38,7 @@ export function normalizeExpenseLineItems(lineItems: ExpenseLineItem[] | undefin
 
       return normalizedItem;
     })
-    .filter((item) => item.name.length > 0 && Number.isFinite(item.amount) && item.amount > 0);
+    .filter((item) => item.name.length > 0 && Number.isFinite(item.amount) && item.amount !== 0);
 
   return normalizedItems.length > 0 ? normalizedItems : undefined;
 }

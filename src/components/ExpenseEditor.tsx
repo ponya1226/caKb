@@ -177,7 +177,6 @@ export function ExpenseEditor({ categories, initialValues, submitLabel, onSubmit
                   <input
                     type="number"
                     inputMode="numeric"
-                    min="0"
                     step="1"
                     value={item.amount || ""}
                     onChange={(event) => updateLineItem(item.id, { amount: Number(event.target.value) })}
