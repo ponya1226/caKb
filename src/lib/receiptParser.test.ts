@@ -347,6 +347,70 @@ describe("parseReceiptText", () => {
     );
   });
 
+  it("pairs Belc amount-first rows and reconciles one missing item amount from subtotal", () => {
+    const result = parseReceiptText(`
+      Belc
+      ベルク
+      03-5959-7700
+      足立新田店
+      2026年07月03日 (金) 14:34
+      ¥159
+      01 きゃべつ
+      ¥119
+      01 レタス
+      01 ミニトマト (大パック
+      ¥359
+      01 甘熟王ゴールドプレミ
+      ★割引(20%)
+      ¥299
+      -60
+      01 *生椎茸得用 (菌床)
+      04 国産若鶏むね肉 2枚 ¥741
+      04 穀物肥育牛肩ロースス ¥474
+      05 *ごろジュワ~ 大粒唐 ¥399
+      06 コーンフロスティ 大 ¥459
+      07 * {} ちょこれーとくり
+      07 中国産 純粋はちみつ
+      ¥299
+      ¥239
+      ¥499
+      24 朝のフレッシュハーフ
+      ¥299
+      24 生ハム 110g
+      ¥299
+      24 プリマハム香薫あら 特 ¥279
+      24 サラダチキン3レン ¥299
+      24 サラダチキン3連プレ
+      ¥299
+      25 たまご醤油たれ納豆
+      ¥238
+      (0119×2個)
+      小計
+      18点 ¥5,699
+      税込金額合計
+      ¥6,154
+      8%税抜対象額
+      ¥5,699
+      8%税
+      ¥455
+      お買上計 ¥6,154
+      お預り計¥10,000
+      お釣り ¥3,846
+    `);
+
+    const lineItemMap = new Map(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount]));
+
+    expect(lineItemMap.get("きゃべつ")).toBe(159);
+    expect(lineItemMap.get("レタス")).toBe(119);
+    expect(lineItemMap.get("甘熟王ゴールドプレミ")).toBe(299);
+    expect(lineItemMap.get("割引(20%)")).toBe(-60);
+    expect(lineItemMap.get("生椎茸得用 (菌床)")).toBe(299);
+    expect(result.lineItemCandidates.reduce((sum, candidate) => sum + candidate.amount, 0)).toBe(5699);
+    expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toEqual(
+      expect.arrayContaining([455, 6154, 10000, 3846]),
+    );
+  });
+
   it("ignores department codes and gram notation when pairing split supermarket rows", () => {
     const result = parseReceiptText(`
       SAMPLE MARKET

@@ -36,6 +36,12 @@ type PendingLineItemName = {
   hasItemCode: boolean;
 };
 
+type PendingLineItemAmount = {
+  amount: number;
+  line: string;
+  confidence: number;
+};
+
 function normalizeText(value: string): string {
   return value
     .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
@@ -476,14 +482,74 @@ function uniqueLineItemCandidates(candidates: ReceiptLineItemCandidate[]): Recei
   });
 }
 
+function findLineItemSubtotal(lines: string[]): number | null {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = normalizeText(lines[index]);
+    if (!/小\s*計/.test(line)) {
+      continue;
+    }
+
+    const amounts = extractAmountsFromLine(line);
+    const nextLine = normalizeText(lines[index + 1] ?? "");
+    const nextAmounts =
+      nextLine && !LINE_ITEM_TAX_SUMMARY_PATTERN.test(nextLine) && !AMOUNT_SECTION_LABEL_PATTERN.test(nextLine)
+        ? extractAmountsFromLine(nextLine)
+        : [];
+    const candidate = [...amounts, ...nextAmounts].sort((a, b) => b - a)[0];
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function reconcileUnmatchedLineItem(
+  candidates: ReceiptLineItemCandidate[],
+  unmatchedNames: PendingLineItemName[],
+  lines: string[],
+): ReceiptLineItemCandidate[] {
+  const subtotal = findLineItemSubtotal(lines);
+  const unmatchedProducts = unmatchedNames.filter((item) => item.hasItemCode && !isDiscountLineItemName(item.name));
+  if (!subtotal || unmatchedProducts.length !== 1) {
+    return candidates;
+  }
+
+  const currentTotal = candidates.reduce((sum, candidate) => sum + candidate.amount, 0);
+  const residual = subtotal - currentTotal;
+  if (!Number.isInteger(residual) || residual < 10 || residual > 1_000_000) {
+    return candidates;
+  }
+
+  return [
+    ...candidates,
+    {
+      name: unmatchedProducts[0].name,
+      amount: residual,
+      line: `${unmatchedProducts[0].line} / 小計差分`,
+      confidence: 0.52,
+    },
+  ];
+}
+
 function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] {
   const candidates: ReceiptLineItemCandidate[] = [];
   const pendingNames: PendingLineItemName[] = [];
+  const pendingAmounts: PendingLineItemAmount[] = [];
+  const unmatchedNames: PendingLineItemName[] = [];
   let suppressNextAmountOnlyLine = false;
+
+  function clearPendingNamesAsUnmatched() {
+    pendingNames
+      .filter((item) => item.hasItemCode && !isDiscountLineItemName(item.name))
+      .forEach((item) => unmatchedNames.push(item));
+    pendingNames.length = 0;
+  }
 
   lines.forEach((line) => {
     if (shouldSkipLineItemLine(line)) {
-      pendingNames.length = 0;
+      clearPendingNamesAsUnmatched();
+      pendingAmounts.length = 0;
       suppressNextAmountOnlyLine = shouldSuppressNextAmountOnlyLine(line);
       return;
     }
@@ -513,15 +579,30 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
       suppressNextAmountOnlyLine = false;
       const pendingName = isPotentialSplitLineItemNameLine(line) ? createPendingLineItemName(line) : null;
       if (pendingName) {
+        const pendingAmount = pendingAmounts.shift();
+        if (pendingAmount && pendingName.hasItemCode) {
+          candidates.push({
+            name: pendingName.name,
+            amount: pendingAmount.amount,
+            line: `${pendingAmount.line} / ${pendingName.line}`,
+            confidence: pendingAmount.confidence,
+          });
+          return;
+        }
+
         if (pendingName.hasItemCode && pendingNames.some((item) => !item.hasItemCode)) {
-          pendingNames.length = 0;
+          clearPendingNamesAsUnmatched();
         }
         pendingNames.push(pendingName);
         if (pendingNames.length > 4) {
-          pendingNames.shift();
+          const unmatchedName = pendingNames.shift();
+          if (unmatchedName?.hasItemCode && !isDiscountLineItemName(unmatchedName.name)) {
+            unmatchedNames.push(unmatchedName);
+          }
         }
       } else {
-        pendingNames.length = 0;
+        clearPendingNamesAsUnmatched();
+        pendingAmounts.length = 0;
       }
       return;
     }
@@ -529,7 +610,8 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
     const match = matches.find((candidate) => candidate.amount < 0) ?? matches[matches.length - 1];
     if (suppressNextAmountOnlyLine && shouldSkipSuppressedAmountLine(line, match)) {
       suppressNextAmountOnlyLine = false;
-      pendingNames.length = 0;
+      clearPendingNamesAsUnmatched();
+      pendingAmounts.length = 0;
       return;
     }
     suppressNextAmountOnlyLine = false;
@@ -544,7 +626,7 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
       }
 
       if (match.amount < 0 && !isDiscountLineItemName(pendingName.name)) {
-        pendingNames.length = 0;
+        clearPendingNamesAsUnmatched();
         return;
       }
 
@@ -557,7 +639,20 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
       return;
     }
 
-    pendingNames.length = 0;
+    if (pendingNames.length === 0 && isLineItemAmountOnlyLine(line, match) && match.amount > 0) {
+      pendingAmounts.push({
+        amount: match.amount,
+        line: normalizeText(line).trim(),
+        confidence: Math.max(0.72, getLineItemConfidence(line, match) - 0.04),
+      });
+      if (pendingAmounts.length > 3) {
+        pendingAmounts.shift();
+      }
+      return;
+    }
+
+    clearPendingNamesAsUnmatched();
+    pendingAmounts.length = 0;
     const name = cleanLineItemName(line, match);
     if (!isUsableLineItemName(name)) {
       return;
@@ -571,7 +666,7 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
     });
   });
 
-  return uniqueLineItemCandidates(candidates).slice(0, 20);
+  return uniqueLineItemCandidates(reconcileUnmatchedLineItem(candidates, unmatchedNames, lines)).slice(0, 20);
 }
 
 function normalizeShopNameCandidate(line: string): { value: string; confidenceBoost: number } {
