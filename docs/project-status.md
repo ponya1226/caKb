@@ -9,7 +9,7 @@ Last Updated: 2026-07-11
 - クラウド家計簿確認失敗時の再試行導線
 - PWA更新検出時の最新版への更新バナー
 - Firestore Emulatorによるmember/非member/owner権限のRulesテスト
-- `main` push時のRulesテストとFirebase Hostingデプロイ。Firestore Rules配布は権限追加まで警告扱い
+- `main` push時のRulesテスト、Firestore Rules配布、Firebase Hostingデプロイ
 
 - Firestore cloud repositoryへの正本切替: ログイン済みかつクラウド家計簿が存在する場合、支出・カテゴリ・JSONインポート・データ初期化はFirestoreを保存先として使用
 - IndexedDB local repositoryは未ログイン時、Firebase未設定時、クラウド家計簿未作成時のフォールバックとして継続
@@ -160,7 +160,6 @@ Last Updated: 2026-07-11
 ## Next Recommended Priorities
 
 - 家族招待コードのデータモデル、期限、1回利用制御とFirestore Rulesを実装する
-- GitHub用FirebaseサービスアカウントにFirestore Rules配布権限があることを確認する
 
 - 品目候補抽出の実レシート回帰テストを増やし、Google Vision OCR結果で商品行と小計/支払行の誤分類を継続調整する
 - Firebase Hosting URLでのPC/スマホGoogleログイン継続確認
