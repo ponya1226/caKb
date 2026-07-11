@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Cloud, Database, Download, FileJson, LogIn, LogOut, Plus, RefreshCw, Save, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Upload } from "lucide-react";
+import { Cloud, Copy, Database, Download, FileJson, KeyRound, LogIn, LogOut, Plus, RefreshCw, Save, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Upload, UserMinus, UserPlus, Users } from "lucide-react";
 import { buildBackupJson, downloadJson, parseBackupJson } from "../lib/backup";
 import { upsertShopCategoryRule } from "../lib/categorySuggestion";
 import { buildExpensesCsv, downloadCsv } from "../lib/csv";
 import { currentMonthKey, formatMonthLabel } from "../lib/date";
 import { formatFileSize } from "../lib/format";
+import { copyTextToClipboard } from "../lib/clipboard";
 import type { BudgetStorageMode } from "../hooks/useBudgetData";
 import type { CloudHouseholdState } from "../hooks/useCloudHousehold";
 import type { FirebaseAuthState } from "../hooks/useFirebaseAuth";
@@ -100,6 +101,7 @@ export function SettingsScreen({
   const [newCategory, setNewCategory] = useState<CategoryDraft>({ name: "", color: "#0f766e" });
   const [categoryDrafts, setCategoryDrafts] = useState<Record<string, CategoryDraft>>({});
   const [newHouseholdName, setNewHouseholdName] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const shopCategoryRules = settings.shopCategoryRules ?? [];
 
   useEffect(() => {
@@ -268,6 +270,33 @@ export function SettingsScreen({
     await onRefreshData();
   }
 
+  async function handleCreateInvite() {
+    await cloudHousehold.createInvite();
+  }
+
+  async function handleCopyInvite() {
+    if (!cloudHousehold.invite) {
+      return;
+    }
+    setStatusMessage(
+      (await copyTextToClipboard(cloudHousehold.invite.code))
+        ? "招待コードをコピーしました"
+        : "招待コードをコピーできませんでした",
+    );
+  }
+
+  async function handleJoinHousehold() {
+    await cloudHousehold.joinHousehold(inviteCode);
+    setInviteCode("");
+  }
+
+  async function handleRemoveMember(uid: string, displayName: string) {
+    if (!window.confirm(`${displayName}を家計簿から解除しますか？`)) {
+      return;
+    }
+    await cloudHousehold.removeMember(uid);
+  }
+
   return (
     <section className="screen">
       <div className="screen-heading">
@@ -342,32 +371,104 @@ export function SettingsScreen({
         ) : cloudHousehold.isLoading ? (
           <div className="empty-state">クラウド家計簿を確認中</div>
         ) : cloudHousehold.household ? (
-          <div className="cloud-panel">
-            <div>
-              <strong>{cloudHousehold.household.household.name}</strong>
-              <span>権限: {cloudHousehold.household.member.role === "owner" ? "管理者" : "メンバー"}</span>
-              <span>保存先: Firestore</span>
+          <>
+            <div className="cloud-panel">
+              <div>
+                <strong>{cloudHousehold.household.household.name}</strong>
+                <span>権限: {cloudHousehold.household.member.role === "owner" ? "管理者" : "メンバー"}</span>
+                <span>保存先: Firestore</span>
+              </div>
+              <button className="button button-secondary" type="button" onClick={handleMigrateLocalData} disabled={cloudHousehold.isWorking}>
+                <Upload size={18} aria-hidden="true" />
+                ローカルデータを移行
+              </button>
             </div>
-            <button className="button button-secondary" type="button" onClick={handleMigrateLocalData} disabled={cloudHousehold.isWorking}>
-              <Upload size={18} aria-hidden="true" />
-              ローカルデータを移行
-            </button>
-          </div>
+
+            {cloudHousehold.household.member.role === "owner" && (
+              <div className="family-invite-panel">
+                <div className="section-title-row compact-title-row">
+                  <h3><UserPlus size={18} aria-hidden="true" />家族を招待</h3>
+                </div>
+                <p className="subtle-text">招待コードは発行から24時間、1人の参加に使用できます。</p>
+                {cloudHousehold.invite ? (
+                  <div className="invite-code-row">
+                    <div>
+                      <span>招待コード</span>
+                      <strong>{cloudHousehold.invite.code}</strong>
+                      <small>{formatCloudDate(cloudHousehold.invite.expiresAt)}まで</small>
+                    </div>
+                    <button className="icon-button" type="button" onClick={handleCopyInvite} aria-label="招待コードをコピー">
+                      <Copy size={19} aria-hidden="true" />
+                    </button>
+                  </div>
+                ) : (
+                  <button className="button button-secondary" type="button" onClick={handleCreateInvite} disabled={cloudHousehold.isWorking}>
+                    <KeyRound size={18} aria-hidden="true" />
+                    招待コードを発行
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="family-members-panel">
+              <div className="section-title-row compact-title-row">
+                <h3><Users size={18} aria-hidden="true" />参加メンバー</h3>
+                <span>{cloudHousehold.members.length}人</span>
+              </div>
+              <div className="member-list">
+                {cloudHousehold.members.map((member) => {
+                  const memberName = member.displayName || (member.role === "owner" ? "管理者" : `メンバー ${member.uid.slice(0, 6)}`);
+                  return (
+                    <div className="member-row" key={member.uid}>
+                      <div>
+                        <strong>{memberName}</strong>
+                        <span>{member.role === "owner" ? "管理者" : "メンバー"}</span>
+                      </div>
+                      {cloudHousehold.household?.member.role === "owner" && member.role !== "owner" && (
+                        <button className="icon-button danger" type="button" onClick={() => void handleRemoveMember(member.uid, memberName)} aria-label={`${memberName}を解除`} disabled={cloudHousehold.isWorking}>
+                          <UserMinus size={18} aria-hidden="true" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
         ) : (
-          <div className="cloud-form">
-            <label className="field">
-              <span>家計簿名</span>
-              <input
-                type="text"
-                value={newHouseholdName}
-                placeholder="例: わが家の家計簿"
-                onChange={(event) => setNewHouseholdName(event.target.value)}
-              />
-            </label>
-            <button className="button button-secondary" type="button" onClick={handleCreateHousehold} disabled={cloudHousehold.isWorking}>
-              <Plus size={18} aria-hidden="true" />
-              作成
-            </button>
+          <div className="cloud-onboarding">
+            <div className="cloud-form">
+              <label className="field">
+                <span>新しい家計簿を作成</span>
+                <input
+                  type="text"
+                  value={newHouseholdName}
+                  placeholder="例: わが家の家計簿"
+                  onChange={(event) => setNewHouseholdName(event.target.value)}
+                />
+              </label>
+              <button className="button button-secondary" type="button" onClick={handleCreateHousehold} disabled={cloudHousehold.isWorking}>
+                <Plus size={18} aria-hidden="true" />
+                作成
+              </button>
+            </div>
+            <div className="cloud-join-form">
+              <label className="field">
+                <span>家族の家計簿へ参加</span>
+                <input
+                  type="text"
+                  value={inviteCode}
+                  maxLength={10}
+                  autoCapitalize="characters"
+                  placeholder="招待コード"
+                  onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
+                />
+              </label>
+              <button className="button button-secondary" type="button" onClick={handleJoinHousehold} disabled={cloudHousehold.isWorking || !inviteCode.trim()}>
+                <UserPlus size={18} aria-hidden="true" />
+                参加
+              </button>
+            </div>
           </div>
         )}
 

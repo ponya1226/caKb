@@ -5,6 +5,7 @@ const CATEGORIES = "categories";
 const SHOP_CATEGORY_RULES = "shopCategoryRules";
 const SHEET_SYNC_SETTINGS = "sheetSyncSettings";
 const USERS = "users";
+const HOUSEHOLD_INVITES = "householdInvites";
 
 export function userProfilePath(uid: string): string {
   return `${USERS}/${uid}`;
@@ -16,6 +17,14 @@ export function householdPath(householdId: string): string {
 
 export function householdMemberPath(householdId: string, uid: string): string {
   return `${householdPath(householdId)}/${MEMBERS}/${uid}`;
+}
+
+export function householdMembersPath(householdId: string): string {
+  return `${householdPath(householdId)}/${MEMBERS}`;
+}
+
+export function householdInvitePath(code: string): string {
+  return `${HOUSEHOLD_INVITES}/${code}`;
 }
 
 export function householdExpensesPath(householdId: string): string {

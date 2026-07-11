@@ -4,6 +4,12 @@ Last Updated: 2026-07-11
 
 ## Implemented
 
+- 家族共有MVP: 管理者による24時間・1回限りの招待コード発行とコピー
+- Googleログイン済み利用者の招待コード参加とactive household切替
+- 家計簿の参加メンバー一覧と管理者によるmember解除
+- 招待消費、member作成、active household更新のFirestore transaction化
+- 招待コード一覧取得、コードなしmember作成、非memberアクセスを拒否するFirestore Rules
+
 - クラウド移行結果のFirestore永続化と、最終移行日時・件数の設定画面表示
 - 同一IDへの上書きによるローカルデータ移行の重複防止を画面上で明示
 - クラウド家計簿確認失敗時の再試行導線
@@ -111,7 +117,6 @@ Last Updated: 2026-07-11
 
 ## Not Started
 
-- 家族共有
 - Google Sheets一方向同期
 - AI分析
 - 予算管理
@@ -159,7 +164,9 @@ Last Updated: 2026-07-11
 
 ## Next Recommended Priorities
 
-- 家族招待コードのデータモデル、期限、1回利用制御とFirestore Rulesを実装する
+- 管理者と家族の別Googleアカウントを使い、招待、参加、支出共有、解除をスマホ実機で確認する
+- 店舗別カテゴリルールをlocalStorageからFirestore正本へ移し、家族全員で共有する
+- 支出詳細に登録者名を表示する
 
 - 品目候補抽出の実レシート回帰テストを増やし、Google Vision OCR結果で商品行と小計/支払行の誤分類を継続調整する
 - Firebase Hosting URLでのPC/スマホGoogleログイン継続確認

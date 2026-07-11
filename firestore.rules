@@ -16,6 +16,18 @@ service cloud.firestore {
         get(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid)).data.role == "owner";
     }
 
+    function isValidInviteJoin(householdId, uid, inviteCode) {
+      let invitePath = /databases/$(database)/documents/householdInvites/$(inviteCode);
+      return isSignedIn() &&
+        uid == request.auth.uid &&
+        exists(invitePath) &&
+        get(invitePath).data.householdId == householdId &&
+        get(invitePath).data.status == "active" &&
+        request.time < get(invitePath).data.expiresAt &&
+        getAfter(invitePath).data.status == "used" &&
+        getAfter(invitePath).data.usedByUid == uid;
+    }
+
     match /users/{uid} {
       allow create, read, update: if isSignedIn() && request.auth.uid == uid;
       allow delete: if false;
@@ -36,6 +48,12 @@ service cloud.firestore {
             get(/databases/$(database)/documents/households/$(householdId)).data.ownerUid == request.auth.uid &&
             request.resource.data.uid == request.auth.uid &&
             request.resource.data.role == "owner"
+          ) ||
+          (
+            request.resource.data.role == "member" &&
+            request.resource.data.householdId == householdId &&
+            request.resource.data.inviteCode is string &&
+            isValidInviteJoin(householdId, uid, request.resource.data.inviteCode)
           );
         allow update, delete: if isHouseholdOwner(householdId);
       }
@@ -55,6 +73,26 @@ service cloud.firestore {
       match /sheetSyncSettings/{settingsId} {
         allow read, create, update, delete: if isHouseholdOwner(householdId);
       }
+    }
+
+    match /householdInvites/{inviteCode} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isHouseholdOwner(request.resource.data.householdId) &&
+        request.resource.data.code == inviteCode &&
+        request.resource.data.createdByUid == request.auth.uid &&
+        request.resource.data.status == "active" &&
+        request.resource.data.expiresAt > request.time;
+      allow update: if isHouseholdOwner(resource.data.householdId) ||
+        (
+          isSignedIn() &&
+          resource.data.status == "active" &&
+          request.time < resource.data.expiresAt &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "usedByUid", "usedAt"]) &&
+          request.resource.data.status == "used" &&
+          request.resource.data.usedByUid == request.auth.uid
+        );
+      allow delete: if isHouseholdOwner(resource.data.householdId);
     }
   }
 }

@@ -6,7 +6,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { Timestamp, collection, doc, getDoc, getDocs, runTransaction, setDoc } from "firebase/firestore";
 
 let testEnvironment: RulesTestEnvironment;
 
@@ -78,5 +78,54 @@ describe("Firestore household rules", () => {
 
     await assertSucceeds(setDoc(doc(ownerFirestore, targetPath), { role: "member" }, { merge: true }));
     await assertFails(setDoc(doc(memberFirestore, targetPath), { role: "owner" }, { merge: true }));
+  });
+
+  it("allows an authenticated user to join with an active one-time invite", async () => {
+    await seedHousehold();
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "householdInvites/ABCDEFGH"), {
+        code: "ABCDEFGH",
+        householdId: "household-1",
+        createdByUid: "owner-1",
+        createdAt: Timestamp.now(),
+        expiresAt: Timestamp.fromMillis(Date.now() + 60_000),
+        status: "active",
+      });
+    });
+
+    const firestore = testEnvironment.authenticatedContext("new-member-1").firestore();
+    await assertSucceeds(
+      runTransaction(firestore, async (transaction) => {
+        const inviteRef = doc(firestore, "householdInvites/ABCDEFGH");
+        await transaction.get(inviteRef);
+        transaction.set(doc(firestore, "households/household-1/members/new-member-1"), {
+          householdId: "household-1",
+          uid: "new-member-1",
+          role: "member",
+          joinedAt: "2026-07-11T00:00:00.000Z",
+          inviteCode: "ABCDEFGH",
+        });
+        transaction.update(inviteRef, {
+          status: "used",
+          usedByUid: "new-member-1",
+          usedAt: Timestamp.now(),
+        });
+      }),
+    );
+  });
+
+  it("rejects direct membership creation and invite listing", async () => {
+    await seedHousehold();
+    const firestore = testEnvironment.authenticatedContext("outsider-1").firestore();
+
+    await assertFails(
+      setDoc(doc(firestore, "households/household-1/members/outsider-1"), {
+        householdId: "household-1",
+        uid: "outsider-1",
+        role: "member",
+        inviteCode: "MISSING1",
+      }),
+    );
+    await assertFails(getDocs(collection(firestore, "householdInvites")));
   });
 });

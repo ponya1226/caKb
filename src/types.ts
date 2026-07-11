@@ -82,6 +82,20 @@ export type HouseholdMember = {
   uid: string;
   role: HouseholdRole;
   joinedAt: string;
+  displayName?: string;
+  email?: string;
+  inviteCode?: string;
+};
+
+export type HouseholdInvite = {
+  code: string;
+  householdId: string;
+  createdByUid: string;
+  createdAt: string;
+  expiresAt: string;
+  status: "active" | "used";
+  usedByUid?: string;
+  usedAt?: string;
 };
 
 export type CloudExpense = Expense & {

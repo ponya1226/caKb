@@ -46,6 +46,7 @@ export type CloudMigrationSummary = CloudMigrationRecord;
 export type CloudUser = {
   uid: string;
   displayName: string;
+  email?: string;
 };
 
 async function getHouseholdSummaryById(
@@ -84,12 +85,20 @@ export function buildHousehold(name: string, ownerUid: string, now = new Date().
   };
 }
 
-export function buildOwnerMember(householdId: string, uid: string, now = new Date().toISOString()): HouseholdMember {
+export function buildOwnerMember(
+  householdId: string,
+  uid: string,
+  now = new Date().toISOString(),
+  displayName?: string,
+  email?: string,
+): HouseholdMember {
   return {
     householdId,
     uid,
     role: "owner",
     joinedAt: now,
+    ...(displayName ? { displayName } : {}),
+    ...(email ? { email } : {}),
   };
 }
 
@@ -137,7 +146,7 @@ export async function createHouseholdForUser(
 ): Promise<CloudHouseholdSummary> {
   const now = new Date().toISOString();
   const household = buildHousehold(name || `${user.displayName}の家計簿`, user.uid, now);
-  const member = buildOwnerMember(household.id, user.uid, now);
+  const member = buildOwnerMember(household.id, user.uid, now, user.displayName, user.email);
 
   await setDoc(doc(firestore, householdPath(household.id)), household);
   await setDoc(doc(firestore, householdMemberPath(household.id, user.uid)), member);
