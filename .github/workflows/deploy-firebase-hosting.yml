@@ -53,6 +53,7 @@ jobs:
         run: npm run build
 
       - name: Deploy Firestore Rules
+        continue-on-error: true
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
         run: |
