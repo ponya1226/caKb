@@ -79,7 +79,9 @@ export function useCloudHousehold(user: AuthenticatedUser | null): CloudHousehol
         return;
       }
 
-      setHousehold(await findFirstHouseholdForUser(services.firestore, user.uid));
+      const nextHousehold = await findFirstHouseholdForUser(services.firestore, user.uid);
+      setHousehold(nextHousehold);
+      setLastMigration(nextHousehold?.lastMigration ?? null);
     } catch (unknownError) {
       setError("クラウド家計簿の確認に失敗しました。");
     } finally {
@@ -107,7 +109,9 @@ export function useCloudHousehold(user: AuthenticatedUser | null): CloudHousehol
           return;
         }
 
-        setHousehold(await createHouseholdForUser(services.firestore, user, name));
+        const nextHousehold = await createHouseholdForUser(services.firestore, user, name);
+        setHousehold(nextHousehold);
+        setLastMigration(null);
       } catch (unknownError) {
         setError("クラウド家計簿の作成に失敗しました。");
       } finally {

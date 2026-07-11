@@ -1,5 +1,5 @@
-import { lazy, Suspense, useMemo, useState } from "react";
-import { CalendarDays, Camera, Home, List, Plus, ReceiptText, Settings } from "lucide-react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { CalendarDays, Camera, Home, List, Plus, ReceiptText, RefreshCw, Settings } from "lucide-react";
 import { ExpenseEditor } from "./components/ExpenseEditor";
 import { useBudgetData } from "./hooks/useBudgetData";
 import { useCloudHousehold } from "./hooks/useCloudHousehold";
@@ -43,6 +43,7 @@ export default function App() {
   const [receiptDrafts, setReceiptDrafts] = useState<ReceiptDraft[]>([]);
   const [receiptBatchTotal, setReceiptBatchTotal] = useState(0);
   const [isManualQuickAddOpen, setIsManualQuickAddOpen] = useState(false);
+  const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
   const firebaseAuth = useFirebaseAuth();
   const cloudHousehold = useCloudHousehold(firebaseAuth.user);
   const cloudBudgetRepository = useMemo(() => {
@@ -69,6 +70,12 @@ export default function App() {
         total: receiptBatchTotal || receiptDrafts.length,
       }
     : null;
+
+  useEffect(() => {
+    const handleUpdateAvailable = () => setIsUpdateAvailable(true);
+    window.addEventListener("cakb:update-available", handleUpdateAvailable);
+    return () => window.removeEventListener("cakb:update-available", handleUpdateAvailable);
+  }, []);
 
   function revokeReceiptDraftUrls(drafts: ReceiptDraft[]) {
     drafts.forEach((draft) => {
@@ -227,6 +234,16 @@ export default function App() {
           </span>
         </div>
       </header>
+
+      {isUpdateAvailable && (
+        <div className="update-banner" role="status">
+          <span>新しいバージョンを利用できます</span>
+          <button className="button button-secondary button-compact" type="button" onClick={() => window.location.reload()}>
+            <RefreshCw size={16} aria-hidden="true" />
+            更新
+          </button>
+        </div>
+      )}
 
       <main className="app-main">
         <Suspense fallback={<ScreenFallback />}>

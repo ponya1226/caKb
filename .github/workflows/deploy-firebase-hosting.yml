@@ -31,8 +31,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 22
           cache: npm
+
+      - name: Setup Java for Firebase Emulator
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
 
       - name: Install dependencies
         run: npm ci
@@ -41,9 +47,17 @@ jobs:
         run: |
           npm run lint
           npm run test
+          npm run test:rules
 
       - name: Build
         run: npm run build
+
+      - name: Deploy Firestore Rules
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: |
+          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT_CAKB_DEV }}' > "$GOOGLE_APPLICATION_CREDENTIALS"
+          npx --yes firebase-tools@14.16.0 deploy --only firestore:rules --project cakb-dev --non-interactive
 
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0

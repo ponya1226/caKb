@@ -14,6 +14,7 @@ import type {
   Category,
   CloudCategory,
   CloudExpense,
+  CloudMigrationRecord,
   CloudShopCategoryRule,
   Expense,
   Household,
@@ -37,14 +38,10 @@ const FIRESTORE_BATCH_LIMIT = 450;
 export type CloudHouseholdSummary = {
   household: Household;
   member: HouseholdMember;
+  lastMigration?: CloudMigrationRecord;
 };
 
-export type CloudMigrationSummary = {
-  expenses: number;
-  categories: number;
-  shopCategoryRules: number;
-  warnings?: string[];
-};
+export type CloudMigrationSummary = CloudMigrationRecord;
 
 export type CloudUser = {
   uid: string;
@@ -56,18 +53,24 @@ async function getHouseholdSummaryById(
   householdId: string,
   uid: string,
 ): Promise<CloudHouseholdSummary | null> {
-  const [householdSnapshot, memberSnapshot] = await Promise.all([
+  const [householdSnapshot, memberSnapshot, userSnapshot] = await Promise.all([
     getDoc(doc(firestore, householdPath(householdId))),
     getDoc(doc(firestore, householdMemberPath(householdId, uid))),
+    getDoc(doc(firestore, userProfilePath(uid))),
   ]);
 
   if (!householdSnapshot.exists() || !memberSnapshot.exists()) {
     return null;
   }
 
+  const lastMigration = userSnapshot.exists()
+    ? (userSnapshot.data() as Partial<UserProfile>).lastCloudMigration
+    : undefined;
+
   return {
     household: householdSnapshot.data() as Household,
     member: memberSnapshot.data() as HouseholdMember,
+    ...(lastMigration?.householdId === householdId ? { lastMigration } : {}),
   };
 }
 
@@ -182,9 +185,14 @@ export async function findFirstHouseholdForUser(firestore: Firestore, uid: strin
 
   await setDoc(doc(firestore, userProfilePath(uid)), { activeHouseholdId: member.householdId }, { merge: true });
 
+  const lastMigration = userSnapshot.exists()
+    ? (userSnapshot.data() as Partial<UserProfile>).lastCloudMigration
+    : undefined;
+
   return {
     household: householdSnapshot.data() as Household,
     member,
+    ...(lastMigration?.householdId === member.householdId ? { lastMigration } : {}),
   };
 }
 
@@ -235,10 +243,20 @@ export async function migrateLocalDataToHousehold(
     warnings.push("店舗別カテゴリルールは移行できませんでした。支出とカテゴリは移行済みです。");
   }
 
-  return {
+  const summary: CloudMigrationSummary = {
+    householdId,
     expenses: cloudExpenses.length,
     categories: cloudCategories.length,
     shopCategoryRules: migratedShopCategoryRules,
+    completedAt: now,
     ...(warnings.length > 0 ? { warnings } : {}),
   };
+
+  await setDoc(
+    doc(firestore, userProfilePath(uid)),
+    { lastCloudMigration: summary, updatedAt: now },
+    { merge: true },
+  );
+
+  return summary;
 }

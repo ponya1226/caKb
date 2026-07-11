@@ -55,8 +55,18 @@ export type UserProfile = {
   displayName: string;
   email: string;
   activeHouseholdId?: string;
+  lastCloudMigration?: CloudMigrationRecord;
   createdAt: string;
   updatedAt: string;
+};
+
+export type CloudMigrationRecord = {
+  householdId: string;
+  expenses: number;
+  categories: number;
+  shopCategoryRules: number;
+  completedAt: string;
+  warnings?: string[];
 };
 
 export type Household = {

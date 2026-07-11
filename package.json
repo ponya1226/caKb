@@ -9,7 +9,9 @@
     "preview": "vite preview --host 0.0.0.0",
     "lint": "tsc --noEmit",
     "test": "vitest run src",
-    "deploy:hosting": "npm run build && npx firebase-tools deploy --only hosting --project cakb-dev"
+    "test:rules": "npx --yes firebase-tools@14.16.0 emulators:exec --only firestore --project demo-cakb \"vitest run tests/firestore.rules.test.ts\"",
+    "deploy:hosting": "npm run build && npx --yes firebase-tools@14.16.0 deploy --only hosting --project cakb-dev",
+    "deploy:rules": "npx --yes firebase-tools@14.16.0 deploy --only firestore:rules --project cakb-dev"
   },
   "dependencies": {
     "firebase": "^12.15.0",
@@ -20,6 +22,7 @@
     "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",

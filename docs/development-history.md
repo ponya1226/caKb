@@ -837,3 +837,27 @@
 - `npm run lint`
 - `npm run test`
 - `npm run build`
+# 2026-07-11: クラウド運用安定化 Phase 1
+
+## 目的
+
+Firestore移行成功後の運用を安定させ、家族共有へ進む前に移行状態、Rules検証、PWA更新を明確にする。
+
+## 主な変更
+
+- 最終クラウド移行日時と件数を `users/{uid}` に保存し、再読み込み後も設定画面へ表示。
+- 移行が同一IDへの上書きであり、再実行しても重複しないことを画面に明示。
+- クラウド家計簿の再確認ボタンとPWA更新バナーを追加。
+- Firestore RulesのEmulatorテストと、Rules・Hostingの自動デプロイをworkflowへ追加。
+
+## 検証結果
+
+- `npm run lint`: 成功
+- `npm run test`: 73件成功
+- `npm run build`: 成功
+- `npm run test:rules`: ローカル環境にJavaがないため未実行。GitHub ActionsではTemurin 21を設定して実行する。
+
+## 残課題
+
+- GitHub用FirebaseサービスアカウントのRules配布権限を実デプロイで確認する。
+- 次フェーズとして期限付き招待コードによる家族参加を実装する。

@@ -1,8 +1,15 @@
 # Project Status
 
-Last Updated: 2026-07-10
+Last Updated: 2026-07-11
 
 ## Implemented
+
+- クラウド移行結果のFirestore永続化と、最終移行日時・件数の設定画面表示
+- 同一IDへの上書きによるローカルデータ移行の重複防止を画面上で明示
+- クラウド家計簿確認失敗時の再試行導線
+- PWA更新検出時の最新版への更新バナー
+- Firestore Emulatorによるmember/非member/owner権限のRulesテスト
+- `main` push時のRulesテスト、Firestore Rules、Firebase Hostingの順次デプロイ
 
 - Firestore cloud repositoryへの正本切替: ログイン済みかつクラウド家計簿が存在する場合、支出・カテゴリ・JSONインポート・データ初期化はFirestoreを保存先として使用
 - IndexedDB local repositoryは未ログイン時、Firebase未設定時、クラウド家計簿未作成時のフォールバックとして継続
@@ -116,7 +123,7 @@ Last Updated: 2026-07-10
 - ログイン済みかつクラウド家計簿がある場合の支出データ正本はFirestore。未ログイン時やクラウド家計簿未作成時はIndexedDBへフォールバックするため、保存先表示と移行手順の継続的な分かりやすさ改善が必要。
 - Firebase Hosting deploy workflowは `main` pushで自動実行される。GitHub Secret `FIREBASE_SERVICE_ACCOUNT_CAKB_DEV` の継続管理が必要。
 - GitHub Pagesは通常push対象から外したが、workflow自体は手動実行用に残っている。公開URL案内やGitHub Pages設定の整理は残る。
-- Firestore Security Rulesは雛形段階で、Firebase EmulatorまたはRules testによる検証は未実施。
+- Firestore Rulesの基本的なmember/非member/owner権限はEmulatorテスト済み。招待機能追加時は招待コードとmember作成条件のテスト拡充が必要。
 - Google Sheets同期は方針のみで、Sheets API連携、認可、同期ログ、失敗時再試行は未実装。
 - カテゴリ削除は支出で未使用の場合のみ可能。使用中カテゴリの統合や一括付け替えは未対応。
 - 店舗別カテゴリルールは店舗名の正規化一致、部分一致、共通ブランド接頭辞に基づくため、商品名やチェーン公式IDによる厳密な店舗識別は未対応。
@@ -151,6 +158,9 @@ Last Updated: 2026-07-10
 - 確認画面での再OCRは現在の1枚のみを対象にし、複数枚全体の自動再最適化は未対応。
 
 ## Next Recommended Priorities
+
+- 家族招待コードのデータモデル、期限、1回利用制御とFirestore Rulesを実装する
+- GitHub用FirebaseサービスアカウントにFirestore Rules配布権限があることを確認する
 
 - 品目候補抽出の実レシート回帰テストを増やし、Google Vision OCR結果で商品行と小計/支払行の誤分類を継続調整する
 - Firebase Hosting URLでのPC/スマホGoogleログイン継続確認

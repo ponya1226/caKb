@@ -1257,6 +1257,24 @@ textarea {
   color: var(--danger);
 }
 
+.update-banner {
+  display: flex;
+  position: sticky;
+  top: 8px;
+  z-index: 40;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid #0f766e;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #065f46;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

@@ -88,10 +88,18 @@ describe("cloudHousehold", () => {
       displayName: "Sample User",
       email: "sample@example.invalid",
       activeHouseholdId: "household-1",
+      lastCloudMigration: {
+        householdId: "household-1",
+        expenses: 3,
+        categories: 2,
+        shopCategoryRules: 1,
+        completedAt: "2026-07-05T01:00:00.000Z",
+      },
       createdAt: "2026-07-05T00:00:00.000Z",
       updatedAt: "2026-07-05T00:00:00.000Z",
     };
 
     expect(profile.activeHouseholdId).toBe("household-1");
+    expect(profile.lastCloudMigration?.expenses).toBe(3);
   });
 });

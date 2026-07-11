@@ -67,6 +67,13 @@ function formatPersistentStorageStatus(storageHealth: StorageHealth | null): str
   return storageHealth.persistentStorageGranted ? "有効" : "未許可";
 }
 
+function formatCloudDate(value: string): string {
+  return new Intl.DateTimeFormat("ja-JP", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 export function SettingsScreen({
   expenses,
   categories,
@@ -339,6 +346,7 @@ export function SettingsScreen({
             <div>
               <strong>{cloudHousehold.household.household.name}</strong>
               <span>権限: {cloudHousehold.household.member.role === "owner" ? "管理者" : "メンバー"}</span>
+              <span>保存先: Firestore</span>
             </div>
             <button className="button button-secondary" type="button" onClick={handleMigrateLocalData} disabled={cloudHousehold.isWorking}>
               <Upload size={18} aria-hidden="true" />
@@ -366,6 +374,7 @@ export function SettingsScreen({
         {cloudHousehold.lastMigration && (
           <div className="inline-status">
             Firestoreへコピーしました: 支出{cloudHousehold.lastMigration.expenses}件、カテゴリ{cloudHousehold.lastMigration.categories}件、店舗ルール{cloudHousehold.lastMigration.shopCategoryRules}件
+            <p>最終移行: {formatCloudDate(cloudHousehold.lastMigration.completedAt)}</p>
             {cloudHousehold.lastMigration.warnings?.map((warning) => (
               <p key={warning}>{warning}</p>
             ))}
@@ -378,11 +387,15 @@ export function SettingsScreen({
             <button className="button button-secondary button-compact" type="button" onClick={cloudHousehold.clearError}>
               閉じる
             </button>
+            <button className="button button-secondary button-compact" type="button" onClick={() => void cloudHousehold.refresh()} disabled={cloudHousehold.isLoading}>
+              <RefreshCw size={16} aria-hidden="true" />
+              再試行
+            </button>
           </div>
         )}
 
         <p className="subtle-text storage-note">
-          移行はコピーのみです。クラウド家計簿がある場合、この画面の支出登録・一覧表示はFirestore保存を使用します。
+          移行は同じIDへ上書きするコピーです。同じデータを再移行しても重複しません。クラウド家計簿がある場合、支出登録・一覧表示はFirestore保存を使用します。
         </p>
       </section>
 
