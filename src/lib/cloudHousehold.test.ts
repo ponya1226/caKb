@@ -82,6 +82,17 @@ describe("cloudHousehold", () => {
     );
   });
 
+  it("keeps the original creator when another member updates an expense", () => {
+    const cloudExpense = toCloudExpense(
+      { ...expense, createdByUid: "user-1", updatedByUid: "user-1" },
+      "household-1",
+      "user-2",
+    );
+
+    expect(cloudExpense.createdByUid).toBe("user-1");
+    expect(cloudExpense.updatedByUid).toBe("user-2");
+  });
+
   it("allows user profiles to keep an active household pointer", () => {
     const profile: UserProfile = {
       uid: "user-1",

@@ -10,6 +10,7 @@ type ExpenseListScreenProps = {
   expenses: Expense[];
   categories: Category[];
   categoryMap: Map<string, Category>;
+  memberNameMap: Map<string, string>;
   onAddExpense: (values: ExpenseFormValues) => Promise<void>;
   onUpdateExpense: (expense: Expense, values: ExpenseFormValues) => Promise<void>;
   onDeleteExpense: (expense: Expense) => Promise<void>;
@@ -19,6 +20,7 @@ export function ExpenseListScreen({
   expenses,
   categories,
   categoryMap,
+  memberNameMap,
   onAddExpense,
   onUpdateExpense,
   onDeleteExpense,
@@ -196,6 +198,11 @@ export function ExpenseListScreen({
                     <span className="color-dot" style={{ background: category?.color ?? "#64748b" }} />
                     {category?.name ?? "未分類"}
                   </span>
+                  {expense.createdByUid && (
+                    <span className="expense-creator">
+                      登録: {memberNameMap.get(expense.createdByUid) ?? "以前のメンバー"}
+                    </span>
+                  )}
                 </div>
                 <div className="expense-side">
                   <strong>{formatCurrency(expense.amount)}</strong>

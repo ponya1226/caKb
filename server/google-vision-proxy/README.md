@@ -10,7 +10,8 @@ Google Cloud Vision OCRをcaKbから利用するためのサンプルProxyです
 - 画像base64やOCR全文はログに出しません。
 - CORS許可originは `CORS_ORIGINS` で制御します。
 - `REQUIRE_FIREBASE_AUTH=true` ではFirebase ID tokenを検証し、未ログイン利用を拒否します。
-- `ALLOWED_AUTH_EMAILS` を設定すると、Firebase ID tokenのメールアドレスが許可リストに含まれるユーザーだけOCRを利用できます。
+- `REQUIRE_HOUSEHOLD_MEMBERSHIP=true` では、利用者がactive householdのmemberであることをFirestoreで確認します。
+- `ALLOWED_AUTH_EMAILS` は必要な場合だけ追加のメール制限として設定できます。
 - `OCR_SHARED_TOKEN` は任意の追加防御として併用できます。
 
 ## ローカル起動
@@ -37,8 +38,9 @@ npm start
 - `CORS_ORIGINS`: 許可originのカンマ区切り。例: `https://cakb-dev.firebaseapp.com`
 - `MAX_IMAGE_BYTES`: 受け付ける画像サイズ上限。初期値は5MBです。
 - `REQUIRE_FIREBASE_AUTH`: Firebase ID token検証を必須にします。初期値は `true` です。
+- `REQUIRE_HOUSEHOLD_MEMBERSHIP`: active householdのmember確認を必須にします。初期値は `true` です。
 - `FIREBASE_PROJECT_ID`: Firebase ID token検証に使うproject IDです。Cloud Runで自動推定できない場合に設定します。
-- `ALLOWED_AUTH_EMAILS`: Google Vision OCRを許可するFirebase Authメールアドレスのカンマ区切りです。未設定の場合、認証済みユーザーは許可されます。
+- `ALLOWED_AUTH_EMAILS`: 任意の追加制限です。設定時は指定メールアドレスかつhousehold memberだけが許可されます。
 - `OCR_SHARED_TOKEN`: 任意。Firebase ID tokenとは別に追加する簡易トークンです。
 
 ## エンドポイント
@@ -55,7 +57,7 @@ npm start
 }
 ```
 
-`REQUIRE_FIREBASE_AUTH=true` の場合、`Authorization: Bearer <Firebase ID token>` headerが必要です。`ALLOWED_AUTH_EMAILS` を設定している場合は、ID token内のメールアドレスが許可リストに含まれる必要があります。
+`REQUIRE_FIREBASE_AUTH=true` の場合、`Authorization: Bearer <Firebase ID token>` headerが必要です。hosted環境ではactive householdのmemberだけがOCRを利用できます。
 
 レスポンス:
 

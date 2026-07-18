@@ -60,6 +60,18 @@ function normalizeCategoryColor(color: string): string {
   return /^#[0-9a-fA-F]{6}$/.test(color) ? color : "#64748b";
 }
 
+function formatRepositoryError(unknownError: unknown): string {
+  const code =
+    typeof unknownError === "object" && unknownError && "code" in unknownError
+      ? String(unknownError.code)
+      : "";
+  if (code.includes("permission-denied")) {
+    return "家計簿へのアクセスが解除されました。再読み込みするか、ログアウトしてください。";
+  }
+
+  return unknownError instanceof Error ? unknownError.message : "データの読み込みに失敗しました";
+}
+
 function createExpenseRecord(values: ExpenseFormValues, source: Expense["source"], receiptImageId?: string): Expense {
   const now = new Date().toISOString();
   const lineItems = normalizeExpenseLineItems(values.lineItems);
@@ -97,30 +109,69 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
     setStorageHealth(await checkStorageHealth(snapshot.expenses));
   }, [repository]);
 
+  const refreshAfterMutation = useCallback(async () => {
+    if (!repository.subscribe) {
+      await refresh();
+    }
+  }, [refresh, repository]);
+
   useEffect(() => {
     let isActive = true;
+    let unsubscribe: (() => void) | undefined;
 
     setIsLoading(true);
-    repository.initialize()
-      .then(async () => {
+    setError(null);
+
+    const initialize = async () => {
+      try {
+        await repository.initialize();
         if (storageMode === "local") {
           await requestBrowserPersistentStorage();
         }
-        await refresh();
-      })
-      .catch((unknownError) => {
-        if (isActive) {
-          setError(unknownError instanceof Error ? unknownError.message : "データの読み込みに失敗しました");
+
+        if (repository.subscribe) {
+          unsubscribe = repository.subscribe(
+            (snapshot) => {
+              if (!isActive) {
+                return;
+              }
+              setCategories(snapshot.categories);
+              setExpenses(snapshot.expenses);
+              setError(null);
+              setIsLoading(false);
+              void checkStorageHealth(snapshot.expenses).then((health) => {
+                if (isActive) {
+                  setStorageHealth(health);
+                }
+              });
+            },
+            (unknownError) => {
+              if (isActive) {
+                setError(formatRepositoryError(unknownError));
+                setIsLoading(false);
+              }
+            },
+          );
+          return;
         }
-      })
-      .finally(() => {
+
+        await refresh();
         if (isActive) {
           setIsLoading(false);
         }
-      });
+      } catch (unknownError) {
+        if (isActive) {
+          setError(formatRepositoryError(unknownError));
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void initialize();
 
     return () => {
       isActive = false;
+      unsubscribe?.();
     };
   }, [refresh, repository, storageMode]);
 
@@ -129,9 +180,9 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
   const addManualExpense = useCallback(
     async (values: ExpenseFormValues) => {
       await repository.saveExpense(createExpenseRecord(values, "manual"));
-      await refresh();
+      await refreshAfterMutation();
     },
-    [refresh, repository],
+    [refreshAfterMutation, repository],
   );
 
   const addReceiptExpense = useCallback(
@@ -149,9 +200,9 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
       }
 
       await repository.saveExpense(createExpenseRecord(values, "receipt", receiptImageId));
-      await refresh();
+      await refreshAfterMutation();
     },
-    [refresh, repository, settings.saveReceiptImages, storageMode],
+    [refreshAfterMutation, repository, settings.saveReceiptImages, storageMode],
   );
 
   const updateExpense = useCallback(
@@ -169,17 +220,17 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
         ...(lineItems ? { lineItems } : {}),
         updatedAt: new Date().toISOString(),
       });
-      await refresh();
+      await refreshAfterMutation();
     },
-    [refresh, repository],
+    [refreshAfterMutation, repository],
   );
 
   const removeExpense = useCallback(
     async (expense: Expense) => {
       await repository.deleteExpense(expense.id);
-      await refresh();
+      await refreshAfterMutation();
     },
-    [refresh, repository],
+    [refreshAfterMutation, repository],
   );
 
   const updateSettings = useCallback((nextSettings: AppSettings) => {
@@ -192,9 +243,9 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
       await repository.importApplicationData(backup.expenses, backup.categories, mode);
       saveSettings(backup.settings);
       setSettings(backup.settings);
-      await refresh();
+      await refreshAfterMutation();
     },
-    [refresh, repository],
+    [refreshAfterMutation, repository],
   );
 
   const refreshStorageHealth = useCallback(async () => {
@@ -221,9 +272,9 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
         color: normalizeCategoryColor(values.color),
         sortOrder: maxSortOrder + 10,
       });
-      await refresh();
+      await refreshAfterMutation();
     },
-    [categories, refresh, repository],
+    [categories, refreshAfterMutation, repository],
   );
 
   const updateCategory = useCallback(
@@ -238,9 +289,9 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
         name,
         color: normalizeCategoryColor(values.color),
       });
-      await refresh();
+      await refreshAfterMutation();
     },
-    [refresh, repository],
+    [refreshAfterMutation, repository],
   );
 
   const removeCategory = useCallback(
@@ -264,9 +315,9 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
         }
         updateSettings(nextSettings);
       }
-      await refresh();
+      await refreshAfterMutation();
     },
-    [expenses, refresh, repository, settings, updateSettings],
+    [expenses, refreshAfterMutation, repository, settings, updateSettings],
   );
 
   const suggestCategoryForShop = useCallback(
@@ -291,8 +342,8 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
     resetSettings();
     const defaultSettings = loadSettings();
     setSettings(defaultSettings);
-    await refresh();
-  }, [refresh, repository]);
+    await refreshAfterMutation();
+  }, [refreshAfterMutation, repository]);
 
   return {
     categories,

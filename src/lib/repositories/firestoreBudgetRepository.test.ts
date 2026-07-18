@@ -38,6 +38,8 @@ describe("firestoreBudgetRepository", () => {
       memo: "memo",
       source: "receipt",
       receiptImageId: "receipt_1",
+      createdByUid: "user_1",
+      updatedByUid: "user_2",
       lineItems: [
         {
           id: "line_1",

@@ -1,5 +1,6 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
 
 export type AuthValidationResult =
   | { ok: true; uid: string; email?: string }
@@ -11,6 +12,13 @@ export type VerifiedIdToken = {
 };
 
 export type IdTokenVerifier = (idToken: string) => Promise<VerifiedIdToken>;
+export type HouseholdMembershipChecker = (uid: string) => Promise<boolean>;
+
+export type FirebaseAuthorizationOptions = {
+  allowedEmails?: ReadonlySet<string>;
+  requireHouseholdMembership?: boolean;
+  checkHouseholdMembership?: HouseholdMembershipChecker;
+};
 
 export function parseBooleanEnv(value: string | undefined, fallback: boolean): boolean {
   const normalizedValue = value?.trim().toLowerCase();
@@ -48,12 +56,16 @@ export function isAuthEmailAllowed(email: string | undefined, allowedEmails: Rea
   return Boolean(email && allowedEmails.has(email.trim().toLowerCase()));
 }
 
-export function createFirebaseIdTokenVerifier(): IdTokenVerifier {
+function ensureFirebaseAdminApp(): void {
   if (getApps().length === 0) {
     initializeApp({
       projectId: process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || undefined,
     });
   }
+}
+
+export function createFirebaseIdTokenVerifier(): IdTokenVerifier {
+  ensureFirebaseAdminApp();
 
   return async (idToken) => {
     const decodedToken = await getAuth().verifyIdToken(idToken);
@@ -61,10 +73,31 @@ export function createFirebaseIdTokenVerifier(): IdTokenVerifier {
   };
 }
 
+export function createHouseholdMembershipChecker(): HouseholdMembershipChecker {
+  ensureFirebaseAdminApp();
+
+  return async (uid) => {
+    const firestore = getFirestore();
+    const userSnapshot = await firestore.doc(`users/${uid}`).get();
+    const activeHouseholdId = userSnapshot.data()?.activeHouseholdId;
+    if (typeof activeHouseholdId !== "string" || !activeHouseholdId.trim()) {
+      return false;
+    }
+
+    const memberSnapshot = await firestore.doc(`households/${activeHouseholdId}/members/${uid}`).get();
+    if (!memberSnapshot.exists) {
+      return false;
+    }
+
+    const member = memberSnapshot.data();
+    return member?.uid === uid && member.householdId === activeHouseholdId;
+  };
+}
+
 export async function verifyFirebaseAuthorization(
   authorizationHeader: string | undefined,
   verifyIdToken: IdTokenVerifier,
-  allowedEmails = new Set<string>(),
+  options: FirebaseAuthorizationOptions = {},
 ): Promise<AuthValidationResult> {
   const idToken = parseBearerToken(authorizationHeader);
   if (!idToken) {
@@ -73,8 +106,23 @@ export async function verifyFirebaseAuthorization(
 
   try {
     const verifiedToken = await verifyIdToken(idToken);
+    const allowedEmails = options.allowedEmails ?? new Set<string>();
     if (!isAuthEmailAllowed(verifiedToken.email, allowedEmails)) {
       return { ok: false, status: 403, message: "Forbidden" };
+    }
+
+    if (options.requireHouseholdMembership) {
+      if (!options.checkHouseholdMembership) {
+        return { ok: false, status: 403, message: "Forbidden" };
+      }
+
+      try {
+        if (!(await options.checkHouseholdMembership(verifiedToken.uid))) {
+          return { ok: false, status: 403, message: "Forbidden" };
+        }
+      } catch {
+        return { ok: false, status: 403, message: "Forbidden" };
+      }
     }
 
     return { ok: true, uid: verifiedToken.uid, email: verifiedToken.email };

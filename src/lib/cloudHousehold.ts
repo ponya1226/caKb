@@ -106,7 +106,7 @@ export function toCloudExpense(expense: Expense, householdId: string, uid: strin
   return {
     ...expense,
     householdId,
-    createdByUid: uid,
+    createdByUid: expense.createdByUid ?? uid,
     updatedByUid: uid,
   };
 }

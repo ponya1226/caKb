@@ -6,7 +6,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { Timestamp, collection, doc, getDoc, getDocs, runTransaction, setDoc } from "firebase/firestore";
+import { Timestamp, collection, deleteDoc, doc, getDoc, getDocs, runTransaction, setDoc } from "firebase/firestore";
 
 let testEnvironment: RulesTestEnvironment;
 
@@ -68,6 +68,20 @@ describe("Firestore household rules", () => {
     await assertFails(
       setDoc(doc(firestore, "households/household-1/categories/category-1"), { name: "Food" }),
     );
+  });
+
+  it("revokes expense access after a member is removed", async () => {
+    await seedHousehold();
+    const memberFirestore = testEnvironment.authenticatedContext("member-1").firestore();
+    const expenseRef = doc(memberFirestore, "households/household-1/expenses/expense-1");
+    await assertSucceeds(setDoc(expenseRef, { amount: 481, shopName: "Sample Store" }));
+
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await deleteDoc(doc(context.firestore(), "households/household-1/members/member-1"));
+    });
+
+    await assertFails(getDoc(expenseRef));
+    await assertFails(setDoc(expenseRef, { amount: 500 }, { merge: true }));
   });
 
   it("allows only the owner to update members", async () => {

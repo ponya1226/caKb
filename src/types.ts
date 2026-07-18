@@ -29,6 +29,8 @@ export type Expense = {
   source: ExpenseSource;
   receiptImageId?: string;
   lineItems?: ExpenseLineItem[];
+  createdByUid?: string;
+  updatedByUid?: string;
   createdAt: string;
   updatedAt: string;
 };

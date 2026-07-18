@@ -3,6 +3,7 @@ import cors from "cors";
 import express from "express";
 import {
   createFirebaseIdTokenVerifier,
+  createHouseholdMembershipChecker,
   parseAllowedAuthEmails,
   parseBooleanEnv,
   verifyFirebaseAuthorization,
@@ -27,8 +28,12 @@ const maxImageBytes = parseMaxImageBytes(process.env.MAX_IMAGE_BYTES);
 const allowedOrigins = parseAllowedOrigins(process.env.CORS_ORIGINS);
 const sharedToken = process.env.OCR_SHARED_TOKEN?.trim();
 const requireFirebaseAuth = parseBooleanEnv(process.env.REQUIRE_FIREBASE_AUTH, true);
+const requireHouseholdMembership = parseBooleanEnv(process.env.REQUIRE_HOUSEHOLD_MEMBERSHIP, true);
 const allowedAuthEmails = parseAllowedAuthEmails(process.env.ALLOWED_AUTH_EMAILS);
 const verifyIdToken = requireFirebaseAuth ? createFirebaseIdTokenVerifier() : null;
+const checkHouseholdMembership = requireFirebaseAuth && requireHouseholdMembership
+  ? createHouseholdMembershipChecker()
+  : null;
 const visionClient = new vision.ImageAnnotatorClient();
 
 app.use(express.json({ limit: `${Math.ceil(maxImageBytes * 1.4)}b` }));
@@ -96,7 +101,11 @@ app.post("/api/ocr", async (request, response) => {
     const authValidation = await verifyFirebaseAuthorization(
       request.header("Authorization"),
       verifyIdToken,
-      allowedAuthEmails,
+      {
+        allowedEmails: allowedAuthEmails,
+        requireHouseholdMembership,
+        ...(checkHouseholdMembership ? { checkHouseholdMembership } : {}),
+      },
     );
     if (!authValidation.ok) {
       response.status(authValidation.status).json({ error: authValidation.message });

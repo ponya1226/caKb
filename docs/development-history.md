@@ -1,5 +1,30 @@
 # Development History
 
+## 2026-07-18 Family Real-time Sync and OCR Authorization Step
+
+目的: 家族が同じ家計簿を利用する際に変更を再読み込みなしで共有し、解除済みメンバーのデータ・高精度OCR利用を確実に止める。
+
+主な変更:
+
+- Firestore repositoryへ支出・カテゴリのsnapshot購読を追加し、`useBudgetData` から購読開始・解除を管理
+- 支出の作成者UIDを編集後も維持し、支出一覧に登録者を表示
+- member解除によるpermission deniedを専用メッセージと再読み込み・ログアウト導線で処理
+- Google Vision Proxyでactive householdとmember文書を検証し、メール許可リストを任意の追加制限へ変更
+- Cloud Run workflowへ `REQUIRE_HOUSEHOLD_MEMBERSHIP=true` を追加
+
+検証結果:
+
+- `npm run lint`
+- `npm run test`
+- Proxy `npm run test`
+- Proxy `npm run build`
+
+残課題:
+
+- 複数端末で同じ支出を同時編集した場合の競合通知は未対応
+- 店舗別カテゴリルールはlocalStorage保存のため、家族間共有は未対応
+- Cloud Run実行サービスアカウントに `roles/datastore.viewer` が必要
+
 ## 2026-07-10 Firestore Cloud Repository Step
 
 目的: ログイン済みかつクラウド家計簿が作成済みの場合に、支出・カテゴリの保存先をIndexedDBからFirestoreへ切り替え、過去データをクラウド正本として残せる構成にする。
@@ -77,6 +102,8 @@
 - 実レシートのGoogle Vision OCR結果を使った品目候補抽出の回帰テストを継続的に増やす
 
 ## 2026-07-07 Google Vision Proxy Email Allowlist
+
+この方式は2026-07-18にactive household membership認可へ置き換えた。メール許可リスト機能は任意の追加制限としてのみ残している。
 
 目的: Googleログイン済みであれば誰でもGoogle Vision OCRを利用できる状態を避け、許可したFirebase Authメールアドレスだけが高精度OCRを使えるようにする。
 

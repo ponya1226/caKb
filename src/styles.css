@@ -666,6 +666,11 @@ textarea {
   font-size: 0.82rem;
 }
 
+.expense-creator {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
 .expense-side {
   justify-items: end;
 }

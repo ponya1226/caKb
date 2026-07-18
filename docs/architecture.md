@@ -4,7 +4,7 @@
 
 MVPはブラウザだけで完結します。支出、カテゴリ、任意のレシート画像はIndexedDBに保存し、設定はlocalStorageに保存します。外部DB、ログイン、サーバーAPIは使いません。
 
-次フェーズでは家族共有、認証、スプレッドシート同期に対応するため、Firebase Hosting、Firebase Auth、Cloud Firestoreを第一候補にクラウド正本化を進めます。詳細は `docs/decisions/0005-family-cloud-ledger-direction.md` と `docs/decisions/0007-firebase-hosting-auth-migration.md` に従います。
+家族共有、認証に対応するため、Firebase Hosting、Firebase Auth、Cloud Firestoreを使ってクラウド正本化しています。詳細は `docs/decisions/0005-family-cloud-ledger-direction.md` と `docs/decisions/0007-firebase-hosting-auth-migration.md` に従います。
 
 ## レイヤー
 
@@ -29,6 +29,9 @@ type Expense = {
   memo: string;
   source: "manual" | "receipt";
   receiptImageId?: string;
+  lineItems?: ExpenseLineItem[];
+  createdByUid?: string;
+  updatedByUid?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -70,13 +73,13 @@ React PWA
   -> Google Sheets export sync
 ```
 
-クラウド正本化後はFirestoreを支出、カテゴリ、店舗別カテゴリルール、家計簿メンバー情報の正本にします。IndexedDBは未ログイン時の利用、初回移行元、将来のオフラインキャッシュとして扱います。
+ログイン済みでactive householdがある場合はFirestoreを支出・カテゴリの正本にし、snapshot listenerで家族の変更をリアルタイム反映します。IndexedDBは未ログイン時の利用と初回移行元として扱います。店舗別カテゴリルールは現時点ではlocalStorageに残っています。
 
 スプレッドシート同期はアプリ正本からGoogle Sheetsへの一方向エクスポートとして開始します。Sheets側で編集された内容をアプリへ取り込む双方向同期は初期対象外です。
 
 Firebase client configは `VITE_FIREBASE_*` 環境変数から読み取り、未設定の場合はFirebaseを初期化しません。Firestoreの初期パスは `households/{householdId}` 配下に支出、カテゴリ、店舗別カテゴリルール、同期設定を置きます。Security Rules雛形は `firestore.rules` にあります。
 
-設定画面ではログイン後にhouseholdを作成し、IndexedDB内の支出、カテゴリ、店舗別カテゴリルールをFirestoreへコピーできます。この段階ではコピー後もアプリの正本はIndexedDBであり、Firestore cloud repositoryへの切り替えは未実装です。
+設定画面ではログイン後にhouseholdを作成し、IndexedDB内の支出、カテゴリ、店舗別カテゴリルールをFirestoreへコピーできます。支出とカテゴリはコピー後のFirestore cloud repositoryが正本です。
 
 ## OCR Provider
 

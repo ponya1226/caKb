@@ -25,6 +25,9 @@ caKbは個人利用向けのローカル保存PWAとして開始した。Google 
 - 家族参加は、Googleログイン後に管理者が発行した期限付き招待コードを入力する方式とする。
 - 招待コードは24時間有効、1回限りとし、参加時に招待消費、member作成、active household更新を同一transactionで行う。
 - 初期権限は `owner` と `member` の2種類とし、管理者だけが招待発行とメンバー解除を行える。
+- 支出とカテゴリはFirestore snapshot listenerで購読し、同じhousehold内の変更を各端末へ反映する。
+- 支出には作成者UIDと最終更新者UIDを保持し、編集時も元の作成者を維持する。
+- Google Vision ProxyはFirebase ID tokenに加えてactive household membershipを確認する。メール許可リストは任意の追加制限とする。
 
 ## Consequences
 
@@ -34,6 +37,8 @@ caKbは個人利用向けのローカル保存PWAとして開始した。Google 
 - Google Sheets同期では、Sheets側編集の取り込みを行わないため、初期版は衝突処理を単純にできる。
 - Firebase、Firestore、Sheets APIの無料枠を前提に始めるが、利用量によって課金が発生する可能性がある。
 - 招待コード文書はコードを知るログインユーザーによる単一取得だけを許可し、一覧取得はSecurity Rulesで拒否する。
+- member解除後はFirestore購読とGoogle Vision OCRの両方が拒否される。クライアントは権限エラーから再読み込みまたはログアウトへ誘導する。
+- リアルタイム反映は同時編集の自動マージを保証せず、同じ文書への競合は最終書き込みが反映される。
 
 ## Alternatives
 

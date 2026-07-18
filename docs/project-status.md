@@ -1,9 +1,14 @@
 # Project Status
 
-Last Updated: 2026-07-11
+Last Updated: 2026-07-18
 
 ## Implemented
 
+- Firestoreの支出・カテゴリをリアルタイム購読し、家族の登録・編集・削除を再読み込みなしで反映
+- 支出の作成者・更新者UID保持と、支出一覧での登録者表示
+- 家族メンバー解除後のFirestore権限エラー検知、再読み込み・ログアウト導線
+- Google Vision Proxyのactive household membership認可。メール許可リストは任意の追加制限へ変更
+- Firestore Rulesでメンバー解除後に支出の読み書きが拒否される回帰テスト
 - 家族共有MVP: 管理者による24時間・1回限りの招待コード発行とコピー
 - Googleログイン済み利用者の招待コード参加とactive household切替
 - 家計簿の参加メンバー一覧と管理者によるmember解除
@@ -51,7 +56,7 @@ Last Updated: 2026-07-11
 - Google Vision Proxyサンプル実装
 - Google Vision ProxyのCloud Run向けDockerfileとproduction start script
 - Google Vision ProxyのFirebase ID token検証
-- Google Vision ProxyのFirebase Authメールアドレス許可リスト制限
+- Google Vision Proxyのactive household membership制限
 - フロントエンドからGoogle Vision ProxyへのFirebase ID token送信
 - 未ログイン時の高精度OCR利用制限とローカルOCR導線
 - GitHub Pages build時の `VITE_GOOGLE_VISION_PROXY_URL` Repository variable連携
@@ -133,7 +138,8 @@ Last Updated: 2026-07-11
 - カテゴリ削除は支出で未使用の場合のみ可能。使用中カテゴリの統合や一括付け替えは未対応。
 - 店舗別カテゴリルールは店舗名の正規化一致、部分一致、共通ブランド接頭辞に基づくため、商品名やチェーン公式IDによる厳密な店舗識別は未対応。
 - Google Vision利用にはProxy運用、Google Cloud認証情報管理、API課金、CORS制御、将来のレート制限が必要。
-- Google Vision ProxyはFirebase ID token検証とメール許可リストに対応したが、許可メールのRepository secret設定とCloud Run再デプロイが必要。
+- Google Vision Proxyのhousehold membership確認には、Cloud Run実行サービスアカウントのFirestore読み取り権限と `REQUIRE_HOUSEHOLD_MEMBERSHIP=true` の維持が必要。
+- Firestoreリアルタイム購読は最終書き込み優先であり、同じ支出を家族が同時編集した場合の競合通知や差分マージは未対応。
 - Google Vision ProxyはCloud Runデプロイ可能な形にしたが、追加防御として `OCR_SHARED_TOKEN`、リクエスト制限、監査方針を追加検討する必要がある。
 - Google Vision Proxyの `firebase-admin` 導入により、`uuid` transitive dependencyのmoderate audit警告が残る。`npm audit fix --force` は破壊的なFirebase Admin downgradeになるため未適用。
 - 店舗候補抽出はブランド行と支店行の結合に対応したが、店舗ごとの例外ルールや誤候補抑制UIは未実装。
@@ -166,13 +172,12 @@ Last Updated: 2026-07-11
 
 - 管理者と家族の別Googleアカウントを使い、招待、参加、支出共有、解除をスマホ実機で確認する
 - 店舗別カテゴリルールをlocalStorageからFirestore正本へ移し、家族全員で共有する
-- 支出詳細に登録者名を表示する
+- 同じ支出を複数端末で同時編集した場合の競合通知方針を決める
 
 - 品目候補抽出の実レシート回帰テストを増やし、Google Vision OCR結果で商品行と小計/支払行の誤分類を継続調整する
 - Firebase Hosting URLでのPC/スマホGoogleログイン継続確認
 - GitHub Pages設定の完全停止またはアーカイブ方針決定
-- GitHub Repository secret `GOOGLE_VISION_ALLOWED_EMAILS` の設定とGoogle Vision ProxyのCloud Run再デプロイ
-- 家族招待コード導線とmember権限UI
+- Cloud Run実行サービスアカウントのFirestore読み取り権限を確認し、家族アカウントで高精度OCRを実機確認する
 - Google Sheets一方向同期の設定UIとエクスポートProxy
 - 高精度OCRの実レシート結果を匿名化し、候補抽出の回帰テストへ追加する。
 - 追加防御として `OCR_SHARED_TOKEN` またはCloud Run側の利用制限方式を検討する。

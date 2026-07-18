@@ -63,6 +63,16 @@ export default function App() {
     repository: cloudBudgetRepository ?? undefined,
     storageMode: cloudBudgetRepository ? "cloud" : "local",
   });
+  const householdMemberNameMap = useMemo(() => {
+    const entries = cloudHousehold.members.map((member) => [
+      member.uid,
+      member.displayName?.trim() || member.email?.trim() || "名前未設定",
+    ] as const);
+    if (firebaseAuth.user && !entries.some(([uid]) => uid === firebaseAuth.user?.uid)) {
+      entries.push([firebaseAuth.user.uid, firebaseAuth.user.displayName]);
+    }
+    return new Map(entries);
+  }, [cloudHousehold.members, firebaseAuth.user]);
   const receiptDraft = receiptDrafts[0] ?? null;
   const receiptQueuePosition = receiptDraft
     ? {
@@ -212,6 +222,17 @@ export default function App() {
       <main className="app-shell center-shell">
         <div className="loading-panel error-panel">
           <span>{budgetData.error}</span>
+          <div className="form-actions">
+            <button className="button button-secondary" type="button" onClick={() => window.location.reload()}>
+              <RefreshCw size={16} aria-hidden="true" />
+              再読み込み
+            </button>
+            {firebaseAuth.user && (
+              <button className="button button-primary" type="button" onClick={() => void firebaseAuth.signOut()}>
+                ログアウト
+              </button>
+            )}
+          </div>
         </div>
       </main>
     );
@@ -260,6 +281,7 @@ export default function App() {
               expenses={budgetData.expenses}
               categories={budgetData.categories}
               categoryMap={budgetData.categoryMap}
+              memberNameMap={householdMemberNameMap}
               onAddExpense={budgetData.addManualExpense}
               onUpdateExpense={budgetData.updateExpense}
               onDeleteExpense={budgetData.removeExpense}

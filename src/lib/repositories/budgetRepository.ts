@@ -8,6 +8,10 @@ export type BudgetSnapshot = {
 export type BudgetRepository = {
   initialize: () => Promise<void>;
   getSnapshot: () => Promise<BudgetSnapshot>;
+  subscribe?: (
+    listener: (snapshot: BudgetSnapshot) => void,
+    onError: (error: unknown) => void,
+  ) => () => void;
   saveExpense: (expense: Expense) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
   saveReceiptImage: (receiptImage: ReceiptImage) => Promise<void>;

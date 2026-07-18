@@ -58,7 +58,7 @@ describe("google vision proxy auth", () => {
       verifyFirebaseAuthorization(
         "Bearer valid-token",
         async () => ({ uid: "uid-1", email: "ALLOWED@example.com" }),
-        allowedEmails,
+        { allowedEmails },
       ),
     ).resolves.toMatchObject({ ok: true, uid: "uid-1", email: "ALLOWED@example.com" });
 
@@ -66,7 +66,48 @@ describe("google vision proxy auth", () => {
       verifyFirebaseAuthorization(
         "Bearer valid-token",
         async () => ({ uid: "uid-2", email: "other@example.com" }),
-        allowedEmails,
+        { allowedEmails },
+      ),
+    ).resolves.toMatchObject({ ok: false, status: 403, message: "Forbidden" });
+  });
+
+  it("accepts an authenticated household member", async () => {
+    await expect(
+      verifyFirebaseAuthorization(
+        "Bearer valid-token",
+        async () => ({ uid: "member-1", email: "member@example.com" }),
+        {
+          requireHouseholdMembership: true,
+          checkHouseholdMembership: async (uid) => uid === "member-1",
+        },
+      ),
+    ).resolves.toMatchObject({ ok: true, uid: "member-1" });
+  });
+
+  it("rejects users outside the active household", async () => {
+    await expect(
+      verifyFirebaseAuthorization(
+        "Bearer valid-token",
+        async () => ({ uid: "outsider-1" }),
+        {
+          requireHouseholdMembership: true,
+          checkHouseholdMembership: async () => false,
+        },
+      ),
+    ).resolves.toMatchObject({ ok: false, status: 403, message: "Forbidden" });
+  });
+
+  it("rejects safely when household membership lookup fails", async () => {
+    await expect(
+      verifyFirebaseAuthorization(
+        "Bearer valid-token",
+        async () => ({ uid: "member-1" }),
+        {
+          requireHouseholdMembership: true,
+          checkHouseholdMembership: async () => {
+            throw new Error("Firestore unavailable");
+          },
+        },
       ),
     ).resolves.toMatchObject({ ok: false, status: 403, message: "Forbidden" });
   });

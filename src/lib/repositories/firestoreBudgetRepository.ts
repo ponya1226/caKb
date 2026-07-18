@@ -3,6 +3,7 @@ import {
   deleteDoc,
   doc,
   getDocs,
+  onSnapshot,
   setDoc,
   writeBatch,
   type Firestore,
@@ -17,7 +18,7 @@ import type { BudgetRepository, BudgetSnapshot } from "./budgetRepository";
 const FIRESTORE_BATCH_LIMIT = 450;
 
 export function fromCloudExpense(expense: CloudExpense): Expense {
-  const { householdId: _householdId, createdByUid: _createdByUid, updatedByUid: _updatedByUid, ...localExpense } = expense;
+  const { householdId: _householdId, ...localExpense } = expense;
   return localExpense;
 }
 
@@ -86,6 +87,42 @@ export function createFirestoreBudgetRepository(
   return {
     initialize: async () => undefined,
     getSnapshot,
+    subscribe: (listener, onError) => {
+      let expenses: Expense[] | null = null;
+      let categories: Category[] | null = null;
+
+      const emitSnapshot = () => {
+        if (expenses && categories) {
+          listener({ expenses, categories });
+        }
+      };
+
+      const unsubscribeExpenses = onSnapshot(
+        collection(firestore, expensesPath),
+        (snapshot) => {
+          expenses = snapshot.docs
+            .map((document) => fromCloudExpense(document.data() as CloudExpense))
+            .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+          emitSnapshot();
+        },
+        onError,
+      );
+      const unsubscribeCategories = onSnapshot(
+        collection(firestore, categoriesPath),
+        (snapshot) => {
+          categories = snapshot.docs
+            .map((document) => fromCloudCategory(document.data() as CloudCategory))
+            .sort((a, b) => a.sortOrder - b.sortOrder);
+          emitSnapshot();
+        },
+        onError,
+      );
+
+      return () => {
+        unsubscribeExpenses();
+        unsubscribeCategories();
+      };
+    },
     saveExpense,
     deleteExpense: async (id) => {
       await deleteDoc(doc(firestore, expensesPath, id));
