@@ -1,5 +1,27 @@
 # Development History
 
+## 2026-07-20 Storage Destination Header Step
+
+目的: Googleログイン状態と実際のデータ保存先を混同せず、全画面でローカル家計簿／クラウド家計簿のどちらを利用中か確認できるようにする。
+
+主な変更:
+
+- 実際の `BudgetStorageMode` に応じてヘッダー名、アイコン、保存先バッジを切り替え
+- クラウド時はactive household名とFirestore保存をヘッダーへ表示
+- ログイン済みでもクラウド家計簿未接続の場合は、この端末への保存であることを表示
+- 設定画面のアカウント・保存状態表示を実保存先に連動
+
+検証結果:
+
+- `npm run lint`
+- `npm run test`
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- 長い家計簿名はヘッダーで省略表示するため、完全な名称は設定画面で確認する
+
 ## 2026-07-20 Shared Shop Rules and Expense Conflict Step
 
 目的: 家族が同じ店舗カテゴリルールを利用できるようにし、複数端末から同じ支出を編集した際の意図しない上書きを防ぐ。

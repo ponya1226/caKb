@@ -358,8 +358,10 @@ export function SettingsScreen({
 
         <p className="subtle-text storage-note">
           {storageMode === "cloud"
-            ? "現在の保存先はFirestoreです。支出、カテゴリ、JSONインポートはクラウド家計簿へ保存されます。"
-            : "現在の保存先はIndexedDBです。ログイン後にクラウド家計簿を作成するとFirestore保存に切り替わります。"}
+            ? `ログイン先: ${cloudHousehold.household?.household.name ?? "クラウド家計簿"} / 保存先: Firestore。支出、カテゴリ、JSONインポートは家族で共有されます。`
+            : firebaseAuth.user
+              ? "Googleログイン中ですが、現在の保存先はこの端末のIndexedDBです。クラウド家計簿を作成または参加するとFirestore保存に切り替わります。"
+              : "未ログインです。現在の保存先はこの端末のIndexedDBです。"}
         </p>
         {hasLocalShopCategoryRulesToMigrate && (
           <p className="inline-notice">
@@ -519,9 +521,9 @@ export function SettingsScreen({
 
         <div className="status-grid">
           <div className="status-card">
-            <Database size={20} aria-hidden="true" />
-            <span>IndexedDB</span>
-            <strong>{formatIndexedDbStatus(storageHealth)}</strong>
+            {storageMode === "cloud" ? <Cloud size={20} aria-hidden="true" /> : <Database size={20} aria-hidden="true" />}
+            <span>現在の保存先</span>
+            <strong>{storageMode === "cloud" ? "Firestore" : `IndexedDB ${formatIndexedDbStatus(storageHealth)}`}</strong>
           </div>
           <div className="status-card">
             <ShieldCheck size={20} aria-hidden="true" />
@@ -547,7 +549,9 @@ export function SettingsScreen({
         </div>
 
         <p className="subtle-text storage-note">
-          同じブラウザ・同じURLではIndexedDBに保存されます。プライベートブラウズ、サイトデータ削除、端末容量不足では消える場合があります。
+          {storageMode === "cloud"
+            ? "クラウド家計簿の支出とカテゴリはFirestoreへ保存され、同じ家計簿の家族に反映されます。"
+            : "同じブラウザ・同じURLではIndexedDBに保存されます。プライベートブラウズ、サイトデータ削除、端末容量不足では消える場合があります。"}
         </p>
 
         {!storageHealth?.persistentStorageGranted && storageHealth?.persistentStorageSupported && (

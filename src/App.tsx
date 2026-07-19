@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { CalendarDays, Camera, Home, List, Plus, ReceiptText, RefreshCw, Settings } from "lucide-react";
+import { CalendarDays, Camera, Cloud, Home, List, Plus, ReceiptText, RefreshCw, Settings } from "lucide-react";
 import { ExpenseEditor } from "./components/ExpenseEditor";
 import { useBudgetData } from "./hooks/useBudgetData";
 import { useCloudHousehold } from "./hooks/useCloudHousehold";
@@ -63,6 +63,8 @@ export default function App() {
     repository: cloudBudgetRepository ?? undefined,
     storageMode: cloudBudgetRepository ? "cloud" : "local",
   });
+  const isCloudStorage = budgetData.storageMode === "cloud";
+  const activeHouseholdName = cloudHousehold.household?.household.name;
   const householdMemberNameMap = useMemo(() => {
     const entries = cloudHousehold.members.map((member) => [
       member.uid,
@@ -240,20 +242,23 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="app-header">
+      <header className={`app-header ${isCloudStorage ? "cloud-mode" : "local-mode"}`}>
         <div className="brand-mark">
-          <ReceiptText size={20} aria-hidden="true" />
+          {isCloudStorage ? <Cloud size={20} aria-hidden="true" /> : <ReceiptText size={20} aria-hidden="true" />}
         </div>
-        <div>
-          <span className="app-name">ローカル家計簿</span>
+        <div className="brand-copy">
+          <span className="app-name">{isCloudStorage ? "クラウド家計簿" : "ローカル家計簿"}</span>
           <span className="app-subtitle">
-            {budgetData.storageMode === "cloud"
-              ? "ログイン中 / Firestore保存"
+            {isCloudStorage
+              ? `${activeHouseholdName ?? "共有家計簿"} / Firestore保存`
               : firebaseAuth.user
-                ? "ログイン中 / IndexedDB保存"
-                : "IndexedDB保存"}
+                ? "Googleログイン中 / この端末に保存"
+                : "未ログイン / この端末に保存"}
           </span>
         </div>
+        <span className="storage-mode-badge" aria-label={`現在の保存先: ${isCloudStorage ? "クラウド" : "ローカル"}`}>
+          {isCloudStorage ? "クラウド" : "ローカル"}
+        </span>
       </header>
 
       {isUpdateAvailable && (
