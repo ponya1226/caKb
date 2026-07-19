@@ -1,5 +1,32 @@
 # Development History
 
+## 2026-07-20 Google Vision Usage Control Step
+
+目的: Google Vision OCRの連続実行と月間利用量をProxy側で制御し、意図しないAPI利用と課金リスクを抑える。
+
+主な変更:
+
+- Firebase認証済みUID単位の固定時間窓レート制限を追加
+- Firestore transactionによるプロジェクト全体のUTC月間カウンタと上限判定を追加
+- 利用量カウンタには期間、件数、更新日時だけを保存し、画像、OCR全文、利用者情報は保存しない
+- 上限理由に応じたUIメッセージとローカルOCR再試行導線を追加
+- Cloud Run環境変数、IAM手順、ADR、運用ドキュメントを更新
+- Cloud Run実行サービスアカウントへ `roles/datastore.user` を付与
+
+検証結果:
+
+- Proxy `npm run test`（22件成功）
+- Proxy `npm run build`
+- `npm run lint`
+- `npm run test`（81件成功）
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- 実利用量を確認して月間900件の上限値を調整する
+- 複数インスタンス共通の短時間制限が必要になった場合はFirestoreまたは専用ストアへ移行する
+
 ## 2026-07-20 Storage Destination Header Step
 
 目的: Googleログイン状態と実際のデータ保存先を混同せず、全画面でローカル家計簿／クラウド家計簿のどちらを利用中か確認できるようにする。

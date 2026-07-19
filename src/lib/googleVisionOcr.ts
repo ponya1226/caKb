@@ -15,6 +15,10 @@ type GoogleVisionProxyResponse = {
   blocks?: unknown;
 };
 
+type GoogleVisionProxyErrorResponse = {
+  code?: unknown;
+};
+
 export type GoogleVisionOcrOptions = {
   proxyUrl?: string | null;
   authToken?: string | null;
@@ -134,6 +138,13 @@ export async function runGoogleVisionOcr(image: File | Blob, options: GoogleVisi
   });
 
   if (!response.ok) {
+    if (response.status === 429) {
+      const errorBody = await response.json().catch(() => null) as GoogleVisionProxyErrorResponse | null;
+      if (errorBody?.code === "monthly_limit") {
+        throw new Error("今月の高精度OCR利用上限に達しました。ローカルOCRまたは手入力を利用してください");
+      }
+      throw new Error("高精度OCRを続けて実行しています。少し待ってから再試行するか、ローカルOCRを利用してください");
+    }
     throw new Error("Google Vision OCRに失敗しました。ローカルOCRまたは手入力を利用してください");
   }
 

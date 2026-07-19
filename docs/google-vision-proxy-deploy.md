@@ -46,12 +46,12 @@ gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
   --role="roles/cloudvision.user"
 ```
 
-household membership確認のため、同じ実行サービスアカウントへFirestore読み取り権限を付与します。
+household membership確認と月間利用量カウンタ更新のため、同じ実行サービスアカウントへFirestore読み書き権限を付与します。
 
 ```bash
 gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
   --member="serviceAccount:cakb-vision-proxy@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-  --role="roles/datastore.viewer"
+  --role="roles/datastore.user"
 ```
 
 すでに同名のサービスアカウントがある場合は、作成コマンドはスキップして構いません。
@@ -63,7 +63,7 @@ gcloud run deploy cakb-google-vision-proxy \
   --source . \
   --allow-unauthenticated \
   --service-account="cakb-vision-proxy@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-  --set-env-vars="^~^CORS_ORIGINS=https://cakb-dev.web.app,https://cakb-dev.firebaseapp.com,https://ponya1226.github.io~REQUIRE_FIREBASE_AUTH=true~REQUIRE_HOUSEHOLD_MEMBERSHIP=true~FIREBASE_PROJECT_ID=YOUR_PROJECT_ID~MAX_IMAGE_BYTES=5242880"
+  --set-env-vars="^~^CORS_ORIGINS=https://cakb-dev.web.app,https://cakb-dev.firebaseapp.com,https://ponya1226.github.io~REQUIRE_FIREBASE_AUTH=true~REQUIRE_HOUSEHOLD_MEMBERSHIP=true~FIREBASE_PROJECT_ID=YOUR_PROJECT_ID~MAX_IMAGE_BYTES=5242880~OCR_RATE_LIMIT_MAX_REQUESTS=10~OCR_RATE_LIMIT_WINDOW_SECONDS=60~OCR_MONTHLY_LIMIT=900"
 ```
 
 表示されたService URLを控えます。フロントエンドで使うURLは末尾に `/api/ocr` を付けたものです。
@@ -133,12 +133,19 @@ GitHub Actionsの `Deploy Firebase Hosting` を手動実行するか、ローカ
 - 結果を修正して保存できる
 - 失敗時にローカルOCRへ戻れる
 
-## 10. 疎通後に検討すること
+## 10. 利用量制御を確認する
+
+- `OCR_RATE_LIMIT_MAX_REQUESTS`: 利用者1人・Cloud Runインスタンス単位の短時間上限
+- `OCR_RATE_LIMIT_WINDOW_SECONDS`: 短時間上限の集計秒数
+- `OCR_MONTHLY_LIMIT`: 全インスタンス共通のUTC月単位上限
+
+月次件数はFirestoreの `ocrUsage/{YYYY-MM}` に保存します。画像、OCR全文、UID、メールアドレスは保存しません。上限到達時はHTTP 429となり、アプリからローカルOCRへ切り替えられます。
+
+## 11. 疎通後に検討すること
 
 - `OCR_SHARED_TOKEN` の追加防御
-- Cloud Runのリクエスト数制限またはレート制限
 - 画像サイズ上限の調整
-- 月間利用量の確認手順
+- Cloud Monitoringによるエラー率と呼び出し数の可視化
 - 403や502が出た場合の運用メモ整備
 
 ## 注意

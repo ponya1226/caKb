@@ -58,6 +58,24 @@ describe("ocrProviders", () => {
     ).rejects.toThrow("Google Vision OCRに失敗しました");
   });
 
+  it("explains when the monthly googleVision limit is reached", async () => {
+    await expect(
+      runGoogleVisionOcr(createImageBlob(), {
+        proxyUrl: "https://example.test/ocr",
+        fetcher: async () => Response.json({ code: "monthly_limit" }, { status: 429 }),
+      }),
+    ).rejects.toThrow("今月の高精度OCR利用上限に達しました");
+  });
+
+  it("asks the user to wait after a short-term googleVision rate limit", async () => {
+    await expect(
+      runGoogleVisionOcr(createImageBlob(), {
+        proxyUrl: "https://example.test/ocr",
+        fetcher: async () => Response.json({ code: "rate_limit" }, { status: 429 }),
+      }),
+    ).rejects.toThrow("少し待ってから再試行");
+  });
+
   it("sends a Firebase ID token to the googleVision proxy", async () => {
     const result = await runGoogleVisionOcr(createImageBlob(), {
       proxyUrl: "https://example.test/ocr",

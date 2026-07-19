@@ -94,6 +94,8 @@ OCRはProvider抽象を通して実行します。
 
 Google Vision利用時はレシート画像を外部サービスへ送信しますが、フロントエンドにGoogle Cloud認証情報は置かず、Proxy側でも画像やOCR全文を永続保存しません。Hosting環境ではFirebase ID tokenをProxyで検証し、未ログイン状態ではGoogle Vision OCRを利用できないようにします。
 
+Proxyは認証済みUID単位の短時間レート制限と、Firestore `ocrUsage/{YYYY-MM}` のプロジェクト月間カウンタを適用します。カウンタは全Cloud Runインスタンスで共有し、画像、OCR全文、UID、メールアドレスは保存しません。
+
 ## OCR
 
 OCRはTesseract.jsでブラウザ内実行します。候補抽出では「合計」「税込」「現計」「お買上計」などの周辺にある金額を優先し、保存前に確認画面でユーザー修正を必須にします。

@@ -13,6 +13,9 @@ Google Cloud Vision OCRをcaKbから利用するためのサンプルProxyです
 - `REQUIRE_HOUSEHOLD_MEMBERSHIP=true` では、利用者がactive householdのmemberであることをFirestoreで確認します。
 - `ALLOWED_AUTH_EMAILS` は必要な場合だけ追加のメール制限として設定できます。
 - `OCR_SHARED_TOKEN` は任意の追加防御として併用できます。
+- 認証済みUID単位の短時間レート制限で連続送信を抑制します。
+- Firestoreの `ocrUsage/{YYYY-MM}` にプロジェクト全体の月間件数だけを保存し、月間上限を超えるVision API呼び出しを停止します。
+- 利用量カウンタへ画像、OCR全文、UID、メールアドレスは保存しません。
 
 ## ローカル起動
 
@@ -42,6 +45,11 @@ npm start
 - `FIREBASE_PROJECT_ID`: Firebase ID token検証に使うproject IDです。Cloud Runで自動推定できない場合に設定します。
 - `ALLOWED_AUTH_EMAILS`: 任意の追加制限です。設定時は指定メールアドレスかつhousehold memberだけが許可されます。
 - `OCR_SHARED_TOKEN`: 任意。Firebase ID tokenとは別に追加する簡易トークンです。
+- `OCR_RATE_LIMIT_MAX_REQUESTS`: UIDごとの短時間上限。初期値は10件、`0` で無効です。
+- `OCR_RATE_LIMIT_WINDOW_SECONDS`: 短時間上限の集計秒数。初期値は60秒です。
+- `OCR_MONTHLY_LIMIT`: Proxy全体のUTC月単位上限。初期値は900件、`0` で無効です。
+
+月間上限を有効にする場合、Cloud Run実行サービスアカウントにはFirestoreのカウンタを更新するため `roles/datastore.user` が必要です。クライアントから `ocrUsage` は読み書きできません。
 
 ## エンドポイント
 
@@ -58,6 +66,8 @@ npm start
 ```
 
 `REQUIRE_FIREBASE_AUTH=true` の場合、`Authorization: Bearer <Firebase ID token>` headerが必要です。hosted環境ではactive householdのmemberだけがOCRを利用できます。
+
+短時間上限または月間上限に達した場合はHTTP 429を返します。フロントエンドは理由を表示し、既存のローカルOCR再試行導線を提示します。
 
 レスポンス:
 

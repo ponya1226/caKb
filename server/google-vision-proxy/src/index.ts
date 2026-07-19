@@ -9,6 +9,8 @@ import {
   verifyFirebaseAuthorization,
 } from "./auth.js";
 import { parseAllowedOrigins, parseMaxImageBytes, validateOcrRequestBody } from "./validation.js";
+import { FixedWindowRateLimiter, parseNonNegativeInteger } from "./rateLimit.js";
+import { createFirestoreMonthlyUsageQuota, parseMonthlyUsageLimit } from "./usageQuota.js";
 
 type BoundingBox = {
   x: number;
@@ -30,11 +32,16 @@ const sharedToken = process.env.OCR_SHARED_TOKEN?.trim();
 const requireFirebaseAuth = parseBooleanEnv(process.env.REQUIRE_FIREBASE_AUTH, true);
 const requireHouseholdMembership = parseBooleanEnv(process.env.REQUIRE_HOUSEHOLD_MEMBERSHIP, true);
 const allowedAuthEmails = parseAllowedAuthEmails(process.env.ALLOWED_AUTH_EMAILS);
+const rateLimitMaxRequests = parseNonNegativeInteger(process.env.OCR_RATE_LIMIT_MAX_REQUESTS, 10);
+const rateLimitWindowSeconds = parseNonNegativeInteger(process.env.OCR_RATE_LIMIT_WINDOW_SECONDS, 60);
+const monthlyUsageLimit = parseMonthlyUsageLimit(process.env.OCR_MONTHLY_LIMIT);
 const verifyIdToken = requireFirebaseAuth ? createFirebaseIdTokenVerifier() : null;
 const checkHouseholdMembership = requireFirebaseAuth && requireHouseholdMembership
   ? createHouseholdMembershipChecker()
   : null;
 const visionClient = new vision.ImageAnnotatorClient();
+const rateLimiter = new FixedWindowRateLimiter(rateLimitMaxRequests, Math.max(1, rateLimitWindowSeconds) * 1000);
+const monthlyUsageQuota = createFirestoreMonthlyUsageQuota(monthlyUsageLimit);
 
 app.use(express.json({ limit: `${Math.ceil(maxImageBytes * 1.4)}b` }));
 app.use(cors({
@@ -92,6 +99,7 @@ app.get("/health", (_request, response) => {
 });
 
 app.post("/api/ocr", async (request, response) => {
+  let rateLimitKey = `ip:${request.ip}`;
   if (sharedToken && request.header("X-caKb-OCR-Token") !== sharedToken) {
     response.status(401).json({ error: "Unauthorized" });
     return;
@@ -111,11 +119,33 @@ app.post("/api/ocr", async (request, response) => {
       response.status(authValidation.status).json({ error: authValidation.message });
       return;
     }
+    rateLimitKey = `uid:${authValidation.uid}`;
   }
 
   const validation = validateOcrRequestBody(request.body, maxImageBytes);
   if (!validation.ok) {
     response.status(validation.status).json({ error: validation.message });
+    return;
+  }
+
+  const rateLimitDecision = rateLimiter.consume(rateLimitKey);
+  response.setHeader("X-RateLimit-Limit", String(rateLimitDecision.limit));
+  response.setHeader("X-RateLimit-Remaining", String(rateLimitDecision.remaining));
+  if (!rateLimitDecision.allowed) {
+    response.setHeader("Retry-After", String(rateLimitDecision.retryAfterSeconds));
+    response.status(429).json({ error: "Too many OCR requests", code: "rate_limit" });
+    return;
+  }
+
+  try {
+    const usageDecision = await monthlyUsageQuota.consume();
+    response.setHeader("X-caKb-OCR-Monthly-Remaining", String(usageDecision.remaining));
+    if (!usageDecision.allowed) {
+      response.status(429).json({ error: "Monthly OCR usage limit reached", code: "monthly_limit" });
+      return;
+    }
+  } catch {
+    response.status(503).json({ error: "OCR usage check failed" });
     return;
   }
 

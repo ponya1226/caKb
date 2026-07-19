@@ -4,6 +4,9 @@ Last Updated: 2026-07-20
 
 ## Implemented
 
+- Google Vision ProxyのUID単位短時間レート制限と、Firestoreを使った全インスタンス共通の月間上限
+- 高精度OCR制限時の理由別メッセージとローカルOCR再試行導線
+- OCR月間カウンタをクライアントから拒否するFirestore Rules回帰テスト
 - ヘッダーのローカル／クラウド表示切替。クラウド時は家計簿名、Firestore保存、クラウドバッジを表示
 - 設定画面でGoogleログイン状態と実際の保存先を分けて表示
 - 店舗別カテゴリルールのFirestore正本化と家族間リアルタイム共有。未ログイン時はlocalStorageを継続利用
@@ -146,7 +149,7 @@ Last Updated: 2026-07-20
 - Google Vision利用にはProxy運用、Google Cloud認証情報管理、API課金、CORS制御、将来のレート制限が必要。
 - Google Vision Proxyのhousehold membership確認には、Cloud Run実行サービスアカウントのFirestore読み取り権限と `REQUIRE_HOUSEHOLD_MEMBERSHIP=true` の維持が必要。
 - 支出の更新・削除は競合検知に対応したが、差分表示や自動マージは未対応。
-- Google Vision ProxyはCloud Runデプロイ可能な形にしたが、追加防御として `OCR_SHARED_TOKEN`、リクエスト制限、監査方針を追加検討する必要がある。
+- Google Vision Proxyは短時間・月間制限に対応した。追加防御として `OCR_SHARED_TOKEN` と監査方針は未導入。
 - Google Vision Proxyの `firebase-admin` 導入により、`uuid` transitive dependencyのmoderate audit警告が残る。`npm audit fix --force` は破壊的なFirebase Admin downgradeになるため未適用。
 - 店舗候補抽出はブランド行と支店行の結合に対応したが、店舗ごとの例外ルールや誤候補抑制UIは未実装。
 - 店舗別カテゴリルールはカテゴリ変更と削除に対応したが、店舗名そのものの編集は削除して再追加する必要がある。
@@ -185,7 +188,7 @@ Last Updated: 2026-07-20
 - Cloud Run実行サービスアカウントのFirestore読み取り権限を確認し、家族アカウントで高精度OCRを実機確認する
 - Google Sheets一方向同期の設定UIとエクスポートProxy
 - 高精度OCRの実レシート結果を匿名化し、候補抽出の回帰テストへ追加する。
-- 追加防御として `OCR_SHARED_TOKEN` またはCloud Run側の利用制限方式を検討する。
+- Google Visionの月間上限を実利用量に合わせて定期確認し、必要なら `OCR_MONTHLY_LIMIT` を調整する。
 - 店舗別カテゴリルールの実機利用結果を確認し、支店違いの誤適用や解除しやすさを調整する。
 - OCR前処理プリセットの実機結果を比較し、店舗・撮影条件ごとの閾値を調整する。
 

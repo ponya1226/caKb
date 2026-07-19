@@ -70,6 +70,15 @@ describe("Firestore household rules", () => {
     );
   });
 
+  it("does not expose server-managed OCR usage counters to clients", async () => {
+    await seedHousehold();
+    const memberFirestore = testEnvironment.authenticatedContext("member-1").firestore();
+    const usageRef = doc(memberFirestore, "ocrUsage/2026-07");
+
+    await assertFails(getDoc(usageRef));
+    await assertFails(setDoc(usageRef, { count: 1 }));
+  });
+
   it("shares shop category rules only with household members", async () => {
     await seedHousehold();
     const memberFirestore = testEnvironment.authenticatedContext("member-1").firestore();
