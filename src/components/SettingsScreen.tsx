@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Cloud, Copy, Database, Download, FileJson, KeyRound, LogIn, LogOut, Plus, RefreshCw, Save, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Upload, UserMinus, UserPlus, Users } from "lucide-react";
 import { buildBackupJson, downloadJson, parseBackupJson } from "../lib/backup";
-import { upsertShopCategoryRule } from "../lib/categorySuggestion";
 import { buildExpensesCsv, downloadCsv } from "../lib/csv";
 import { currentMonthKey, formatMonthLabel } from "../lib/date";
 import { formatFileSize } from "../lib/format";
@@ -9,7 +8,7 @@ import { copyTextToClipboard } from "../lib/clipboard";
 import type { BudgetStorageMode } from "../hooks/useBudgetData";
 import type { CloudHouseholdState } from "../hooks/useCloudHousehold";
 import type { FirebaseAuthState } from "../hooks/useFirebaseAuth";
-import type { AppSettings, BackupImportMode, Category, Expense, StorageHealth } from "../types";
+import type { AppSettings, BackupImportMode, Category, Expense, ShopCategoryRule, StorageHealth } from "../types";
 
 type SettingsScreenProps = {
   expenses: Expense[];
@@ -25,6 +24,10 @@ type SettingsScreenProps = {
   onAddCategory: (values: Pick<Category, "name" | "color">) => Promise<void>;
   onUpdateCategory: (category: Category, values: Pick<Category, "name" | "color">) => Promise<void>;
   onDeleteCategory: (category: Category) => Promise<void>;
+  onUpsertShopCategoryRule: (shopName: string, categoryId: string) => Promise<void>;
+  onSaveShopCategoryRule: (rule: ShopCategoryRule) => Promise<void>;
+  onDeleteShopCategoryRule: (rule: ShopCategoryRule) => Promise<void>;
+  hasLocalShopCategoryRulesToMigrate: boolean;
   firebaseAuth: FirebaseAuthState;
   cloudHousehold: CloudHouseholdState;
   storageMode: BudgetStorageMode;
@@ -89,6 +92,10 @@ export function SettingsScreen({
   onAddCategory,
   onUpdateCategory,
   onDeleteCategory,
+  onUpsertShopCategoryRule,
+  onSaveShopCategoryRule,
+  onDeleteShopCategoryRule,
+  hasLocalShopCategoryRulesToMigrate,
   firebaseAuth,
   cloudHousehold,
   storageMode,
@@ -122,46 +129,43 @@ export function SettingsScreen({
     }
   }, [firebaseAuth.user, newHouseholdName]);
 
-  function updateShopCategoryRules(nextRules: NonNullable<AppSettings["shopCategoryRules"]>) {
-    const nextSettings: AppSettings = { ...settings };
-    if (nextRules.length > 0) {
-      nextSettings.shopCategoryRules = nextRules;
-    } else {
-      delete nextSettings.shopCategoryRules;
-    }
-    onUpdateSettings(nextSettings);
-  }
-
-  function handleAddShopCategoryRule() {
+  async function handleAddShopCategoryRule() {
     const categoryId = newRuleCategoryId || categories[0]?.id;
     if (!categoryId || !newRuleShopName.trim()) {
       setStatusMessage("店舗名とカテゴリを入力してください");
       return;
     }
 
-    updateShopCategoryRules(upsertShopCategoryRule(shopCategoryRules, newRuleShopName, categoryId));
-    setNewRuleShopName("");
-    setNewRuleCategoryId(categoryId);
-    setStatusMessage("店舗別カテゴリルールを保存しました");
+    try {
+      await onUpsertShopCategoryRule(newRuleShopName, categoryId);
+      setNewRuleShopName("");
+      setNewRuleCategoryId(categoryId);
+      setStatusMessage("店舗別カテゴリルールを保存しました");
+    } catch (unknownError) {
+      setStatusMessage(unknownError instanceof Error ? unknownError.message : "店舗別カテゴリルールを保存できませんでした");
+    }
   }
 
-  function handleUpdateRuleCategory(ruleId: string, categoryId: string) {
-    updateShopCategoryRules(
-      shopCategoryRules.map((rule) =>
-        rule.id === ruleId
-          ? {
-              ...rule,
-              categoryId,
-              updatedAt: new Date().toISOString(),
-            }
-          : rule,
-      ),
-    );
+  async function handleUpdateRuleCategory(rule: ShopCategoryRule, categoryId: string) {
+    try {
+      await onSaveShopCategoryRule({
+        ...rule,
+        categoryId,
+        updatedAt: new Date().toISOString(),
+      });
+      setStatusMessage("店舗別カテゴリルールを更新しました");
+    } catch (unknownError) {
+      setStatusMessage(unknownError instanceof Error ? unknownError.message : "店舗別カテゴリルールを更新できませんでした");
+    }
   }
 
-  function handleDeleteRule(ruleId: string) {
-    updateShopCategoryRules(shopCategoryRules.filter((rule) => rule.id !== ruleId));
-    setStatusMessage("店舗別カテゴリルールを削除しました");
+  async function handleDeleteRule(rule: ShopCategoryRule) {
+    try {
+      await onDeleteShopCategoryRule(rule);
+      setStatusMessage("店舗別カテゴリルールを削除しました");
+    } catch (unknownError) {
+      setStatusMessage(unknownError instanceof Error ? unknownError.message : "店舗別カテゴリルールを削除できませんでした");
+    }
   }
 
   async function handleAddCategory() {
@@ -357,6 +361,11 @@ export function SettingsScreen({
             ? "現在の保存先はFirestoreです。支出、カテゴリ、JSONインポートはクラウド家計簿へ保存されます。"
             : "現在の保存先はIndexedDBです。ログイン後にクラウド家計簿を作成するとFirestore保存に切り替わります。"}
         </p>
+        {hasLocalShopCategoryRulesToMigrate && (
+          <p className="inline-notice">
+            ローカルの店舗ルールがあります。ローカルデータのクラウド移行を実行すると家族で共有できます。
+          </p>
+        )}
       </section>
 
       <section className="content-section">
@@ -670,7 +679,7 @@ export function SettingsScreen({
               ))}
             </select>
           </label>
-          <button className="button button-secondary" type="button" onClick={handleAddShopCategoryRule}>
+          <button className="button button-secondary" type="button" onClick={() => void handleAddShopCategoryRule()}>
             <Plus size={18} aria-hidden="true" />
             追加
           </button>
@@ -686,14 +695,14 @@ export function SettingsScreen({
                   <strong>{rule.shopName}</strong>
                   <span>{rule.normalizedShopName}</span>
                 </div>
-                <select value={rule.categoryId} onChange={(event) => handleUpdateRuleCategory(rule.id, event.target.value)}>
+                <select value={rule.categoryId} onChange={(event) => void handleUpdateRuleCategory(rule, event.target.value)}>
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.name}
                     </option>
                   ))}
                 </select>
-                <button className="icon-button danger" type="button" onClick={() => handleDeleteRule(rule.id)} aria-label={`${rule.shopName}のルールを削除`}>
+                <button className="icon-button danger" type="button" onClick={() => void handleDeleteRule(rule)} aria-label={`${rule.shopName}のルールを削除`}>
                   <Trash2 size={18} aria-hidden="true" />
                 </button>
               </article>

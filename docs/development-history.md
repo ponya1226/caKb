@@ -1,5 +1,30 @@
 # Development History
 
+## 2026-07-20 Shared Shop Rules and Expense Conflict Step
+
+目的: 家族が同じ店舗カテゴリルールを利用できるようにし、複数端末から同じ支出を編集した際の意図しない上書きを防ぐ。
+
+主な変更:
+
+- 店舗別カテゴリルールを `BudgetRepository` の管理対象に追加
+- クラウド利用時はFirestoreを正本としてリアルタイム購読し、ローカル利用時はlocalStorageを継続
+- 既存localStorageルールがある場合のクラウド移行案内を追加
+- 支出更新・削除をFirestore transaction化し、`updatedAt` 不一致時に競合を通知
+- 店舗ルール変換、競合判定、Firestore Rulesの回帰テストを追加
+
+検証結果:
+
+- `npm run lint`
+- `npm run test`（79件成功）
+- `npm run build`
+- `git diff --check`
+
+残課題:
+
+- 管理者・家族の別端末で店舗ルール共有と競合通知を実機確認する
+- 競合時の差分表示と自動マージは未対応
+- Google Vision利用量制御とGoogle Sheets一方向同期は次フェーズ
+
 ## 2026-07-18 Family Real-time Sync and OCR Authorization Step
 
 目的: 家族が同じ家計簿を利用する際に変更を再読み込みなしで共有し、解除済みメンバーのデータ・高精度OCR利用を確実に止める。

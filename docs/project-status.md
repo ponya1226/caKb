@@ -1,9 +1,13 @@
 # Project Status
 
-Last Updated: 2026-07-18
+Last Updated: 2026-07-20
 
 ## Implemented
 
+- 店舗別カテゴリルールのFirestore正本化と家族間リアルタイム共有。未ログイン時はlocalStorageを継続利用
+- 既存localStorage店舗ルールの明示的クラウド移行案内とJSONバックアップ互換
+- 支出更新・削除時の `updatedAt` による楽観的競合検知と、上書き防止メッセージ
+- Firestore Rulesで店舗別カテゴリルールをhousehold memberだけに許可する回帰テスト
 - Firestoreの支出・カテゴリをリアルタイム購読し、家族の登録・編集・削除を再読み込みなしで反映
 - 支出の作成者・更新者UID保持と、支出一覧での登録者表示
 - 家族メンバー解除後のFirestore権限エラー検知、再読み込み・ログアウト導線
@@ -139,7 +143,7 @@ Last Updated: 2026-07-18
 - 店舗別カテゴリルールは店舗名の正規化一致、部分一致、共通ブランド接頭辞に基づくため、商品名やチェーン公式IDによる厳密な店舗識別は未対応。
 - Google Vision利用にはProxy運用、Google Cloud認証情報管理、API課金、CORS制御、将来のレート制限が必要。
 - Google Vision Proxyのhousehold membership確認には、Cloud Run実行サービスアカウントのFirestore読み取り権限と `REQUIRE_HOUSEHOLD_MEMBERSHIP=true` の維持が必要。
-- Firestoreリアルタイム購読は最終書き込み優先であり、同じ支出を家族が同時編集した場合の競合通知や差分マージは未対応。
+- 支出の更新・削除は競合検知に対応したが、差分表示や自動マージは未対応。
 - Google Vision ProxyはCloud Runデプロイ可能な形にしたが、追加防御として `OCR_SHARED_TOKEN`、リクエスト制限、監査方針を追加検討する必要がある。
 - Google Vision Proxyの `firebase-admin` 導入により、`uuid` transitive dependencyのmoderate audit警告が残る。`npm audit fix --force` は破壊的なFirebase Admin downgradeになるため未適用。
 - 店舗候補抽出はブランド行と支店行の結合に対応したが、店舗ごとの例外ルールや誤候補抑制UIは未実装。
@@ -171,8 +175,7 @@ Last Updated: 2026-07-18
 ## Next Recommended Priorities
 
 - 管理者と家族の別Googleアカウントを使い、招待、参加、支出共有、解除をスマホ実機で確認する
-- 店舗別カテゴリルールをlocalStorageからFirestore正本へ移し、家族全員で共有する
-- 同じ支出を複数端末で同時編集した場合の競合通知方針を決める
+- 別端末で店舗ルールの追加・変更・削除と、同じ支出の競合通知を実機確認する
 
 - 品目候補抽出の実レシート回帰テストを増やし、Google Vision OCR結果で商品行と小計/支払行の誤分類を継続調整する
 - Firebase Hosting URLでのPC/スマホGoogleログイン継続確認

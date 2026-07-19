@@ -133,7 +133,7 @@ export default function App() {
       ocrText: receiptDraft.ocrText,
     });
     if (options?.saveCategoryRule) {
-      budgetData.upsertShopCategoryRule(values.shopName, values.categoryId);
+      await budgetData.upsertShopCategoryRule(values.shopName, values.categoryId);
     }
     URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
     if (receiptDraft.ocrImagePreviewUrl) {
@@ -339,6 +339,10 @@ export default function App() {
               onAddCategory={budgetData.addCategory}
               onUpdateCategory={budgetData.updateCategory}
               onDeleteCategory={budgetData.removeCategory}
+              onUpsertShopCategoryRule={budgetData.upsertShopCategoryRule}
+              onSaveShopCategoryRule={budgetData.saveShopCategoryRule}
+              onDeleteShopCategoryRule={budgetData.removeShopCategoryRule}
+              hasLocalShopCategoryRulesToMigrate={budgetData.hasLocalShopCategoryRulesToMigrate}
               firebaseAuth={firebaseAuth}
               cloudHousehold={cloudHousehold}
               storageMode={budgetData.storageMode}

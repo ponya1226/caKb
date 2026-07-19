@@ -84,6 +84,8 @@ export function ExpenseEditor({ categories, initialValues, submitLabel, onSubmit
         memo: values.memo,
         ...(normalizedLineItems ? { lineItems: normalizedLineItems } : {}),
       });
+    } catch (unknownError) {
+      setError(unknownError instanceof Error ? unknownError.message : "支出を保存できませんでした");
     } finally {
       setIsSaving(false);
     }

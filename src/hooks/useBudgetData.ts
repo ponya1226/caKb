@@ -20,6 +20,7 @@ import type {
   ExpenseFormValues,
   ReceiptCategorySuggestion,
   ReceiptImage,
+  ShopCategoryRule,
   StorageHealth,
 } from "../types";
 
@@ -53,7 +54,10 @@ type UseBudgetDataResult = {
   updateCategory: (category: Category, values: Pick<Category, "name" | "color">) => Promise<void>;
   removeCategory: (category: Category) => Promise<void>;
   suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
-  upsertShopCategoryRule: (shopName: string, categoryId: string) => void;
+  upsertShopCategoryRule: (shopName: string, categoryId: string) => Promise<void>;
+  saveShopCategoryRule: (rule: ShopCategoryRule) => Promise<void>;
+  removeShopCategoryRule: (rule: ShopCategoryRule) => Promise<void>;
+  hasLocalShopCategoryRulesToMigrate: boolean;
 };
 
 function normalizeCategoryColor(color: string): string {
@@ -97,6 +101,8 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
   const [categories, setCategories] = useState<Category[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
+  const [localShopCategoryRules] = useState<ShopCategoryRule[]>(() => loadSettings().shopCategoryRules ?? []);
+  const [shopCategoryRules, setShopCategoryRules] = useState<ShopCategoryRule[]>([]);
   const [storageHealth, setStorageHealth] = useState<StorageHealth | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +112,7 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
     const snapshot = await repository.getSnapshot();
     setCategories(snapshot.categories);
     setExpenses(snapshot.expenses);
+    setShopCategoryRules(snapshot.shopCategoryRules);
     setStorageHealth(await checkStorageHealth(snapshot.expenses));
   }, [repository]);
 
@@ -137,6 +144,7 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
               }
               setCategories(snapshot.categories);
               setExpenses(snapshot.expenses);
+              setShopCategoryRules(snapshot.shopCategoryRules);
               setError(null);
               setIsLoading(false);
               void checkStorageHealth(snapshot.expenses).then((health) => {
@@ -176,6 +184,15 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
   }, [refresh, repository, storageMode]);
 
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
+  const effectiveSettings = useMemo<AppSettings>(() => {
+    const nextSettings = { ...settings };
+    if (shopCategoryRules.length > 0) {
+      nextSettings.shopCategoryRules = shopCategoryRules;
+    } else {
+      delete nextSettings.shopCategoryRules;
+    }
+    return nextSettings;
+  }, [settings, shopCategoryRules]);
 
   const addManualExpense = useCallback(
     async (values: ExpenseFormValues) => {
@@ -219,7 +236,7 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
         memo: values.memo.trim(),
         ...(lineItems ? { lineItems } : {}),
         updatedAt: new Date().toISOString(),
-      });
+      }, { expectedUpdatedAt: expense.updatedAt });
       await refreshAfterMutation();
     },
     [refreshAfterMutation, repository],
@@ -227,7 +244,7 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
 
   const removeExpense = useCallback(
     async (expense: Expense) => {
-      await repository.deleteExpense(expense.id);
+      await repository.deleteExpense(expense.id, { expectedUpdatedAt: expense.updatedAt });
       await refreshAfterMutation();
     },
     [refreshAfterMutation, repository],
@@ -240,7 +257,12 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
 
   const importBackup = useCallback(
     async (backup: BackupData, mode: BackupImportMode) => {
-      await repository.importApplicationData(backup.expenses, backup.categories, mode);
+      await repository.importApplicationData(
+        backup.expenses,
+        backup.categories,
+        backup.settings.shopCategoryRules ?? [],
+        mode,
+      );
       saveSettings(backup.settings);
       setSettings(backup.settings);
       await refreshAfterMutation();
@@ -304,37 +326,52 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
         throw new Error("支出で使われているカテゴリは削除できません");
       }
 
-      await repository.deleteCategory(category.id);
-      const nextRules = settings.shopCategoryRules?.filter((rule) => rule.categoryId !== category.id) ?? [];
-      if (nextRules.length !== (settings.shopCategoryRules?.length ?? 0)) {
-        const nextSettings: AppSettings = { ...settings };
-        if (nextRules.length > 0) {
-          nextSettings.shopCategoryRules = nextRules;
-        } else {
-          delete nextSettings.shopCategoryRules;
-        }
-        updateSettings(nextSettings);
+      if (shopCategoryRules.some((rule) => rule.categoryId === category.id)) {
+        throw new Error("店舗別カテゴリルールで使用中のカテゴリです。先に関連ルールを削除してください。");
       }
+
+      await repository.deleteCategory(category.id);
       await refreshAfterMutation();
     },
-    [expenses, refreshAfterMutation, repository, settings, updateSettings],
+    [expenses, refreshAfterMutation, repository, shopCategoryRules],
   );
 
   const suggestCategoryForShop = useCallback(
     (shopName: string) =>
-      findCategoryRuleForShop(settings.shopCategoryRules, shopName) ?? findRecentCategoryForShop(expenses, shopName),
-    [expenses, settings.shopCategoryRules],
+      findCategoryRuleForShop(shopCategoryRules, shopName) ?? findRecentCategoryForShop(expenses, shopName),
+    [expenses, shopCategoryRules],
   );
 
   const upsertShopCategoryRule = useCallback(
-    (shopName: string, categoryId: string) => {
-      const nextRules = upsertCategoryRule(settings.shopCategoryRules, shopName, categoryId);
-      updateSettings({
-        ...settings,
-        ...(nextRules.length > 0 ? { shopCategoryRules: nextRules } : {}),
+    async (shopName: string, categoryId: string) => {
+      const nextRules = upsertCategoryRule(shopCategoryRules, shopName, categoryId);
+      const changedRule = nextRules.find((rule) => {
+        const currentRule = shopCategoryRules.find((current) => current.id === rule.id);
+        return !currentRule || currentRule.updatedAt !== rule.updatedAt;
       });
+      if (!changedRule) {
+        return;
+      }
+      await repository.saveShopCategoryRule(changedRule);
+      await refreshAfterMutation();
     },
-    [settings, updateSettings],
+    [refreshAfterMutation, repository, shopCategoryRules],
+  );
+
+  const saveShopCategoryRule = useCallback(
+    async (rule: ShopCategoryRule) => {
+      await repository.saveShopCategoryRule(rule);
+      await refreshAfterMutation();
+    },
+    [refreshAfterMutation, repository],
+  );
+
+  const removeShopCategoryRule = useCallback(
+    async (rule: ShopCategoryRule) => {
+      await repository.deleteShopCategoryRule(rule.id);
+      await refreshAfterMutation();
+    },
+    [refreshAfterMutation, repository],
   );
 
   const resetData = useCallback(async () => {
@@ -348,7 +385,7 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
   return {
     categories,
     expenses,
-    settings,
+    settings: effectiveSettings,
     storageMode,
     storageHealth,
     isLoading,
@@ -369,5 +406,9 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
     removeCategory,
     suggestCategoryForShop,
     upsertShopCategoryRule,
+    saveShopCategoryRule,
+    removeShopCategoryRule,
+    hasLocalShopCategoryRulesToMigrate:
+      storageMode === "cloud" && localShopCategoryRules.length > 0 && shopCategoryRules.length === 0,
   };
 }

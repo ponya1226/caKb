@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { fromCloudCategory, fromCloudExpense } from "./firestoreBudgetRepository";
-import type { CloudCategory, CloudExpense } from "../../types";
+import {
+  assertExpectedExpenseVersion,
+  fromCloudCategory,
+  fromCloudExpense,
+  fromCloudShopCategoryRule,
+} from "./firestoreBudgetRepository";
+import type { CloudCategory, CloudExpense, CloudShopCategoryRule } from "../../types";
 
 describe("firestoreBudgetRepository", () => {
   it("maps a cloud expense back to the existing local expense shape", () => {
@@ -71,5 +76,35 @@ describe("firestoreBudgetRepository", () => {
       color: "#0f766e",
       sortOrder: 10,
     });
+  });
+
+  it("maps a shared shop category rule back to the existing rule shape", () => {
+    const cloudRule: CloudShopCategoryRule = {
+      id: "rule_1",
+      householdId: "household_1",
+      shopName: "サンプルストア",
+      normalizedShopName: "サンプルストア",
+      categoryId: "food",
+      createdAt: "2026-07-10T00:00:00.000Z",
+      updatedAt: "2026-07-10T01:00:00.000Z",
+    };
+
+    expect(fromCloudShopCategoryRule(cloudRule)).toEqual({
+      id: "rule_1",
+      shopName: "サンプルストア",
+      normalizedShopName: "サンプルストア",
+      categoryId: "food",
+      createdAt: "2026-07-10T00:00:00.000Z",
+      updatedAt: "2026-07-10T01:00:00.000Z",
+    });
+  });
+
+  it("rejects an expense mutation when the stored version changed", () => {
+    expect(() =>
+      assertExpectedExpenseVersion("2026-07-10T02:00:00.000Z", "2026-07-10T01:00:00.000Z"),
+    ).toThrow("別の利用者が更新しました");
+    expect(() =>
+      assertExpectedExpenseVersion("2026-07-10T01:00:00.000Z", "2026-07-10T01:00:00.000Z"),
+    ).not.toThrow();
   });
 });

@@ -4,16 +4,17 @@ import {
   doc,
   getDocs,
   onSnapshot,
+  runTransaction,
   setDoc,
   writeBatch,
   type Firestore,
   type WriteBatch,
 } from "firebase/firestore";
-import type { BackupImportMode, Category, CloudCategory, CloudExpense, Expense, ReceiptImage } from "../../types";
-import { toCloudCategory, toCloudExpense } from "../cloudHousehold";
+import type { BackupImportMode, Category, CloudCategory, CloudExpense, CloudShopCategoryRule, Expense, ReceiptImage, ShopCategoryRule } from "../../types";
+import { toCloudCategory, toCloudExpense, toCloudShopCategoryRule } from "../cloudHousehold";
 import { removeUndefinedFields } from "../firestoreSanitizer";
-import { householdCategoriesPath, householdExpensesPath } from "../firestorePaths";
-import type { BudgetRepository, BudgetSnapshot } from "./budgetRepository";
+import { householdCategoriesPath, householdExpensesPath, householdShopCategoryRulesPath } from "../firestorePaths";
+import { BudgetConflictError, type BudgetRepository, type BudgetSnapshot, type ExpenseMutationOptions } from "./budgetRepository";
 
 const FIRESTORE_BATCH_LIMIT = 450;
 
@@ -25,6 +26,17 @@ export function fromCloudExpense(expense: CloudExpense): Expense {
 export function fromCloudCategory(category: CloudCategory): Category {
   const { householdId: _householdId, createdAt: _createdAt, updatedAt: _updatedAt, ...localCategory } = category;
   return localCategory;
+}
+
+export function fromCloudShopCategoryRule(rule: CloudShopCategoryRule): ShopCategoryRule {
+  const { householdId: _householdId, ...shopCategoryRule } = rule;
+  return shopCategoryRule;
+}
+
+export function assertExpectedExpenseVersion(currentUpdatedAt: unknown, expectedUpdatedAt?: string): void {
+  if (expectedUpdatedAt && currentUpdatedAt !== expectedUpdatedAt) {
+    throw new BudgetConflictError();
+  }
 }
 
 async function commitBatchItems<T>(
@@ -57,11 +69,13 @@ export function createFirestoreBudgetRepository(
 ): BudgetRepository {
   const expensesPath = householdExpensesPath(householdId);
   const categoriesPath = householdCategoriesPath(householdId);
+  const shopCategoryRulesPath = householdShopCategoryRulesPath(householdId);
 
   async function getSnapshot(): Promise<BudgetSnapshot> {
-    const [expenseSnapshots, categorySnapshots] = await Promise.all([
+    const [expenseSnapshots, categorySnapshots, shopCategoryRuleSnapshots] = await Promise.all([
       getDocs(collection(firestore, expensesPath)),
       getDocs(collection(firestore, categoriesPath)),
+      getDocs(collection(firestore, shopCategoryRulesPath)),
     ]);
 
     return {
@@ -71,12 +85,25 @@ export function createFirestoreBudgetRepository(
       categories: categorySnapshots.docs
         .map((snapshot) => fromCloudCategory(snapshot.data() as CloudCategory))
         .sort((a, b) => a.sortOrder - b.sortOrder),
+      shopCategoryRules: shopCategoryRuleSnapshots.docs
+        .map((snapshot) => fromCloudShopCategoryRule(snapshot.data() as CloudShopCategoryRule))
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     };
   }
 
-  async function saveExpense(expense: Expense): Promise<void> {
+  async function saveExpense(expense: Expense, options?: ExpenseMutationOptions): Promise<void> {
     const cloudExpense = removeUndefinedFields(toCloudExpense(expense, householdId, uid));
-    await setDoc(doc(firestore, expensesPath, expense.id), cloudExpense);
+    const expenseRef = doc(firestore, expensesPath, expense.id);
+    if (!options?.expectedUpdatedAt) {
+      await setDoc(expenseRef, cloudExpense);
+      return;
+    }
+
+    await runTransaction(firestore, async (transaction) => {
+      const currentSnapshot = await transaction.get(expenseRef);
+      assertExpectedExpenseVersion(currentSnapshot.exists() ? currentSnapshot.data().updatedAt : undefined, options.expectedUpdatedAt);
+      transaction.set(expenseRef, cloudExpense);
+    });
   }
 
   async function saveCategory(category: Category): Promise<void> {
@@ -90,10 +117,11 @@ export function createFirestoreBudgetRepository(
     subscribe: (listener, onError) => {
       let expenses: Expense[] | null = null;
       let categories: Category[] | null = null;
+      let shopCategoryRules: ShopCategoryRule[] | null = null;
 
       const emitSnapshot = () => {
-        if (expenses && categories) {
-          listener({ expenses, categories });
+        if (expenses && categories && shopCategoryRules) {
+          listener({ expenses, categories, shopCategoryRules });
         }
       };
 
@@ -117,26 +145,61 @@ export function createFirestoreBudgetRepository(
         },
         onError,
       );
+      const unsubscribeShopCategoryRules = onSnapshot(
+        collection(firestore, shopCategoryRulesPath),
+        (snapshot) => {
+          shopCategoryRules = snapshot.docs
+            .map((document) => fromCloudShopCategoryRule(document.data() as CloudShopCategoryRule))
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+          emitSnapshot();
+        },
+        onError,
+      );
 
       return () => {
         unsubscribeExpenses();
         unsubscribeCategories();
+        unsubscribeShopCategoryRules();
       };
     },
     saveExpense,
-    deleteExpense: async (id) => {
-      await deleteDoc(doc(firestore, expensesPath, id));
+    deleteExpense: async (id, options) => {
+      const expenseRef = doc(firestore, expensesPath, id);
+      if (!options?.expectedUpdatedAt) {
+        await deleteDoc(expenseRef);
+        return;
+      }
+      await runTransaction(firestore, async (transaction) => {
+        const currentSnapshot = await transaction.get(expenseRef);
+        assertExpectedExpenseVersion(currentSnapshot.exists() ? currentSnapshot.data().updatedAt : undefined, options.expectedUpdatedAt);
+        transaction.delete(expenseRef);
+      });
     },
     saveReceiptImage: async (_receiptImage: ReceiptImage) => undefined,
     saveCategory,
     deleteCategory: async (id) => {
       await deleteDoc(doc(firestore, categoriesPath, id));
     },
-    importApplicationData: async (expenses: Expense[], categories: Category[], mode: BackupImportMode) => {
+    saveShopCategoryRule: async (rule) => {
+      await setDoc(
+        doc(firestore, shopCategoryRulesPath, rule.id),
+        removeUndefinedFields(toCloudShopCategoryRule(rule, householdId)),
+      );
+    },
+    deleteShopCategoryRule: async (id) => {
+      await deleteDoc(doc(firestore, shopCategoryRulesPath, id));
+    },
+    importApplicationData: async (
+      expenses: Expense[],
+      categories: Category[],
+      shopCategoryRules: ShopCategoryRule[],
+      mode: BackupImportMode,
+    ) => {
       if (mode === "replace") {
         await Promise.all([
           deleteCollectionDocuments(firestore, expensesPath),
           deleteCollectionDocuments(firestore, categoriesPath),
+          deleteCollectionDocuments(firestore, shopCategoryRulesPath),
         ]);
       }
 
@@ -155,12 +218,23 @@ export function createFirestoreBudgetRepository(
           },
           firestore,
         ),
+        commitBatchItems(
+          shopCategoryRules,
+          (batch, rule) => {
+            batch.set(
+              doc(firestore, shopCategoryRulesPath, rule.id),
+              removeUndefinedFields(toCloudShopCategoryRule(rule, householdId)),
+            );
+          },
+          firestore,
+        ),
       ]);
     },
     clearApplicationData: async () => {
       await Promise.all([
         deleteCollectionDocuments(firestore, expensesPath),
         deleteCollectionDocuments(firestore, categoriesPath),
+        deleteCollectionDocuments(firestore, shopCategoryRulesPath),
       ]);
     },
   };

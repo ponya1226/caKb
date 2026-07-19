@@ -70,6 +70,26 @@ describe("Firestore household rules", () => {
     );
   });
 
+  it("shares shop category rules only with household members", async () => {
+    await seedHousehold();
+    const memberFirestore = testEnvironment.authenticatedContext("member-1").firestore();
+    const outsiderFirestore = testEnvironment.authenticatedContext("outsider-1").firestore();
+    const rulePath = "households/household-1/shopCategoryRules/rule-1";
+
+    await assertSucceeds(
+      setDoc(doc(memberFirestore, rulePath), {
+        id: "rule-1",
+        householdId: "household-1",
+        shopName: "Sample Store",
+        normalizedShopName: "samplestore",
+        categoryId: "food",
+      }),
+    );
+    await assertSucceeds(getDoc(doc(memberFirestore, rulePath)));
+    await assertFails(getDoc(doc(outsiderFirestore, rulePath)));
+    await assertFails(setDoc(doc(outsiderFirestore, rulePath), { categoryId: "other" }, { merge: true }));
+  });
+
   it("revokes expense access after a member is removed", async () => {
     await seedHousehold();
     const memberFirestore = testEnvironment.authenticatedContext("member-1").firestore();
