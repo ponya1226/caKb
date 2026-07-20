@@ -77,7 +77,9 @@ React PWA
 
 支出更新・削除では、画面が保持する `updatedAt` とFirestore上の値をtransaction内で比較します。別端末で先に更新されていた場合は保存を拒否し、最新版を確認して再編集するよう通知します。
 
-スプレッドシート同期はアプリ正本からGoogle Sheetsへの一方向エクスポートとして開始します。Sheets側で編集された内容をアプリへ取り込む双方向同期は初期対象外です。
+スプレッドシート同期はアプリ正本からGoogle Sheetsへのowner専用の手動一方向エクスポートです。既存Cloud Run ProxyがFirebase ID tokenとactive household ownerを確認し、Firestoreの支出を `caKb支出` タブへ1支出1行で全件再出力します。Sheets側で編集された内容をアプリへ取り込む双方向同期は対象外です。
+
+Cloud RunはApplication Default CredentialsでSheets APIを呼びます。対象ファイルは利用者がCloud Run実行サービスアカウントへ編集共有したスプレッドシートに限定されます。service account keyやOAuth refresh tokenは保存しません。同期設定と最終結果は `households/{householdId}/sheetSyncSettings/default` に保存し、Firestore Rulesでownerだけに許可します。
 
 Firebase client configは `VITE_FIREBASE_*` 環境変数から読み取り、未設定の場合はFirebaseを初期化しません。Firestoreの初期パスは `households/{householdId}` 配下に支出、カテゴリ、店舗別カテゴリルール、同期設定を置きます。Security Rules雛形は `firestore.rules` にあります。
 

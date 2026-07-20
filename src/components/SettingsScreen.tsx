@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Cloud, Copy, Database, Download, FileJson, KeyRound, LogIn, LogOut, Plus, RefreshCw, Save, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Upload, UserMinus, UserPlus, Users } from "lucide-react";
+import { Cloud, Copy, Database, Download, ExternalLink, FileJson, FileSpreadsheet, KeyRound, LogIn, LogOut, Plus, RefreshCw, Save, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Upload, UserMinus, UserPlus, Users } from "lucide-react";
 import { buildBackupJson, downloadJson, parseBackupJson } from "../lib/backup";
 import { buildExpensesCsv, downloadCsv } from "../lib/csv";
 import { currentMonthKey, formatMonthLabel } from "../lib/date";
@@ -8,6 +8,8 @@ import { copyTextToClipboard } from "../lib/clipboard";
 import type { BudgetStorageMode } from "../hooks/useBudgetData";
 import type { CloudHouseholdState } from "../hooks/useCloudHousehold";
 import type { FirebaseAuthState } from "../hooks/useFirebaseAuth";
+import type { GoogleSheetsSyncState } from "../hooks/useGoogleSheetsSync";
+import { buildGoogleSpreadsheetUrl, GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL } from "../lib/googleSheetsSync";
 import type { AppSettings, BackupImportMode, Category, Expense, ShopCategoryRule, StorageHealth } from "../types";
 
 type SettingsScreenProps = {
@@ -30,6 +32,7 @@ type SettingsScreenProps = {
   hasLocalShopCategoryRulesToMigrate: boolean;
   firebaseAuth: FirebaseAuthState;
   cloudHousehold: CloudHouseholdState;
+  googleSheetsSync: GoogleSheetsSyncState;
   storageMode: BudgetStorageMode;
 };
 
@@ -98,6 +101,7 @@ export function SettingsScreen({
   hasLocalShopCategoryRulesToMigrate,
   firebaseAuth,
   cloudHousehold,
+  googleSheetsSync,
   storageMode,
 }: SettingsScreenProps) {
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -109,6 +113,7 @@ export function SettingsScreen({
   const [categoryDrafts, setCategoryDrafts] = useState<Record<string, CategoryDraft>>({});
   const [newHouseholdName, setNewHouseholdName] = useState("");
   const [inviteCode, setInviteCode] = useState("");
+  const [spreadsheetInput, setSpreadsheetInput] = useState("");
   const shopCategoryRules = settings.shopCategoryRules ?? [];
 
   useEffect(() => {
@@ -128,6 +133,12 @@ export function SettingsScreen({
       setNewHouseholdName(`${firebaseAuth.user.displayName}の家計簿`);
     }
   }, [firebaseAuth.user, newHouseholdName]);
+
+  useEffect(() => {
+    if (googleSheetsSync.settings?.spreadsheetId) {
+      setSpreadsheetInput(googleSheetsSync.settings.spreadsheetId);
+    }
+  }, [googleSheetsSync.settings?.spreadsheetId]);
 
   async function handleAddShopCategoryRule() {
     const categoryId = newRuleCategoryId || categories[0]?.id;
@@ -299,6 +310,22 @@ export function SettingsScreen({
       return;
     }
     await cloudHousehold.removeMember(uid);
+  }
+
+  async function handleCopySheetsServiceAccount() {
+    setStatusMessage(
+      (await copyTextToClipboard(GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL))
+        ? "共有先メールアドレスをコピーしました"
+        : "共有先メールアドレスをコピーできませんでした",
+    );
+  }
+
+  async function handleExportToGoogleSheets() {
+    const result = await googleSheetsSync.exportExpenses(spreadsheetInput);
+    if (result) {
+      setSpreadsheetInput(result.spreadsheetId);
+      setStatusMessage(`${result.exportedExpenses}件をGoogle Sheetsへ出力しました`);
+    }
   }
 
   return (
@@ -509,6 +536,86 @@ export function SettingsScreen({
         <p className="subtle-text storage-note">
           移行は同じIDへ上書きするコピーです。同じデータを再移行しても重複しません。クラウド家計簿がある場合、支出登録・一覧表示はFirestore保存を使用します。
         </p>
+      </section>
+
+      <section className="content-section">
+        <div className="section-title-row">
+          <h2>Google Sheets出力</h2>
+          <FileSpreadsheet size={20} aria-hidden="true" />
+        </div>
+
+        {storageMode !== "cloud" || !cloudHousehold.household ? (
+          <div className="empty-state">クラウド家計簿の作成または参加後に利用できます</div>
+        ) : cloudHousehold.household.member.role !== "owner" ? (
+          <div className="empty-state">管理者のみ設定できます</div>
+        ) : !googleSheetsSync.isConfigured ? (
+          <div className="empty-state">Google Sheets出力Proxyが未設定です</div>
+        ) : (
+          <div className="sheet-sync-panel">
+            <div className="privacy-note">
+              <strong>外部送信</strong>
+              <span>Firestoreの支出をGoogle Sheetsへ送信します。Sheets側の編集内容はcaKbへ取り込みません。</span>
+            </div>
+
+            <div className="sheet-share-row">
+              <div>
+                <span>スプレッドシートの共有先</span>
+                <strong>{GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL}</strong>
+              </div>
+              <button className="icon-button" type="button" onClick={() => void handleCopySheetsServiceAccount()} aria-label="共有先メールアドレスをコピー">
+                <Copy size={18} aria-hidden="true" />
+              </button>
+            </div>
+
+            <label className="field">
+              <span>スプレッドシートURLまたはID</span>
+              <input
+                type="text"
+                inputMode="url"
+                value={spreadsheetInput}
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+                onChange={(event) => setSpreadsheetInput(event.target.value)}
+              />
+            </label>
+
+            <button
+              className="button button-primary full-width"
+              type="button"
+              onClick={() => void handleExportToGoogleSheets()}
+              disabled={googleSheetsSync.isLoading || googleSheetsSync.isWorking || !spreadsheetInput.trim()}
+            >
+              <Upload size={18} aria-hidden="true" />
+              {googleSheetsSync.isWorking ? "出力中" : "支出をSheetsへ出力"}
+            </button>
+
+            {googleSheetsSync.settings?.lastSyncedAt && (
+              <div className="sheet-sync-result">
+                <div>
+                  <strong>{googleSheetsSync.settings.lastExportedExpenseCount ?? 0}件出力済み</strong>
+                  <span>最終出力: {formatCloudDate(googleSheetsSync.settings.lastSyncedAt)}</span>
+                </div>
+                <a
+                  className="icon-button"
+                  href={buildGoogleSpreadsheetUrl(googleSheetsSync.settings.spreadsheetId)}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="出力先スプレッドシートを開く"
+                >
+                  <ExternalLink size={18} aria-hidden="true" />
+                </a>
+              </div>
+            )}
+
+            {googleSheetsSync.error && (
+              <div className="inline-error account-error">
+                <p>{googleSheetsSync.error}</p>
+                <button className="button button-secondary button-compact" type="button" onClick={googleSheetsSync.clearError}>
+                  閉じる
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       <section className="content-section">

@@ -4,6 +4,7 @@ import { ExpenseEditor } from "./components/ExpenseEditor";
 import { useBudgetData } from "./hooks/useBudgetData";
 import { useCloudHousehold } from "./hooks/useCloudHousehold";
 import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
+import { useGoogleSheetsSync } from "./hooks/useGoogleSheetsSync";
 import { normalizeShopNameForCategory } from "./lib/categorySuggestion";
 import { getFirebaseClientServices } from "./lib/firebaseConfig";
 import { createFirestoreBudgetRepository } from "./lib/repositories/firestoreBudgetRepository";
@@ -46,6 +47,7 @@ export default function App() {
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
   const firebaseAuth = useFirebaseAuth();
   const cloudHousehold = useCloudHousehold(firebaseAuth.user);
+  const googleSheetsSync = useGoogleSheetsSync(cloudHousehold.household, firebaseAuth.getIdToken);
   const cloudBudgetRepository = useMemo(() => {
     const householdId = cloudHousehold.household?.household.id;
     if (!firebaseAuth.user || !householdId) {
@@ -350,6 +352,7 @@ export default function App() {
               hasLocalShopCategoryRulesToMigrate={budgetData.hasLocalShopCategoryRulesToMigrate}
               firebaseAuth={firebaseAuth}
               cloudHousehold={cloudHousehold}
+              googleSheetsSync={googleSheetsSync}
               storageMode={budgetData.storageMode}
             />
           )}

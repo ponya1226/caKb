@@ -121,6 +121,7 @@ export type SheetSyncSettings = {
   spreadsheetId: string;
   enabled: boolean;
   lastSyncedAt?: string;
+  lastExportedExpenseCount?: number;
   updatedAt: string;
 };
 

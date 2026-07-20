@@ -1,5 +1,34 @@
 # Development History
 
+## 2026-07-20 Google Sheets One-Way Export Step
+
+目的: Firestoreを正本として維持しながら、家族が利用するGoogleスプレッドシートへ支出を安全に一方向出力できるようにする。
+
+主な変更:
+
+- active householdのownerだけが実行できる `POST /api/sheets/export` を既存Cloud Run Proxyへ追加
+- Firestoreの支出、カテゴリ、メンバー表示名を1支出1行へ整形し、`caKb支出` タブを全件置換
+- Cloud RunサービスアカウントのApplication Default Credentialsを使い、service account keyを不要化
+- 設定画面へスプレッドシートURL/ID、共有先コピー、出力操作、最終出力結果を追加
+- 同期設定をowner専用Firestore pathへ保存し、Rules回帰テストを追加
+- Google Sheets APIを `cakb-dev` で有効化
+- ADR 0009とセットアップ手順を追加
+
+検証結果:
+
+- Proxy `npm run test`（25件成功）
+- Proxy `npm run build`
+- `npm run lint`
+- `npm run test`（85件成功）
+- `npm run build`
+- `git diff --check`
+- `npm run test:rules`: ローカル環境にJavaがないため未実行。GitHub ActionsのJava環境で検証する
+
+残課題:
+
+- 実際のスプレッドシートをCloud Run実行サービスアカウントへ編集共有して出力を確認する
+- 実利用後に列構成、手動全件置換、自動実行の必要性を判断する
+
 ## 2026-07-20 Google Vision Usage Control Step
 
 目的: Google Vision OCRの連続実行と月間利用量をProxy側で制御し、意図しないAPI利用と課金リスクを抑える。

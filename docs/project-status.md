@@ -4,6 +4,11 @@ Last Updated: 2026-07-20
 
 ## Implemented
 
+- Google Sheets一方向出力MVP: Firestoreの支出を `caKb支出` タブへ1支出1行で全件出力
+- Firebase ID token、active household、owner roleによるSheets出力認可
+- Cloud RunサービスアカウントのApplication Default CredentialsによるSheets API接続。鍵ファイルは不使用
+- Sheets同期設定、最終出力日時、出力件数のFirestore保存とowner専用Rules
+- スプレッドシートURL/ID入力、共有先コピー、出力状態、出力先リンクを含むスマホ向け設定UI
 - Google Vision ProxyのUID単位短時間レート制限と、Firestoreを使った全インスタンス共通の月間上限
 - 高精度OCR制限時の理由別メッセージとローカルOCR再試行導線
 - OCR月間カウンタをクライアントから拒否するFirestore Rules回帰テスト
@@ -131,7 +136,6 @@ Last Updated: 2026-07-20
 
 ## Not Started
 
-- Google Sheets一方向同期
 - AI分析
 - 予算管理
 - 定期支出
@@ -143,7 +147,7 @@ Last Updated: 2026-07-20
 - Firebase Hosting deploy workflowは `main` pushで自動実行される。GitHub Secret `FIREBASE_SERVICE_ACCOUNT_CAKB_DEV` の継続管理が必要。
 - GitHub Pagesは通常push対象から外したが、workflow自体は手動実行用に残っている。公開URL案内やGitHub Pages設定の整理は残る。
 - Firestore Rulesの基本的なmember/非member/owner権限はEmulatorテスト済み。招待機能追加時は招待コードとmember作成条件のテスト拡充が必要。
-- Google Sheets同期は方針のみで、Sheets API連携、認可、同期ログ、失敗時再試行は未実装。
+- Google Sheets出力はownerによる手動全件置換のみ。自動実行、差分同期、再試行キュー、Sheets側変更の取り込みは未対応。
 - カテゴリ削除は支出で未使用の場合のみ可能。使用中カテゴリの統合や一括付け替えは未対応。
 - 店舗別カテゴリルールは店舗名の正規化一致、部分一致、共通ブランド接頭辞に基づくため、商品名やチェーン公式IDによる厳密な店舗識別は未対応。
 - Google Vision利用にはProxy運用、Google Cloud認証情報管理、API課金、CORS制御、将来のレート制限が必要。
@@ -186,7 +190,7 @@ Last Updated: 2026-07-20
 - Firebase Hosting URLでのPC/スマホGoogleログイン継続確認
 - GitHub Pages設定の完全停止またはアーカイブ方針決定
 - Cloud Run実行サービスアカウントのFirestore読み取り権限を確認し、家族アカウントで高精度OCRを実機確認する
-- Google Sheets一方向同期の設定UIとエクスポートProxy
+- Google Sheets一方向出力を実スプレッドシートで確認し、列構成と表示形式を調整する
 - 高精度OCRの実レシート結果を匿名化し、候補抽出の回帰テストへ追加する。
 - Google Visionの月間上限を実利用量に合わせて定期確認し、必要なら `OCR_MONTHLY_LIMIT` を調整する。
 - 店舗別カテゴリルールの実機利用結果を確認し、支店違いの誤適用や解除しやすさを調整する。

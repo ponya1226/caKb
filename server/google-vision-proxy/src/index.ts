@@ -11,6 +11,11 @@ import {
 import { parseAllowedOrigins, parseMaxImageBytes, validateOcrRequestBody } from "./validation.js";
 import { FixedWindowRateLimiter, parseNonNegativeInteger } from "./rateLimit.js";
 import { createFirestoreMonthlyUsageQuota, parseMonthlyUsageLimit } from "./usageQuota.js";
+import {
+  exportActiveHouseholdExpenses,
+  GoogleSheetsExportError,
+  isValidSpreadsheetId,
+} from "./sheetsExport.js";
 
 type BoundingBox = {
   x: number;
@@ -35,9 +40,11 @@ const allowedAuthEmails = parseAllowedAuthEmails(process.env.ALLOWED_AUTH_EMAILS
 const rateLimitMaxRequests = parseNonNegativeInteger(process.env.OCR_RATE_LIMIT_MAX_REQUESTS, 10);
 const rateLimitWindowSeconds = parseNonNegativeInteger(process.env.OCR_RATE_LIMIT_WINDOW_SECONDS, 60);
 const monthlyUsageLimit = parseMonthlyUsageLimit(process.env.OCR_MONTHLY_LIMIT);
-const verifyIdToken = requireFirebaseAuth ? createFirebaseIdTokenVerifier() : null;
+const firebaseIdTokenVerifier = createFirebaseIdTokenVerifier();
+const householdMembershipChecker = createHouseholdMembershipChecker();
+const verifyIdToken = requireFirebaseAuth ? firebaseIdTokenVerifier : null;
 const checkHouseholdMembership = requireFirebaseAuth && requireHouseholdMembership
-  ? createHouseholdMembershipChecker()
+  ? householdMembershipChecker
   : null;
 const visionClient = new vision.ImageAnnotatorClient();
 const rateLimiter = new FixedWindowRateLimiter(rateLimitMaxRequests, Math.max(1, rateLimitWindowSeconds) * 1000);
@@ -164,6 +171,53 @@ app.post("/api/ocr", async (request, response) => {
     });
   } catch {
     response.status(502).json({ error: "Google Vision OCR failed" });
+  }
+});
+
+app.post("/api/sheets/export", async (request, response) => {
+  const authValidation = await verifyFirebaseAuthorization(
+    request.header("Authorization"),
+    firebaseIdTokenVerifier,
+    {
+      allowedEmails: allowedAuthEmails,
+      requireHouseholdMembership: true,
+      checkHouseholdMembership: householdMembershipChecker,
+    },
+  );
+  if (!authValidation.ok) {
+    response.status(authValidation.status).json({ error: authValidation.message });
+    return;
+  }
+
+  const spreadsheetId = request.body?.spreadsheetId;
+  if (!isValidSpreadsheetId(spreadsheetId)) {
+    response.status(400).json({ error: "Invalid spreadsheet ID", code: "invalid_spreadsheet_id" });
+    return;
+  }
+
+  const rateLimitDecision = rateLimiter.consume(`sheets:uid:${authValidation.uid}`);
+  if (!rateLimitDecision.allowed) {
+    response.setHeader("Retry-After", String(rateLimitDecision.retryAfterSeconds));
+    response.status(429).json({ error: "Too many export requests", code: "rate_limit" });
+    return;
+  }
+
+  try {
+    response.json(await exportActiveHouseholdExpenses(authValidation.uid, spreadsheetId));
+  } catch (unknownError) {
+    if (unknownError instanceof GoogleSheetsExportError) {
+      if (unknownError.code === "forbidden") {
+        response.status(403).json({ error: "Forbidden", code: unknownError.code });
+        return;
+      }
+      if (unknownError.code === "invalid_spreadsheet_id") {
+        response.status(400).json({ error: "Invalid spreadsheet ID", code: unknownError.code });
+        return;
+      }
+      response.status(502).json({ error: "Google Sheets export failed", code: unknownError.code });
+      return;
+    }
+    response.status(502).json({ error: "Google Sheets export failed", code: "export_failed" });
   }
 });
 

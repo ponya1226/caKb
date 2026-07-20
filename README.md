@@ -1,6 +1,6 @@
 # ローカル家計簿PWA MVP
 
-レシート画像を撮影またはアップロードし、OCR結果を確認・修正して支出を記録する家計簿PWAです。現行の支出データ正本はブラウザ内IndexedDBです。次フェーズでは家族共有に向けてFirebase Auth / Firestoreを追加していきます。
+レシート画像を撮影またはアップロードし、OCR結果を確認・修正して支出を記録する家計簿PWAです。未ログイン時はIndexedDB、ログイン済みでクラウド家計簿へ参加している場合はFirestoreを支出データの正本として利用します。
 
 ## 主な機能
 
@@ -15,6 +15,7 @@
 - ダッシュボードの月次合計、前月比、カテゴリ別支出、日別推移
 - 年間支出画面の年合計、月別支出、カテゴリ別年間支出
 - CSVエクスポート
+- FirestoreからGoogle Sheetsへの管理者向け一方向出力
 - PWA manifestとservice worker
 
 ## セットアップ
@@ -38,7 +39,8 @@ npm run build
 
 ## データ保存
 
-- 支出、カテゴリ、レシート画像はブラウザ内のIndexedDBに保存します。
+- ローカル利用時の支出、カテゴリ、レシート画像はブラウザ内のIndexedDBに保存します。
+- クラウド家計簿利用時の支出、カテゴリ、店舗別カテゴリルールはFirestoreへ保存します。レシート画像BlobはFirestoreへ保存しません。
 - 設定はlocalStorageに保存します。
 - 店舗別カテゴリルールもlocalStorageに保存し、JSONバックアップ/復元の対象に含めます。
 - レシート画像保存は設定画面でON/OFFできます。初期値はOFFです。
@@ -68,9 +70,15 @@ Cloud Runへの疎通確認手順は `docs/google-vision-proxy-deploy.md` を参
 
 Google Vision ProxyはFirebase ID tokenとhousehold membershipを検証するため、高精度OCRは家計簿へ参加済みのGoogleログイン利用者が利用します。未ログイン時は従来どおりローカルOCRを利用できます。
 
+## Google Sheets一方向出力
+
+クラウド家計簿の管理者は、Firestoreの支出を指定したGoogleスプレッドシートの `caKb支出` タブへ1支出1行で出力できます。Sheets側の編集内容はcaKbへ取り込みません。
+
+サービスアカウント鍵は使用せず、Cloud Runの実行サービスアカウントを対象スプレッドシートへ編集者として共有します。設定手順は `docs/google-sheets-sync-setup.md`、決定内容は `docs/decisions/0009-google-sheets-one-way-export.md` を参照してください。
+
 ## Firebase Hosting / Auth / Firestore次フェーズ準備
 
-Firebase Auth / Firestoreの土台コードとSecurity Rules雛形を追加しています。設定がない場合、アプリは従来どおりIndexedDB正本で動作します。
+Firebase Auth / Firestoreを家族共有のクラウド正本として利用します。設定がない場合、アプリは従来どおりIndexedDB正本で動作します。
 
 ```env
 VITE_FIREBASE_API_KEY=
@@ -82,7 +90,7 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=
 
 詳細は `docs/firebase-cloud-setup.md` と `docs/decisions/0006-firebase-foundation.md` を参照してください。Firebase設定値やservice account keyはリポジトリへ追加しないでください。
 
-Firebase設定後は、設定画面のアカウント欄からGoogleログインできます。ログイン後はクラウド家計簿を作成し、IndexedDB内の支出、カテゴリ、店舗別カテゴリルールをFirestoreへ手動コピーできます。現時点では移行後もアプリの支出登録・一覧表示はIndexedDBを正本として使います。
+Firebase設定後は、設定画面のアカウント欄からGoogleログインできます。ログイン後はクラウド家計簿を作成し、IndexedDB内の支出、カテゴリ、店舗別カテゴリルールをFirestoreへ手動コピーできます。クラウド家計簿へ接続後はFirestoreを支出登録・一覧表示の正本として使います。
 
 スマホのGoogleログイン安定化のため、正規の確認URLは Firebase Hosting の `https://cakb-dev.firebaseapp.com` です。Hosting移行の方針は `docs/decisions/0007-firebase-hosting-auth-migration.md` を参照してください。
 

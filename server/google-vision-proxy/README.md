@@ -1,6 +1,6 @@
-# caKb Google Vision OCR Proxy
+# caKb Google Services Proxy
 
-Google Cloud Vision OCRをcaKbから利用するためのサンプルProxyです。
+Google Cloud Vision OCRとGoogle Sheets一方向出力をcaKbから利用するためのProxyです。Cloud Runサービス名は互換性維持のため従来名を使用します。
 
 ## 方針
 
@@ -16,6 +16,9 @@ Google Cloud Vision OCRをcaKbから利用するためのサンプルProxyです
 - 認証済みUID単位の短時間レート制限で連続送信を抑制します。
 - Firestoreの `ocrUsage/{YYYY-MM}` にプロジェクト全体の月間件数だけを保存し、月間上限を超えるVision API呼び出しを停止します。
 - 利用量カウンタへ画像、OCR全文、UID、メールアドレスは保存しません。
+- Google Sheets出力はactive householdのownerだけに許可し、Firestoreから1支出1行で出力します。
+- Sheets APIはCloud RunのApplication Default Credentialsを使い、service account keyを保存しません。
+- 支出データやスプレッドシート内容をログに出しません。
 
 ## ローカル起動
 
@@ -55,6 +58,7 @@ npm start
 
 - `GET /health`
 - `POST /api/ocr`
+- `POST /api/sheets/export`
 
 リクエスト:
 
@@ -78,6 +82,16 @@ npm start
   "blocks": []
 }
 ```
+
+Sheets出力リクエスト:
+
+```json
+{
+  "spreadsheetId": "..."
+}
+```
+
+Sheets出力はFirebase ID token、active household membership、owner roleを必須とします。出力先スプレッドシートは `cakb-vision-proxy@cakb-dev.iam.gserviceaccount.com` へ編集共有してください。`caKb支出` タブだけを全件置換し、他のタブは変更しません。
 
 ## Cloud Run
 

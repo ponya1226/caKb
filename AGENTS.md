@@ -4,7 +4,7 @@
 
 MVPではバックエンド、ログイン、クラウド同期、家族共有、有料API、AI分析を実装しません。
 
-次フェーズでは、明示的に承認された方針として家族共有、Firebase Auth、Firestoreクラウド正本化、Google Sheets一方向同期を検討・実装します。対象外機能を追加する場合は、ADRとユーザー承認を必須にします。
+次フェーズでは、明示的に承認された方針として家族共有、Firebase Auth、Firestoreクラウド正本化、Google Sheets一方向出力を実装しています。対象外機能を追加する場合は、ADRとユーザー承認を必須にします。
 
 ## Architecture
 
@@ -100,7 +100,7 @@ UI変更では次を手動確認する。
 ## Security / Privacy Rules
 
 - APIキー、token、password、secretを追加しない。
-- 支出データ、レシート画像、OCR全文を外部サービスやログへ送らない。
+- 支出データ、レシート画像、OCR全文を未承認の外部サービスやログへ送らない。Google Vision OCRとGoogle Sheets一方向出力は各ADRの範囲だけを例外とする。
 - レシート画像保存OFFでは画像BlobをIndexedDBへ保存しない。
 - データ初期化は確認ダイアログを挟む。
 - ユーザーが作成した既存変更を無断で削除、revertしない。
@@ -120,7 +120,7 @@ UI変更では次を手動確認する。
 
 Google Vision OCR is an explicitly allowed optional external OCR Provider for this project. It must be used only through a self-owned proxy such as `server/google-vision-proxy/`; the frontend must not call Google Vision directly.
 
-Firebase Hosting, Firebase Auth, Cloud Firestore, and Google Sheets export sync are explicitly allowed next-phase candidates only within the scope described in `docs/decisions/0005-family-cloud-ledger-direction.md`, `docs/decisions/0006-firebase-foundation.md`, and `docs/decisions/0007-firebase-hosting-auth-migration.md`.
+Firebase Hosting, Firebase Auth, Cloud Firestore, and Google Sheets one-way export are explicitly allowed only within the scope described in `docs/decisions/0005-family-cloud-ledger-direction.md`, `docs/decisions/0006-firebase-foundation.md`, `docs/decisions/0007-firebase-hosting-auth-migration.md`, and `docs/decisions/0009-google-sheets-one-way-export.md`.
 
 - Do not commit API keys, service account keys, tokens, passwords, or secrets.
 - Do not commit `.env`; `.env.example` is allowed.
@@ -132,6 +132,7 @@ Firebase Hosting, Firebase Auth, Cloud Firestore, and Google Sheets export sync 
 - Hosted Google Vision Proxy deployments must require active household membership with `REQUIRE_HOUSEHOLD_MEMBERSHIP=true`. `ALLOWED_AUTH_EMAILS` is an optional additional restriction only; do not hard-code real user email addresses in the repository or expose them via GitHub variables.
 - Firebase client config must come from `VITE_FIREBASE_*`; do not commit real `.env` values or service account keys.
 - Firebase Hosting deploy credentials must stay in GitHub Secrets or local Firebase CLI auth; do not commit deploy tokens or service account JSON.
+- Google Sheets export must require Firebase authentication, active household owner authorization, and direct editor sharing to the Cloud Run service account. Do not add bidirectional import or service account keys without a new decision.
 - Adding other external services, paid APIs, bidirectional sync, or receipt-image cloud storage still requires explicit user approval and an ADR.
 
 ## Prohibited Actions

@@ -79,6 +79,22 @@ describe("Firestore household rules", () => {
     await assertFails(setDoc(usageRef, { count: 1 }));
   });
 
+  it("allows only the household owner to manage Google Sheets sync settings", async () => {
+    await seedHousehold();
+    const ownerFirestore = testEnvironment.authenticatedContext("owner-1").firestore();
+    const memberFirestore = testEnvironment.authenticatedContext("member-1").firestore();
+    const settingsPath = "households/household-1/sheetSyncSettings/default";
+
+    await assertSucceeds(setDoc(doc(ownerFirestore, settingsPath), {
+      householdId: "household-1",
+      spreadsheetId: "sample-spreadsheet-id",
+      enabled: true,
+    }));
+    await assertSucceeds(getDoc(doc(ownerFirestore, settingsPath)));
+    await assertFails(getDoc(doc(memberFirestore, settingsPath)));
+    await assertFails(setDoc(doc(memberFirestore, settingsPath), { enabled: false }, { merge: true }));
+  });
+
   it("shares shop category rules only with household members", async () => {
     await seedHousehold();
     const memberFirestore = testEnvironment.authenticatedContext("member-1").firestore();

@@ -564,6 +564,41 @@ textarea {
   font-size: 0.88rem;
 }
 
+.sheet-sync-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.sheet-share-row,
+.sheet-sync-result {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.sheet-share-row div,
+.sheet-sync-result div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.sheet-share-row span,
+.sheet-sync-result span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.sheet-share-row strong {
+  overflow-wrap: anywhere;
+  font-size: 0.86rem;
+}
+
 .cloud-onboarding,
 .family-invite-panel,
 .family-members-panel {
@@ -1417,6 +1452,8 @@ textarea {
   .cloud-form,
   .cloud-join-form,
   .cloud-panel,
+  .sheet-share-row,
+  .sheet-sync-result,
   .line-item-row,
   .metrics-grid,
   .expense-item,
