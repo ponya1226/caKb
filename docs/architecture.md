@@ -77,6 +77,8 @@ React PWA
 
 支出更新・削除では、画面が保持する `updatedAt` とFirestore上の値をtransaction内で比較します。別端末で先に更新されていた場合は保存を拒否し、最新版を確認して再編集するよう通知します。
 
+クラウド接続状態は `online`、`offline`、`reconnecting`、`permissionDenied` に分類します。一時的な接続障害では最後に表示できたデータを維持し、未接続中の書き込みを拒否します。権限エラーだけは家計簿からの解除として再読み込み・ログアウトへ誘導します。Firestoreの永続オフラインキャッシュは共有端末への情報残留を避けるため有効化しません。
+
 スプレッドシート同期はアプリ正本からGoogle Sheetsへのowner専用の手動一方向エクスポートです。既存Cloud Run ProxyがFirebase ID tokenとactive household ownerを確認し、Firestoreの支出を `caKb支出` タブへ1支出1行で全件再出力します。Sheets側で編集された内容をアプリへ取り込む双方向同期は対象外です。
 
 Cloud RunはApplication Default CredentialsでSheets APIを呼びます。対象ファイルは利用者がCloud Run実行サービスアカウントへ編集共有したスプレッドシートに限定されます。service account keyやOAuth refresh tokenは保存しません。同期設定と最終結果は `households/{householdId}/sheetSyncSettings/default` に保存し、Firestore Rulesでownerだけに許可します。

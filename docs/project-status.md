@@ -1,9 +1,15 @@
 # Project Status
 
-Last Updated: 2026-07-20
+Last Updated: 2026-07-27
 
 ## Implemented
 
+- クラウド接続状態の `同期済み`、`オフライン`、`再接続中`、`アクセス権なし` 分類とヘッダー・設定画面表示
+- 一時的なFirestore接続障害では表示済みデータを維持し、再接続操作を提供。未接続中のクラウド書き込みを明示的に拒否
+- JSON置換復元を「新データ保存後に不要な旧データを削除」する順序へ変更し、途中失敗時の全消失を防止
+- 複数レシートOCRの画像別処理状態、成功結果保持、失敗画像だけの再試行、成功分だけの確認導線
+- GitHub Pages workflowの削除とGoogle Vision ProxyのFirebase Hosting origin限定
+- Firebase HostingとCloud Runのデプロイ後smoke test
 - Google Sheets一方向出力MVP: Firestoreの支出を `caKb支出` タブへ1支出1行で全件出力
 - Firebase ID token、active household、owner roleによるSheets出力認可
 - Cloud RunサービスアカウントのApplication Default CredentialsによるSheets API接続。鍵ファイルは不使用
@@ -53,7 +59,7 @@ Last Updated: 2026-07-20
 - Firebase Hosting移行ADR
 - Firebase Hosting配信設定と `main` push時の自動deploy workflow
 - Firebase Hosting上のスマホ/PWA向けGoogle redirectログイン導線
-- GitHub Pages deploy workflowを通常push対象から外し、Firebase Hostingを正規確認URLに整理
+- GitHub Pages deploy workflowを削除し、Firebase Hostingを唯一の正規確認URLに整理
 - 今後の開発方針を `docs/development-roadmap.md` に整理
 - ログイン成功時の `users/{uid}` profile作成/更新
 - Firestore上のhousehold作成とowner member作成
@@ -73,7 +79,6 @@ Last Updated: 2026-07-20
 - Google Vision Proxyのactive household membership制限
 - フロントエンドからGoogle Vision ProxyへのFirebase ID token送信
 - 未ログイン時の高精度OCR利用制限とローカルOCR導線
-- GitHub Pages build時の `VITE_GOOGLE_VISION_PROXY_URL` Repository variable連携
 - Google Vision ProxyのCloud Run疎通確認手順
 - レシート登録画面のOCR方式選択と外部送信注意表示
 - OCR確認画面の読み取り方式表示
@@ -124,7 +129,6 @@ Last Updated: 2026-07-20
 - OCR結果全文のコピー
 - OCR対象範囲の手動指定
 - 実レシートOCRノイズに対する日付、店舗名、金額候補抽出の改善
-- GitHub Pagesへの静的デプロイworkflow
 - ノイズの強いOCRヘッダー行を店舗候補から除外
 - 保存済み店舗名に基づくレシートカテゴリの自動初期値反映
 - 複数レシート画像の一括OCRと1枚ずつの確認保存キュー
@@ -145,7 +149,6 @@ Last Updated: 2026-07-20
 - 品目明細は支出の付加情報として保存しており、品目別カテゴリ集計、品目別自動カテゴライズ、数量/単価、商品マスタ、Google Sheets品目別出力は未対応
 - ログイン済みかつクラウド家計簿がある場合の支出データ正本はFirestore。未ログイン時やクラウド家計簿未作成時はIndexedDBへフォールバックするため、保存先表示と移行手順の継続的な分かりやすさ改善が必要。
 - Firebase Hosting deploy workflowは `main` pushで自動実行される。GitHub Secret `FIREBASE_SERVICE_ACCOUNT_CAKB_DEV` の継続管理が必要。
-- GitHub Pagesは通常push対象から外したが、workflow自体は手動実行用に残っている。公開URL案内やGitHub Pages設定の整理は残る。
 - Firestore Rulesの基本的なmember/非member/owner権限はEmulatorテスト済み。招待機能追加時は招待コードとmember作成条件のテスト拡充が必要。
 - Google Sheets出力はownerによる手動全件置換のみ。自動実行、差分同期、再試行キュー、Sheets側変更の取り込みは未対応。
 - カテゴリ削除は支出で未使用の場合のみ可能。使用中カテゴリの統合や一括付け替えは未対応。
@@ -172,9 +175,8 @@ Last Updated: 2026-07-20
 - レシート画像容量は警告のみで、圧縮やリサイズは未対応。
 - OCR範囲指定は矩形切り抜きのみで、傾き補正や台形補正は未対応。
 - 店舗名の補正は限定的なヒューリスティックで、店舗網羅は未対応。
-- Firebase Hosting移行後の公開URL案内はREADME上では整理済み。GitHub Pages設定の完全停止は未対応。
 - 自動カテゴライズは店舗名の正規化一致のみで、商品名や明細内容は考慮していない。
-- 複数レシートの一括登録は逐次OCRのため、枚数が多い場合は待ち時間が長くなる。
+- 複数レシートの一括登録は失敗画像だけ再試行できるが、OCR自体は逐次処理のため枚数が多い場合は待ち時間が長くなる。
 - 自動OCR範囲比較は複数回OCRするため、単発OCRより時間がかかる。
 - OCR画像前処理は二値化と太字化まで。傾き補正や台形補正は未対応。
 - 手動範囲調整は補正ありOCRを標準にしたため、補正なし比較は範囲プリセットから選ぶ必要がある。
@@ -188,7 +190,6 @@ Last Updated: 2026-07-20
 
 - 品目候補抽出の実レシート回帰テストを増やし、Google Vision OCR結果で商品行と小計/支払行の誤分類を継続調整する
 - Firebase Hosting URLでのPC/スマホGoogleログイン継続確認
-- GitHub Pages設定の完全停止またはアーカイブ方針決定
 - Cloud Run実行サービスアカウントのFirestore読み取り権限を確認し、家族アカウントで高精度OCRを実機確認する
 - Google Sheets一方向出力を実スプレッドシートで確認し、列構成と表示形式を調整する
 - 高精度OCRの実レシート結果を匿名化し、候補抽出の回帰テストへ追加する。
@@ -200,5 +201,5 @@ Last Updated: 2026-07-20
 - レシート画像の任意圧縮、リサイズ方針の検討
 - OCR範囲指定と画像ごと切り替えの実機操作性改善
 - 自動カテゴライズのルール確認、編集UIの検討
-- 複数レシート登録時の失敗画像再試行や処理待ち表示の改善
+- 複数レシート登録の実機確認と、処理中に画面を閉じた場合の復元要否検討
 - OCR画像前処理の追加検証

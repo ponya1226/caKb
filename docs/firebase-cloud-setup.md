@@ -43,7 +43,7 @@ GitHub Actionsからdeployする場合:
 2. GitHub Secret `FIREBASE_SERVICE_ACCOUNT_CAKB_DEV` にservice account JSONを登録する
 3. GitHub Actionsの `Deploy Firebase Hosting` workflowを手動実行する
 
-service account JSON、token、secretはrepoへコミットしません。Firebase Hostingでのログイン動作確認が終わるまでは、GitHub Pages workflowは残します。
+service account JSON、token、secretはrepoへコミットしません。公開先はFirebase Hostingに統一し、GitHub Pages workflowは使用しません。
 
 ## Firestore Data Shape
 

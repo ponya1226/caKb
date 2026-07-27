@@ -3,25 +3,24 @@ import { getSafeAuthErrorMessage, selectGoogleSignInMode, shouldFallbackToRedire
 
 describe("useFirebaseAuth helpers", () => {
   it("returns actionable messages for common Firebase Auth setup errors", () => {
-    expect(getSafeAuthErrorMessage({ code: "auth/unauthorized-domain" })).toContain("ponya1226.github.io");
     expect(getSafeAuthErrorMessage({ code: "auth/unauthorized-domain" })).toContain("cakb-dev.firebaseapp.com");
     expect(getSafeAuthErrorMessage({ code: "auth/operation-not-allowed" })).toContain("Googleログイン");
     expect(getSafeAuthErrorMessage({ code: "auth/invalid-api-key" })).toContain("Firebase API key");
     expect(getSafeAuthErrorMessage({ code: "auth/configuration-not-found" })).toContain("Authentication");
   });
 
-  it("does not start redirect fallback on GitHub Pages", () => {
+  it("does not start an automatic redirect fallback after popup errors", () => {
     expect(shouldFallbackToRedirect({ code: "auth/popup-blocked" })).toBe(false);
     expect(shouldFallbackToRedirect({ code: "auth/operation-not-supported-in-this-environment" })).toBe(false);
     expect(shouldFallbackToRedirect({ code: "auth/popup-closed-by-user" })).toBe(false);
     expect(shouldFallbackToRedirect({ code: "auth/unauthorized-domain" })).toBe(false);
   });
 
-  it("uses popup on hosts outside the Firebase auth domain", () => {
+  it("uses popup on local development hosts outside the Firebase auth domain", () => {
     expect(
       selectGoogleSignInMode({
         authDomain: "cakb-dev.firebaseapp.com",
-        hostname: "ponya1226.github.io",
+        hostname: "localhost",
         userAgent: "iPhone",
       }),
     ).toBe("popup");

@@ -44,7 +44,7 @@ npm run build
 - 設定はlocalStorageに保存します。
 - 店舗別カテゴリルールもlocalStorageに保存し、JSONバックアップ/復元の対象に含めます。
 - レシート画像保存は設定画面でON/OFFできます。初期値はOFFです。
-- OCRは有料APIや外部DBを使いません。Tesseract.jsの言語データ取得はライブラリの標準挙動に従います。
+- ローカルOCRはTesseract.jsを利用します。任意のGoogle Vision OCR利用時だけ、利用者への明示後に画像を自前Proxyへ送信します。
 
 ## 開発ドキュメント
 
@@ -66,7 +66,7 @@ VITE_GOOGLE_VISION_PROXY_URL=
 
 Proxyサンプルは `server/google-vision-proxy/` にあります。Google Cloud認証情報、APIキー、token、secretはリポジトリへ追加しないでください。Google Vision利用時は、レシート画像がOCR処理のために外部サービスへ送信されます。
 
-Cloud Runへの疎通確認手順は `docs/google-vision-proxy-deploy.md` を参照してください。Firebase Hosting / GitHub Actionsでは `VITE_GOOGLE_VISION_PROXY_URL` をRepository variableとして設定し、ビルド時に埋め込みます。Google Vision ProxyはFirebase ID tokenとactive household membershipを確認します。
+Cloud Runへの疎通確認手順は `docs/google-vision-proxy-deploy.md` を参照してください。Firebase Hosting / GitHub Actionsでは `VITE_GOOGLE_VISION_PROXY_URL` をRepository variableとして設定し、ビルド時に埋め込みます。Google Vision ProxyはFirebase ID tokenとactive household membershipを確認します。正規公開URLはFirebase Hostingのみです。
 
 Google Vision ProxyはFirebase ID tokenとhousehold membershipを検証するため、高精度OCRは家計簿へ参加済みのGoogleログイン利用者が利用します。未ログイン時は従来どおりローカルOCRを利用できます。
 

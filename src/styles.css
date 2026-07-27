@@ -1405,6 +1405,83 @@ textarea {
   font-weight: 700;
 }
 
+.connection-banner {
+  display: grid;
+  position: sticky;
+  top: 8px;
+  z-index: 39;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid #d97706;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.connection-banner div {
+  display: grid;
+  gap: 2px;
+}
+
+.connection-banner span {
+  font-size: 0.78rem;
+}
+
+.batch-status-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.batch-status-list {
+  display: grid;
+  gap: 8px;
+}
+
+.batch-status-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.batch-status-item.completed {
+  border-color: #86efac;
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.batch-status-item.failed {
+  border-color: #fecaca;
+  color: var(--danger);
+  background: #fef2f2;
+}
+
+.batch-status-item div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.batch-status-item strong,
+.batch-status-item span {
+  overflow-wrap: anywhere;
+}
+
+.batch-status-item span {
+  font-size: 0.78rem;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -1462,6 +1539,15 @@ textarea {
   .rule-row,
   .status-grid {
     grid-template-columns: 1fr;
+  }
+
+  .connection-banner {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .connection-banner .button {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .expense-side {

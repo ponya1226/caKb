@@ -1,5 +1,5 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Copy, FileImage, Play, Save, Send, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Camera, CheckCircle2, Copy, FileImage, Play, RefreshCw, Save, Send, SlidersHorizontal, Sparkles, XCircle } from "lucide-react";
 import { CopyTextButton } from "./CopyTextButton";
 import { OcrCropPreview } from "./OcrCropPreview";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
@@ -18,6 +18,11 @@ import {
 import type { OcrMode, OcrPreset, OcrRunResult } from "../lib/ocrRange";
 import { parseReceiptText } from "../lib/receiptParser";
 import { createLineItemsFromCandidates } from "../lib/lineItems";
+import {
+  orderReceiptBatchValues,
+  selectReceiptBatchKeys,
+  type ReceiptBatchItem,
+} from "../lib/receiptBatch";
 import type { OcrProgress, OcrProvider, ReceiptCandidate, ReceiptCategorySuggestion, ReceiptDraft } from "../types";
 
 const LARGE_RECEIPT_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -102,6 +107,7 @@ export function ReceiptCaptureScreen({
   const transferredPreviewUrlsRef = useRef<Set<string>>(new Set());
   const transferredOcrImageUrlsRef = useRef<Set<string>>(new Set());
   const receiptSelectionsRef = useRef<ReceiptSelection[]>([]);
+  const batchDraftsRef = useRef<Record<string, ReceiptDraft>>({});
   const ocrImagePreviewUrlRef = useRef<string | null>(null);
   const [receiptSelections, setReceiptSelections] = useState<ReceiptSelection[]>([]);
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
@@ -117,6 +123,8 @@ export function ReceiptCaptureScreen({
   const [ocrProvider, setOcrProvider] = useState<OcrProvider>(getInitialOcrProvider);
   const [lastOcrProvider, setLastOcrProvider] = useState<OcrProvider>(getInitialOcrProvider);
   const [lastOcrBlocks, setLastOcrBlocks] = useState<ReceiptDraft["ocrBlocks"]>(undefined);
+  const [batchItems, setBatchItems] = useState<ReceiptBatchItem[]>([]);
+  const [batchDrafts, setBatchDrafts] = useState<Record<string, ReceiptDraft>>({});
 
   const selectedReceipt = receiptSelections[selectedFileIndex] ?? null;
   const selectedFiles = receiptSelections.map((selection) => selection.file);
@@ -143,6 +151,10 @@ export function ReceiptCaptureScreen({
   }, [ocrImagePreviewUrl]);
 
   useEffect(() => {
+    batchDraftsRef.current = batchDrafts;
+  }, [batchDrafts]);
+
+  useEffect(() => {
     if (!canUseGoogleVision && ocrProvider === "googleVision") {
       setOcrProvider("localTesseract");
     }
@@ -152,6 +164,7 @@ export function ReceiptCaptureScreen({
     return () => {
       revokeSelectionUrls(receiptSelectionsRef.current);
       revokeOcrImagePreviewUrl(ocrImagePreviewUrlRef.current);
+      revokeBatchDraftUrls(batchDraftsRef.current);
     };
   }, []);
 
@@ -186,6 +199,10 @@ export function ReceiptCaptureScreen({
         transferredOcrImageUrlsRef.current.add(url);
       }
     });
+  }
+
+  function revokeBatchDraftUrls(drafts: Record<string, ReceiptDraft>) {
+    Object.values(drafts).forEach((draft) => revokeOcrImagePreviewUrl(draft.ocrImagePreviewUrl));
   }
 
   function getProviderDefaultCrop(provider: OcrProvider): OcrCropRatios {
@@ -287,6 +304,7 @@ export function ReceiptCaptureScreen({
 
     revokeSelectionUrls(receiptSelections);
     revokeOcrImagePreviewUrl(ocrImagePreviewUrl);
+    revokeBatchDraftUrls(batchDrafts);
     transferredPreviewUrlsRef.current = new Set();
     transferredOcrImageUrlsRef.current = new Set();
     const nextSelections = files.map(createReceiptSelection);
@@ -300,6 +318,12 @@ export function ReceiptCaptureScreen({
     setProgress(null);
     setError(null);
     setPickedCategorySuggestion(null);
+    setBatchDrafts({});
+    setBatchItems(nextSelections.map((selection) => ({
+      key: selection.previewUrl,
+      fileName: selection.file.name,
+      status: "waiting",
+    })));
     event.target.value = "";
     if (ocrProvider !== "googleVision") {
       void detectCropForSelections(nextSelections);
@@ -447,7 +471,23 @@ export function ReceiptCaptureScreen({
     return token;
   }
 
-  async function handleRunOcr(providerOverride?: OcrProvider) {
+  function confirmBatchDrafts(draftsByPreviewUrl: Record<string, ReceiptDraft>) {
+    const drafts = orderReceiptBatchValues(
+      receiptSelections.map((selection) => selection.previewUrl),
+      draftsByPreviewUrl,
+    );
+    if (drafts.length === 0) {
+      setError("確認できるOCR結果がありません");
+      return;
+    }
+
+    const successfulSelections = receiptSelections.filter((selection) => Boolean(draftsByPreviewUrl[selection.previewUrl]));
+    markPreviewUrlsTransferred(successfulSelections);
+    markOcrImageUrlsTransferred(drafts.map((draft) => draft.ocrImagePreviewUrl));
+    onConfirm(drafts);
+  }
+
+  async function handleRunOcr(providerOverride?: OcrProvider, failedOnly = false) {
     if (selectedFiles.length === 0) {
       setError("画像を選択してください");
       return;
@@ -491,30 +531,78 @@ export function ReceiptCaptureScreen({
         return;
       }
 
-      const ocrResults: Array<{ selection: ReceiptSelection; result: OcrRunResult }> = [];
-      for (const [index, selection] of receiptSelections.entries()) {
-        const ocrResult = await runOcrForSelection(
-          selection,
-          (nextProgress) => {
-            setProgress({
-              status: `${index + 1}/${receiptSelections.length} ${nextProgress.status}`,
-              progress: (index + nextProgress.progress) / receiptSelections.length,
-            });
-          },
-          activeProvider,
-          googleVisionAuthToken,
-          true,
-        );
-        ocrResults.push({ selection, result: ocrResult });
+      const targetKeys = selectReceiptBatchKeys(batchItems, failedOnly);
+      const targetSelections = receiptSelections.filter((selection) => targetKeys.has(selection.previewUrl));
+      if (targetSelections.length === 0) {
+        setError("再試行する画像がありません");
+        return;
       }
 
-      const drafts = ocrResults.map(({ selection, result }) =>
-        createDraftFromOcr(selection.file, selection.previewUrl, result),
-      );
+      const nextDrafts = failedOnly ? { ...batchDraftsRef.current } : {};
+      if (!failedOnly) {
+        revokeBatchDraftUrls(batchDraftsRef.current);
+        setBatchDrafts({});
+      }
+      setBatchItems((currentItems) => currentItems.map((item) => {
+        if (!targetSelections.some((selection) => selection.previewUrl === item.key)) {
+          return item;
+        }
+        return {
+          key: item.key,
+          fileName: item.fileName,
+          status: "waiting",
+        };
+      }));
 
-      markPreviewUrlsTransferred(receiptSelections);
-      markOcrImageUrlsTransferred(drafts.map((draft) => draft.ocrImagePreviewUrl));
-      onConfirm(drafts);
+      let failedCount = 0;
+      for (const [index, selection] of targetSelections.entries()) {
+        setBatchItems((currentItems) => currentItems.map((item) => (
+          item.key === selection.previewUrl
+            ? { ...item, status: "processing", error: undefined }
+            : item
+        )));
+        try {
+          const ocrResult = await runOcrForSelection(
+            selection,
+            (nextProgress) => {
+              setProgress({
+                status: `${index + 1}/${targetSelections.length} ${nextProgress.status}`,
+                progress: (index + nextProgress.progress) / targetSelections.length,
+              });
+            },
+            activeProvider,
+            googleVisionAuthToken,
+            true,
+          );
+          const previousDraft = nextDrafts[selection.previewUrl];
+          if (previousDraft?.ocrImagePreviewUrl && previousDraft.ocrImagePreviewUrl !== ocrResult.ocrImagePreviewUrl) {
+            revokeOcrImagePreviewUrl(previousDraft.ocrImagePreviewUrl);
+          }
+          nextDrafts[selection.previewUrl] = createDraftFromOcr(selection.file, selection.previewUrl, ocrResult);
+          setBatchItems((currentItems) => currentItems.map((item) => (
+            item.key === selection.previewUrl
+              ? { ...item, status: "completed", error: undefined }
+              : item
+          )));
+        } catch (unknownError) {
+          failedCount += 1;
+          delete nextDrafts[selection.previewUrl];
+          const message = unknownError instanceof Error ? unknownError.message : "OCRに失敗しました";
+          setBatchItems((currentItems) => currentItems.map((item) => (
+            item.key === selection.previewUrl
+              ? { ...item, status: "failed", error: message }
+              : item
+          )));
+        }
+      }
+
+      batchDraftsRef.current = nextDrafts;
+      setBatchDrafts(nextDrafts);
+      if (failedCount === 0) {
+        confirmBatchDrafts(nextDrafts);
+      } else {
+        setError(`${failedCount}枚のOCRに失敗しました。失敗した画像だけ再試行できます。`);
+      }
     } catch (unknownError) {
       setError(unknownError instanceof Error ? unknownError.message : "OCRに失敗しました");
     } finally {
@@ -569,6 +657,9 @@ export function ReceiptCaptureScreen({
 
     return isGoogleVisionSelected ? "高精度OCR実行" : "OCR実行";
   }
+
+  const failedBatchCount = batchItems.filter((item) => item.status === "failed").length;
+  const completedBatchCount = batchItems.filter((item) => item.status === "completed").length;
 
   return (
     <section className="screen">
@@ -766,11 +857,58 @@ export function ReceiptCaptureScreen({
         </div>
       )}
 
+      {receiptSelections.length > 1 && batchItems.some((item) => item.status !== "waiting") && (
+        <section className="batch-status-panel" aria-label="一括OCRの処理状況">
+          <div className="section-title-row">
+            <h2>一括OCR状況</h2>
+            <span>{completedBatchCount}/{batchItems.length}件成功</span>
+          </div>
+          <div className="batch-status-list">
+            {batchItems.map((item, index) => (
+              <div className={`batch-status-item ${item.status}`} key={item.key}>
+                {item.status === "completed" ? (
+                  <CheckCircle2 size={18} aria-hidden="true" />
+                ) : item.status === "failed" ? (
+                  <XCircle size={18} aria-hidden="true" />
+                ) : (
+                  <RefreshCw size={18} aria-hidden="true" />
+                )}
+                <div>
+                  <strong>{index + 1}. {item.fileName}</strong>
+                  <span>
+                    {item.status === "completed"
+                      ? "確認待ち"
+                      : item.status === "failed"
+                        ? item.error ?? "OCRに失敗しました"
+                        : item.status === "processing"
+                          ? "OCR中"
+                          : "待機中"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {failedBatchCount > 0 && (
+            <div className="button-row">
+              <button className="button button-primary" type="button" disabled={isRunning} onClick={() => void handleRunOcr(undefined, true)}>
+                <RefreshCw size={18} aria-hidden="true" />
+                失敗分だけ再試行
+              </button>
+              {completedBatchCount > 0 && (
+                <button className="button button-secondary" type="button" disabled={isRunning} onClick={() => confirmBatchDrafts(batchDrafts)}>
+                  成功分を確認
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
       {error && (
         <div className="inline-error">
           <p>{error}</p>
           {ocrProvider === "googleVision" && (
-            <button className="button button-secondary button-compact" type="button" onClick={() => void handleRunOcr("localTesseract")}>
+            <button className="button button-secondary button-compact" type="button" onClick={() => void handleRunOcr("localTesseract", failedBatchCount > 0)}>
               ローカルOCRで再試行
             </button>
           )}

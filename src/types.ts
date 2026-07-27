@@ -71,6 +71,11 @@ export type CloudMigrationRecord = {
   warnings?: string[];
 };
 
+export type CloudConnectionState = {
+  status: "online" | "offline" | "reconnecting" | "permissionDenied";
+  lastSuccessfulSyncAt?: string;
+};
+
 export type Household = {
   id: string;
   name: string;

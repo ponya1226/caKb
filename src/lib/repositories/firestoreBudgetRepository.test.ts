@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assertExpectedExpenseVersion,
+  findIdsAbsentFromImport,
   fromCloudCategory,
   fromCloudExpense,
   fromCloudShopCategoryRule,
@@ -106,5 +107,12 @@ describe("firestoreBudgetRepository", () => {
     expect(() =>
       assertExpectedExpenseVersion("2026-07-10T01:00:00.000Z", "2026-07-10T01:00:00.000Z"),
     ).not.toThrow();
+  });
+
+  it("deletes only records absent from a replacement backup", () => {
+    expect(findIdsAbsentFromImport(
+      ["expense_1", "expense_2", "expense_3"],
+      ["expense_2", "expense_3", "expense_4"],
+    )).toEqual(["expense_1"]);
   });
 });

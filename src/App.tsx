@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { CalendarDays, Camera, Cloud, Home, List, Plus, ReceiptText, RefreshCw, Settings } from "lucide-react";
+import { CalendarDays, Camera, Cloud, CloudOff, Home, List, Plus, ReceiptText, RefreshCw, Settings } from "lucide-react";
 import { ExpenseEditor } from "./components/ExpenseEditor";
 import { useBudgetData } from "./hooks/useBudgetData";
 import { useCloudHousehold } from "./hooks/useCloudHousehold";
@@ -67,6 +67,7 @@ export default function App() {
   });
   const isCloudStorage = budgetData.storageMode === "cloud";
   const activeHouseholdName = cloudHousehold.household?.household.name;
+  const cloudConnection = budgetData.cloudConnection;
   const householdMemberNameMap = useMemo(() => {
     const entries = cloudHousehold.members.map((member) => [
       member.uid,
@@ -252,7 +253,15 @@ export default function App() {
           <span className="app-name">{isCloudStorage ? "クラウド家計簿" : "ローカル家計簿"}</span>
           <span className="app-subtitle">
             {isCloudStorage
-              ? `${activeHouseholdName ?? "共有家計簿"} / Firestore保存`
+              ? `${activeHouseholdName ?? "共有家計簿"} / ${
+                  cloudConnection?.status === "online"
+                    ? "同期済み"
+                    : cloudConnection?.status === "offline"
+                      ? "オフライン"
+                      : cloudConnection?.status === "permissionDenied"
+                        ? "アクセス権なし"
+                        : "再接続中"
+                }`
               : firebaseAuth.user
                 ? "Googleログイン中 / この端末に保存"
                 : "未ログイン / この端末に保存"}
@@ -262,6 +271,24 @@ export default function App() {
           {isCloudStorage ? "クラウド" : "ローカル"}
         </span>
       </header>
+
+      {isCloudStorage && cloudConnection && cloudConnection.status !== "online" && cloudConnection.status !== "permissionDenied" && (
+        <div className="connection-banner" role="status">
+          <CloudOff size={18} aria-hidden="true" />
+          <div>
+            <strong>{cloudConnection.status === "offline" ? "オフラインです" : "クラウドへ再接続しています"}</strong>
+            <span>
+              {cloudConnection.lastSuccessfulSyncAt
+                ? `最終同期: ${new Date(cloudConnection.lastSuccessfulSyncAt).toLocaleString("ja-JP")}`
+                : "接続が戻るまで保存操作はできません"}
+            </span>
+          </div>
+          <button className="button button-secondary button-compact" type="button" onClick={budgetData.retryCloudConnection}>
+            <RefreshCw size={16} aria-hidden="true" />
+            再接続
+          </button>
+        </div>
+      )}
 
       {isUpdateAvailable && (
         <div className="update-banner" role="status">
@@ -354,6 +381,7 @@ export default function App() {
               cloudHousehold={cloudHousehold}
               googleSheetsSync={googleSheetsSync}
               storageMode={budgetData.storageMode}
+              cloudConnection={budgetData.cloudConnection}
             />
           )}
         </Suspense>

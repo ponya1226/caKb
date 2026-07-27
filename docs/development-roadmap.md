@@ -1,6 +1,6 @@
 # Development Roadmap
 
-Last Updated: 2026-07-20
+Last Updated: 2026-07-27
 
 ## 方針
 
@@ -19,12 +19,14 @@ caKbは、Google Vision OCRで実レシートの読み取り精度を確保し�
 
 - 正規確認URLは Firebase Hosting の `https://cakb-dev.firebaseapp.com` とする。
 - `main` へのpushで Firebase Hosting へ自動デプロイする。
-- GitHub Pagesは通常デプロイ対象から外し、必要時の手動実行のみ残す。
+- GitHub Pages workflowは削除し、Firebase Hostingを唯一の公開先とする。
 - Google Vision ProxyはFirebase ID token検証とactive household membership認可を維持する。
 - UID単位の短時間レート制限とFirestore月間上限を適用する。共有トークンと監査ログ方針は必要性を継続判断する。
 - クラウド移行結果をユーザープロファイルへ記録し、再読み込み後も最終移行日時と件数を確認できるようにする。
 - Firestore RulesをEmulatorで検証し、Hostingと同じworkflowで配布する。
 - PWA更新通知から利用者が明示的に最新版へ切り替えられるようにする。
+
+GitHub Pages停止、デプロイ後smoke test、クラウド接続状態表示、安全なJSON置換復元まで完了。次は管理者・家族の別端末実機確認を行う。
 
 ## Phase 3: Firestore正本化
 
@@ -48,6 +50,8 @@ Firestoreの支出・カテゴリはリアルタイム購読に対応し、支�
 
 店舗別カテゴリルールのFirestore正本化とリアルタイム共有、支出更新・削除時の楽観的競合検知、Google Vision利用量制御まで完了。次は管理者・家族の別端末実機検証後、Google Sheets一方向同期を進める。
 
+クラウド接続状態を同期済み・オフライン・再接続中・アクセス権なしに分け、一時障害時は表示済みデータを維持する。未接続時の書き込みは明示的に拒否し、復旧後に利用者が再実行する。
+
 ## Phase 5: Google Sheets一方向同期
 
 - Firestoreを正本として、Google Sheetsへ一方向で出力する。
@@ -55,6 +59,14 @@ Firestoreの支出・カテゴリはリアルタイム購読に対応し、支�
 - 品目別行出力、Sheets側編集の取り込み、双方向同期は初期対象外にする。
 
 owner専用の手動全件出力、`caKb支出` タブ作成・置換、同期設定と最終結果のFirestore保存まで完了。次は実スプレッドシートでの列構成確認後、自動実行や差分同期が必要かを判断する。
+
+## Phase 5.5: 一括登録の復旧性
+
+- 画像ごとに待機、OCR中、確認待ち、失敗を表示する。
+- 成功済み結果を保持し、失敗画像だけ再試行する。
+- 失敗画像を除外して成功分だけ確認する場合は明示操作にする。
+
+画像別状態表示、成功結果保持、失敗分再試行まで完了。処理途中の画面離脱からの復元は現時点では対象外とする。
 
 ## Phase 6: 品目別活用
 

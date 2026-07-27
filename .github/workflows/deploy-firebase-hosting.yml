@@ -67,3 +67,8 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CAKB_DEV }}
           projectId: cakb-dev
           channelId: live
+
+      - name: Verify deployed application
+        run: |
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 https://cakb-dev.firebaseapp.com/ \
+            | grep '<div id="root"></div>'

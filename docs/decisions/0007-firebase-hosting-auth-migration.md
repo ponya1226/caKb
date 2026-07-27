@@ -46,3 +46,9 @@ caKbは今後、家族共有、Firestore正本化、Google Sheets同期へ進む
 - `npm run lint`
 - `npm run test`
 - `npm run build`
+
+## Outcome
+
+- 2026-07-27にGitHub Pages workflowを削除し、Firebase Hostingを唯一の公開先とした。
+- Google Vision ProxyのCORS許可originからGitHub Pagesを削除した。
+- Firebase HostingとCloud Runのworkflowにデプロイ後smoke testを追加した。

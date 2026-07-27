@@ -62,6 +62,30 @@ async function deleteCollectionDocuments(firestore: Firestore, collectionPath: s
   );
 }
 
+export function findIdsAbsentFromImport(currentIds: string[], importedIds: Iterable<string>): string[] {
+  const importedIdSet = new Set(importedIds);
+  return currentIds.filter((id) => !importedIdSet.has(id));
+}
+
+async function deleteDocumentsAbsentFromImport(
+  firestore: Firestore,
+  collectionPath: string,
+  importedIds: Iterable<string>,
+): Promise<void> {
+  const snapshots = await getDocs(collection(firestore, collectionPath));
+  const idsToDelete = new Set(findIdsAbsentFromImport(
+    snapshots.docs.map((snapshot) => snapshot.id),
+    importedIds,
+  ));
+  await commitBatchItems(
+    snapshots.docs.filter((snapshot) => idsToDelete.has(snapshot.id)),
+    (batch, snapshot) => {
+      batch.delete(snapshot.ref);
+    },
+    firestore,
+  );
+}
+
 export function createFirestoreBudgetRepository(
   firestore: Firestore,
   householdId: string,
@@ -118,16 +142,25 @@ export function createFirestoreBudgetRepository(
       let expenses: Expense[] | null = null;
       let categories: Category[] | null = null;
       let shopCategoryRules: ShopCategoryRule[] | null = null;
+      let expensesFromCache = true;
+      let categoriesFromCache = true;
+      let shopCategoryRulesFromCache = true;
 
       const emitSnapshot = () => {
         if (expenses && categories && shopCategoryRules) {
-          listener({ expenses, categories, shopCategoryRules });
+          listener(
+            { expenses, categories, shopCategoryRules },
+            {
+              fromCache: expensesFromCache || categoriesFromCache || shopCategoryRulesFromCache,
+            },
+          );
         }
       };
 
       const unsubscribeExpenses = onSnapshot(
         collection(firestore, expensesPath),
         (snapshot) => {
+          expensesFromCache = snapshot.metadata.fromCache;
           expenses = snapshot.docs
             .map((document) => fromCloudExpense(document.data() as CloudExpense))
             .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
@@ -138,6 +171,7 @@ export function createFirestoreBudgetRepository(
       const unsubscribeCategories = onSnapshot(
         collection(firestore, categoriesPath),
         (snapshot) => {
+          categoriesFromCache = snapshot.metadata.fromCache;
           categories = snapshot.docs
             .map((document) => fromCloudCategory(document.data() as CloudCategory))
             .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -148,6 +182,7 @@ export function createFirestoreBudgetRepository(
       const unsubscribeShopCategoryRules = onSnapshot(
         collection(firestore, shopCategoryRulesPath),
         (snapshot) => {
+          shopCategoryRulesFromCache = snapshot.metadata.fromCache;
           shopCategoryRules = snapshot.docs
             .map((document) => fromCloudShopCategoryRule(document.data() as CloudShopCategoryRule))
             .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -195,14 +230,6 @@ export function createFirestoreBudgetRepository(
       shopCategoryRules: ShopCategoryRule[],
       mode: BackupImportMode,
     ) => {
-      if (mode === "replace") {
-        await Promise.all([
-          deleteCollectionDocuments(firestore, expensesPath),
-          deleteCollectionDocuments(firestore, categoriesPath),
-          deleteCollectionDocuments(firestore, shopCategoryRulesPath),
-        ]);
-      }
-
       await Promise.all([
         commitBatchItems(
           categories,
@@ -229,6 +256,14 @@ export function createFirestoreBudgetRepository(
           firestore,
         ),
       ]);
+
+      if (mode === "replace") {
+        await Promise.all([
+          deleteDocumentsAbsentFromImport(firestore, expensesPath, expenses.map((expense) => expense.id)),
+          deleteDocumentsAbsentFromImport(firestore, categoriesPath, categories.map((category) => category.id)),
+          deleteDocumentsAbsentFromImport(firestore, shopCategoryRulesPath, shopCategoryRules.map((rule) => rule.id)),
+        ]);
+      }
     },
     clearApplicationData: async () => {
       await Promise.all([

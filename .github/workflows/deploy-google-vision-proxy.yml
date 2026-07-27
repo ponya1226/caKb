@@ -24,7 +24,7 @@ jobs:
       GCP_REGION: asia-northeast1
       CLOUD_RUN_SERVICE: cakb-google-vision-proxy
       CLOUD_RUN_SERVICE_ACCOUNT: cakb-vision-proxy@cakb-dev.iam.gserviceaccount.com
-      CORS_ORIGINS: https://cakb-dev.web.app,https://cakb-dev.firebaseapp.com,https://ponya1226.github.io
+      CORS_ORIGINS: https://cakb-dev.web.app,https://cakb-dev.firebaseapp.com
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,7 +52,7 @@ jobs:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CAKB_DEV }}
 
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Deploy to Cloud Run
         run: |
@@ -71,3 +71,17 @@ jobs:
             --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
             --format "value(status.url)"
+
+      - name: Verify deployed service
+        run: |
+          SERVICE_URL="$(gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format "value(status.url)")"
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 "$SERVICE_URL/health" | grep '"ok":true'
+          HTTP_STATUS="$(curl --silent --output /tmp/sheets-response.json --write-out "%{http_code}" \
+            --request POST \
+            --header "Content-Type: application/json" \
+            --data '{"spreadsheetId":"invalid"}' \
+            "$SERVICE_URL/api/sheets/export")"
+          test "$HTTP_STATUS" = "401"

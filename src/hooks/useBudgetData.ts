@@ -16,6 +16,7 @@ import type {
   BackupData,
   BackupImportMode,
   Category,
+  CloudConnectionState,
   Expense,
   ExpenseFormValues,
   ReceiptCategorySuggestion,
@@ -36,6 +37,7 @@ type UseBudgetDataResult = {
   expenses: Expense[];
   settings: AppSettings;
   storageMode: BudgetStorageMode;
+  cloudConnection: CloudConnectionState | null;
   storageHealth: StorageHealth | null;
   isLoading: boolean;
   error: string | null;
@@ -50,6 +52,7 @@ type UseBudgetDataResult = {
   refreshStorageHealth: () => Promise<void>;
   resetData: () => Promise<void>;
   refresh: () => Promise<void>;
+  retryCloudConnection: () => void;
   addCategory: (values: Pick<Category, "name" | "color">) => Promise<void>;
   updateCategory: (category: Category, values: Pick<Category, "name" | "color">) => Promise<void>;
   removeCategory: (category: Category) => Promise<void>;
@@ -64,12 +67,24 @@ function normalizeCategoryColor(color: string): string {
   return /^#[0-9a-fA-F]{6}$/.test(color) ? color : "#64748b";
 }
 
+export function getRepositoryErrorCode(unknownError: unknown): string {
+  return typeof unknownError === "object" && unknownError && "code" in unknownError
+    ? String(unknownError.code)
+    : "";
+}
+
+export function isPermissionDeniedRepositoryError(unknownError: unknown): boolean {
+  return getRepositoryErrorCode(unknownError).includes("permission-denied");
+}
+
+export function isRetryableRepositoryError(unknownError: unknown): boolean {
+  const code = getRepositoryErrorCode(unknownError);
+  return ["unavailable", "deadline-exceeded", "network-request-failed", "resource-exhausted"]
+    .some((retryableCode) => code.includes(retryableCode));
+}
+
 function formatRepositoryError(unknownError: unknown): string {
-  const code =
-    typeof unknownError === "object" && unknownError && "code" in unknownError
-      ? String(unknownError.code)
-      : "";
-  if (code.includes("permission-denied")) {
+  if (isPermissionDeniedRepositoryError(unknownError)) {
     return "家計簿へのアクセスが解除されました。再読み込みするか、ログアウトしてください。";
   }
 
@@ -106,15 +121,31 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
   const [storageHealth, setStorageHealth] = useState<StorageHealth | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [subscriptionRevision, setSubscriptionRevision] = useState(0);
+  const [cloudConnection, setCloudConnection] = useState<CloudConnectionState | null>(
+    storageMode === "cloud" ? { status: "reconnecting" } : null,
+  );
 
   const refresh = useCallback(async () => {
     setError(null);
+    if (storageMode === "cloud") {
+      setCloudConnection((current) => ({
+        status: "reconnecting",
+        ...(current?.lastSuccessfulSyncAt ? { lastSuccessfulSyncAt: current.lastSuccessfulSyncAt } : {}),
+      }));
+    }
     const snapshot = await repository.getSnapshot();
     setCategories(snapshot.categories);
     setExpenses(snapshot.expenses);
     setShopCategoryRules(snapshot.shopCategoryRules);
     setStorageHealth(await checkStorageHealth(snapshot.expenses));
-  }, [repository]);
+    if (storageMode === "cloud") {
+      setCloudConnection({
+        status: "online",
+        lastSuccessfulSyncAt: new Date().toISOString(),
+      });
+    }
+  }, [repository, storageMode]);
 
   const refreshAfterMutation = useCallback(async () => {
     if (!repository.subscribe) {
@@ -138,7 +169,7 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
 
         if (repository.subscribe) {
           unsubscribe = repository.subscribe(
-            (snapshot) => {
+            (snapshot, metadata) => {
               if (!isActive) {
                 return;
               }
@@ -147,6 +178,16 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
               setShopCategoryRules(snapshot.shopCategoryRules);
               setError(null);
               setIsLoading(false);
+              if (storageMode === "cloud") {
+                setCloudConnection((current) => ({
+                  status: metadata.fromCache ? "reconnecting" : "online",
+                  ...(!metadata.fromCache
+                    ? { lastSuccessfulSyncAt: new Date().toISOString() }
+                    : current?.lastSuccessfulSyncAt
+                      ? { lastSuccessfulSyncAt: current.lastSuccessfulSyncAt }
+                      : {}),
+                }));
+              }
               void checkStorageHealth(snapshot.expenses).then((health) => {
                 if (isActive) {
                   setStorageHealth(health);
@@ -155,7 +196,20 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
             },
             (unknownError) => {
               if (isActive) {
-                setError(formatRepositoryError(unknownError));
+                if (storageMode === "cloud" && isRetryableRepositoryError(unknownError)) {
+                  setCloudConnection((current) => ({
+                    status: navigator.onLine ? "reconnecting" : "offline",
+                    ...(current?.lastSuccessfulSyncAt ? { lastSuccessfulSyncAt: current.lastSuccessfulSyncAt } : {}),
+                  }));
+                } else {
+                  setError(formatRepositoryError(unknownError));
+                  if (storageMode === "cloud" && isPermissionDeniedRepositoryError(unknownError)) {
+                    setCloudConnection((current) => ({
+                      status: "permissionDenied",
+                      ...(current?.lastSuccessfulSyncAt ? { lastSuccessfulSyncAt: current.lastSuccessfulSyncAt } : {}),
+                    }));
+                  }
+                }
                 setIsLoading(false);
               }
             },
@@ -181,7 +235,53 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
       isActive = false;
       unsubscribe?.();
     };
-  }, [refresh, repository, storageMode]);
+  }, [refresh, repository, storageMode, subscriptionRevision]);
+
+  useEffect(() => {
+    if (storageMode !== "cloud") {
+      setCloudConnection(null);
+      return undefined;
+    }
+
+    const handleOffline = () => {
+      setCloudConnection((current) => ({
+        status: "offline",
+        ...(current?.lastSuccessfulSyncAt ? { lastSuccessfulSyncAt: current.lastSuccessfulSyncAt } : {}),
+      }));
+    };
+    const handleOnline = () => {
+      setCloudConnection((current) => ({
+        status: "reconnecting",
+        ...(current?.lastSuccessfulSyncAt ? { lastSuccessfulSyncAt: current.lastSuccessfulSyncAt } : {}),
+      }));
+      setSubscriptionRevision((current) => current + 1);
+    };
+
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    if (!navigator.onLine) {
+      handleOffline();
+    }
+
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [storageMode]);
+
+  const assertWritable = useCallback(() => {
+    if (storageMode === "cloud" && cloudConnection?.status !== "online") {
+      throw new Error("クラウドへ接続できていません。再接続してから保存してください。");
+    }
+  }, [cloudConnection?.status, storageMode]);
+
+  const retryCloudConnection = useCallback(() => {
+    setCloudConnection((current) => ({
+      status: "reconnecting",
+      ...(current?.lastSuccessfulSyncAt ? { lastSuccessfulSyncAt: current.lastSuccessfulSyncAt } : {}),
+    }));
+    setSubscriptionRevision((current) => current + 1);
+  }, []);
 
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
   const effectiveSettings = useMemo<AppSettings>(() => {
@@ -196,14 +296,16 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
 
   const addManualExpense = useCallback(
     async (values: ExpenseFormValues) => {
+      assertWritable();
       await repository.saveExpense(createExpenseRecord(values, "manual"));
       await refreshAfterMutation();
     },
-    [refreshAfterMutation, repository],
+    [assertWritable, refreshAfterMutation, repository],
   );
 
   const addReceiptExpense = useCallback(
     async (values: ExpenseFormValues, receipt?: Pick<ReceiptImage, "imageBlob" | "ocrText">) => {
+      assertWritable();
       let receiptImageId: string | undefined;
 
       if (receipt && settings.saveReceiptImages && storageMode === "local") {
@@ -219,11 +321,12 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
       await repository.saveExpense(createExpenseRecord(values, "receipt", receiptImageId));
       await refreshAfterMutation();
     },
-    [refreshAfterMutation, repository, settings.saveReceiptImages, storageMode],
+    [assertWritable, refreshAfterMutation, repository, settings.saveReceiptImages, storageMode],
   );
 
   const updateExpense = useCallback(
     async (expense: Expense, values: ExpenseFormValues) => {
+      assertWritable();
       const lineItems = normalizeExpenseLineItems(values.lineItems);
       const expenseWithoutLineItems = { ...expense };
       delete expenseWithoutLineItems.lineItems;
@@ -239,15 +342,16 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
       }, { expectedUpdatedAt: expense.updatedAt });
       await refreshAfterMutation();
     },
-    [refreshAfterMutation, repository],
+    [assertWritable, refreshAfterMutation, repository],
   );
 
   const removeExpense = useCallback(
     async (expense: Expense) => {
+      assertWritable();
       await repository.deleteExpense(expense.id, { expectedUpdatedAt: expense.updatedAt });
       await refreshAfterMutation();
     },
-    [refreshAfterMutation, repository],
+    [assertWritable, refreshAfterMutation, repository],
   );
 
   const updateSettings = useCallback((nextSettings: AppSettings) => {
@@ -257,6 +361,7 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
 
   const importBackup = useCallback(
     async (backup: BackupData, mode: BackupImportMode) => {
+      assertWritable();
       await repository.importApplicationData(
         backup.expenses,
         backup.categories,
@@ -267,7 +372,7 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
       setSettings(backup.settings);
       await refreshAfterMutation();
     },
-    [refreshAfterMutation, repository],
+    [assertWritable, refreshAfterMutation, repository],
   );
 
   const refreshStorageHealth = useCallback(async () => {
@@ -282,6 +387,7 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
 
   const addCategory = useCallback(
     async (values: Pick<Category, "name" | "color">) => {
+      assertWritable();
       const name = values.name.trim();
       if (!name) {
         throw new Error("カテゴリ名を入力してください");
@@ -296,11 +402,12 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
       });
       await refreshAfterMutation();
     },
-    [categories, refreshAfterMutation, repository],
+    [assertWritable, categories, refreshAfterMutation, repository],
   );
 
   const updateCategory = useCallback(
     async (category: Category, values: Pick<Category, "name" | "color">) => {
+      assertWritable();
       const name = values.name.trim();
       if (!name) {
         throw new Error("カテゴリ名を入力してください");
@@ -313,11 +420,12 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
       });
       await refreshAfterMutation();
     },
-    [refreshAfterMutation, repository],
+    [assertWritable, refreshAfterMutation, repository],
   );
 
   const removeCategory = useCallback(
     async (category: Category) => {
+      assertWritable();
       if (category.id === DEFAULT_CATEGORY_ID) {
         throw new Error("その他カテゴリは削除できません");
       }
@@ -333,7 +441,7 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
       await repository.deleteCategory(category.id);
       await refreshAfterMutation();
     },
-    [expenses, refreshAfterMutation, repository, shopCategoryRules],
+    [assertWritable, expenses, refreshAfterMutation, repository, shopCategoryRules],
   );
 
   const suggestCategoryForShop = useCallback(
@@ -344,6 +452,7 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
 
   const upsertShopCategoryRule = useCallback(
     async (shopName: string, categoryId: string) => {
+      assertWritable();
       const nextRules = upsertCategoryRule(shopCategoryRules, shopName, categoryId);
       const changedRule = nextRules.find((rule) => {
         const currentRule = shopCategoryRules.find((current) => current.id === rule.id);
@@ -355,38 +464,42 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
       await repository.saveShopCategoryRule(changedRule);
       await refreshAfterMutation();
     },
-    [refreshAfterMutation, repository, shopCategoryRules],
+    [assertWritable, refreshAfterMutation, repository, shopCategoryRules],
   );
 
   const saveShopCategoryRule = useCallback(
     async (rule: ShopCategoryRule) => {
+      assertWritable();
       await repository.saveShopCategoryRule(rule);
       await refreshAfterMutation();
     },
-    [refreshAfterMutation, repository],
+    [assertWritable, refreshAfterMutation, repository],
   );
 
   const removeShopCategoryRule = useCallback(
     async (rule: ShopCategoryRule) => {
+      assertWritable();
       await repository.deleteShopCategoryRule(rule.id);
       await refreshAfterMutation();
     },
-    [refreshAfterMutation, repository],
+    [assertWritable, refreshAfterMutation, repository],
   );
 
   const resetData = useCallback(async () => {
+    assertWritable();
     await repository.clearApplicationData();
     resetSettings();
     const defaultSettings = loadSettings();
     setSettings(defaultSettings);
     await refreshAfterMutation();
-  }, [refreshAfterMutation, repository]);
+  }, [assertWritable, refreshAfterMutation, repository]);
 
   return {
     categories,
     expenses,
     settings: effectiveSettings,
     storageMode,
+    cloudConnection,
     storageHealth,
     isLoading,
     error,
@@ -401,6 +514,7 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
     refreshStorageHealth,
     resetData,
     refresh,
+    retryCloudConnection,
     addCategory,
     updateCategory,
     removeCategory,

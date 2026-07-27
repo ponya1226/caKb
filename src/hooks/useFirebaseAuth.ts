@@ -105,7 +105,7 @@ export function getSafeAuthErrorMessage(error: unknown): string {
 
   switch (code) {
     case "auth/unauthorized-domain":
-      return "ログイン元ドメインがFirebaseで許可されていません。Firebase Authenticationの承認済みドメインに cakb-dev.firebaseapp.com を追加してください。移行中にGitHub Pagesで確認する場合は ponya1226.github.io も追加してください。";
+      return "ログイン元ドメインがFirebaseで許可されていません。正規URLの cakb-dev.firebaseapp.com から開き、Firebase Authenticationの承認済みドメインを確認してください。";
     case "auth/operation-not-allowed":
       return "Firebase AuthenticationでGoogleログインが有効になっていません。Sign-in methodのGoogleを有効化してください。";
     case "auth/popup-blocked":

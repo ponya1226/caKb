@@ -10,7 +10,7 @@ import type { CloudHouseholdState } from "../hooks/useCloudHousehold";
 import type { FirebaseAuthState } from "../hooks/useFirebaseAuth";
 import type { GoogleSheetsSyncState } from "../hooks/useGoogleSheetsSync";
 import { buildGoogleSpreadsheetUrl, GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL } from "../lib/googleSheetsSync";
-import type { AppSettings, BackupImportMode, Category, Expense, ShopCategoryRule, StorageHealth } from "../types";
+import type { AppSettings, BackupImportMode, Category, CloudConnectionState, Expense, ShopCategoryRule, StorageHealth } from "../types";
 
 type SettingsScreenProps = {
   expenses: Expense[];
@@ -34,6 +34,7 @@ type SettingsScreenProps = {
   cloudHousehold: CloudHouseholdState;
   googleSheetsSync: GoogleSheetsSyncState;
   storageMode: BudgetStorageMode;
+  cloudConnection: CloudConnectionState | null;
 };
 
 type CategoryDraft = Pick<Category, "name" | "color">;
@@ -103,6 +104,7 @@ export function SettingsScreen({
   cloudHousehold,
   googleSheetsSync,
   storageMode,
+  cloudConnection,
 }: SettingsScreenProps) {
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importMode, setImportMode] = useState<BackupImportMode>("append");
@@ -415,6 +417,20 @@ export function SettingsScreen({
                 <strong>{cloudHousehold.household.household.name}</strong>
                 <span>権限: {cloudHousehold.household.member.role === "owner" ? "管理者" : "メンバー"}</span>
                 <span>保存先: Firestore</span>
+                <span>
+                  接続状態: {
+                    cloudConnection?.status === "online"
+                      ? "同期済み"
+                      : cloudConnection?.status === "offline"
+                        ? "オフライン"
+                        : cloudConnection?.status === "permissionDenied"
+                          ? "アクセス権なし"
+                          : "再接続中"
+                  }
+                </span>
+                {cloudConnection?.lastSuccessfulSyncAt && (
+                  <span>最終同期: {formatCloudDate(cloudConnection.lastSuccessfulSyncAt)}</span>
+                )}
               </div>
               <button className="button button-secondary" type="button" onClick={handleMigrateLocalData} disabled={cloudHousehold.isWorking}>
                 <Upload size={18} aria-hidden="true" />

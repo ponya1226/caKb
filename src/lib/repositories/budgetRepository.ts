@@ -6,6 +6,10 @@ export type BudgetSnapshot = {
   shopCategoryRules: ShopCategoryRule[];
 };
 
+export type BudgetSnapshotMetadata = {
+  fromCache: boolean;
+};
+
 export type ExpenseMutationOptions = {
   expectedUpdatedAt?: string;
 };
@@ -23,7 +27,7 @@ export type BudgetRepository = {
   initialize: () => Promise<void>;
   getSnapshot: () => Promise<BudgetSnapshot>;
   subscribe?: (
-    listener: (snapshot: BudgetSnapshot) => void,
+    listener: (snapshot: BudgetSnapshot, metadata: BudgetSnapshotMetadata) => void,
     onError: (error: unknown) => void,
   ) => () => void;
   saveExpense: (expense: Expense, options?: ExpenseMutationOptions) => Promise<void>;
