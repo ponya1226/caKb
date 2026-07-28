@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { Pencil, Plus, RotateCcw, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { ExpenseEditor } from "./ExpenseEditor";
-import { currentMonthKey, formatDateLabel, formatMonthLabel, toMonthKey } from "../lib/date";
+import { currentMonthKey, formatDateLabel, formatMonthLabel, getDaysInMonth, toMonthKey } from "../lib/date";
+import { filterExpenses, parseOptionalAmount } from "../lib/expenseFilters";
 import { formatCurrency } from "../lib/format";
 import { sumExpenseLineItems } from "../lib/lineItems";
 import type { Category, Expense, ExpenseFormValues } from "../types";
@@ -33,6 +34,10 @@ export function ExpenseListScreen({
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0] ?? currentMonthKey());
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
@@ -40,30 +45,45 @@ export function ExpenseListScreen({
   useEffect(() => {
     if (!monthOptions.includes(selectedMonth)) {
       setSelectedMonth(monthOptions[0] ?? currentMonthKey());
+      setDateFrom("");
+      setDateTo("");
     }
   }, [monthOptions, selectedMonth]);
 
   const monthExpenses = expenses.filter((expense) => toMonthKey(expense.date) === selectedMonth);
-  const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
-  const visibleExpenses = monthExpenses.filter((expense) => {
-    const category = categoryMap.get(expense.categoryId);
-    const matchesCategory = selectedCategoryId === "all" || expense.categoryId === selectedCategoryId;
-
-    if (!matchesCategory) {
-      return false;
-    }
-
-    if (!normalizedSearchQuery) {
-      return true;
-    }
-
-    const searchableText = [expense.shopName, expense.memo, category?.name ?? ""]
-      .join(" ")
-      .toLocaleLowerCase();
-    return searchableText.includes(normalizedSearchQuery);
+  const parsedMinAmount = parseOptionalAmount(minAmount);
+  const parsedMaxAmount = parseOptionalAmount(maxAmount);
+  const visibleExpenses = filterExpenses(monthExpenses, categoryMap, {
+    searchQuery,
+    categoryId: selectedCategoryId,
+    dateFrom: dateFrom || undefined,
+    dateTo: dateTo || undefined,
+    minAmount: parsedMinAmount,
+    maxAmount: parsedMaxAmount,
   });
   const visibleTotal = visibleExpenses.reduce((total, expense) => total + expense.amount, 0);
-  const hasActiveFilters = normalizedSearchQuery.length > 0 || selectedCategoryId !== "all";
+  const hasAdvancedFilters = Boolean(dateFrom || dateTo || minAmount || maxAmount);
+  const hasActiveFilters = searchQuery.trim().length > 0 || selectedCategoryId !== "all" || hasAdvancedFilters;
+  const hasInvalidDateRange = Boolean(dateFrom && dateTo && dateFrom > dateTo);
+  const hasInvalidAmountRange =
+    parsedMinAmount !== undefined && parsedMaxAmount !== undefined && parsedMinAmount > parsedMaxAmount;
+  const monthStart = `${selectedMonth}-01`;
+  const monthEnd = `${selectedMonth}-${`${getDaysInMonth(selectedMonth)}`.padStart(2, "0")}`;
+
+  function handleMonthChange(nextMonth: string) {
+    setSelectedMonth(nextMonth);
+    setDateFrom("");
+    setDateTo("");
+  }
+
+  function clearFilters() {
+    setSearchQuery("");
+    setSelectedCategoryId("all");
+    setDateFrom("");
+    setDateTo("");
+    setMinAmount("");
+    setMaxAmount("");
+  }
 
   async function handleDelete(expense: Expense) {
     if (!window.confirm("この支出を削除しますか？")) {
@@ -87,7 +107,9 @@ export function ExpenseListScreen({
     <section className="screen">
       <div className="screen-heading">
         <div>
-          <p className="eyebrow">{formatCurrency(visibleTotal)}</p>
+          <p className="eyebrow">
+            {visibleExpenses.length}件 / {formatCurrency(visibleTotal)}
+          </p>
           <h1>支出一覧</h1>
         </div>
         <button className="icon-button" type="button" onClick={() => setIsAdding(true)} aria-label="支出を追加">
@@ -98,7 +120,7 @@ export function ExpenseListScreen({
       <div className="toolbar">
         <label className="field compact-field">
           <span>対象月</span>
-          <select value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)}>
+          <select value={selectedMonth} onChange={(event) => handleMonthChange(event.target.value)}>
             {monthOptions.map((month) => (
               <option key={month} value={month}>
                 {formatMonthLabel(month)}
@@ -129,6 +151,76 @@ export function ExpenseListScreen({
           </select>
         </label>
       </div>
+
+      <details className="expense-filter-panel">
+        <summary>
+          <span>
+            <SlidersHorizontal size={18} aria-hidden="true" />
+            詳細条件
+          </span>
+          {hasAdvancedFilters && <span className="active-filter-badge">適用中</span>}
+        </summary>
+        <div className="expense-filter-body">
+          <div className="advanced-filter-grid">
+            <label className="field">
+              <span>開始日</span>
+              <input
+                type="date"
+                value={dateFrom}
+                min={monthStart}
+                max={dateTo || monthEnd}
+                onChange={(event) => setDateFrom(event.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>終了日</span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom || monthStart}
+                max={monthEnd}
+                onChange={(event) => setDateTo(event.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>最小金額</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={minAmount}
+                min="0"
+                step="1"
+                max={maxAmount || undefined}
+                placeholder="0"
+                onChange={(event) => setMinAmount(event.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>最大金額</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={maxAmount}
+                min={minAmount || "0"}
+                step="1"
+                placeholder="上限なし"
+                onChange={(event) => setMaxAmount(event.target.value)}
+              />
+            </label>
+          </div>
+          {(hasInvalidDateRange || hasInvalidAmountRange) && (
+            <p className="filter-validation" role="alert">
+              {hasInvalidDateRange ? "開始日は終了日以前にしてください。" : "最小金額は最大金額以下にしてください。"}
+            </p>
+          )}
+          {hasActiveFilters && (
+            <button className="button button-secondary button-compact filter-clear-button" type="button" onClick={clearFilters}>
+              <RotateCcw size={16} aria-hidden="true" />
+              条件をクリア
+            </button>
+          )}
+        </div>
+      </details>
 
       {isAdding && (
         <div className="modal-backdrop" role="presentation">

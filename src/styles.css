@@ -486,6 +486,68 @@ h3 {
   flex: 2 1 260px;
 }
 
+.expense-filter-panel {
+  display: grid;
+  gap: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.expense-filter-panel summary {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.expense-filter-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.expense-filter-panel summary > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+  font-weight: 800;
+}
+
+.active-filter-badge {
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #115e59;
+  background: #ccfbf1;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.expense-filter-body {
+  display: grid;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.advanced-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.filter-validation {
+  color: var(--danger);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.filter-clear-button {
+  width: fit-content;
+}
+
 input,
 select,
 textarea {
