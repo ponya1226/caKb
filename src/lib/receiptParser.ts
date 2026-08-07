@@ -16,6 +16,7 @@ const AMOUNT_SECTION_LABEL_PATTERN =
 const LINE_ITEM_DISCOUNT_PATTERN = /(割\s*引|値\s*引)/i;
 const LINE_ITEM_TAX_SUMMARY_PATTERN = /\d+\s*%\s*税(?:\s|$)|\d+\s*%\s*(?:内|外)?税\s*対象|税込金額|税抜対象額/i;
 const QUANTITY_AMOUNT_CONTEXT_PATTERN = /(g|ｇ|kg|㎏|ml|mL|ＭＬ|枚|個|本|点|袋|パック|連|P|ｐ)$/i;
+const MAX_LINE_ITEM_CANDIDATES = 50;
 
 type ShopLine = {
   value: string;
@@ -666,7 +667,10 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
     });
   });
 
-  return uniqueLineItemCandidates(reconcileUnmatchedLineItem(candidates, unmatchedNames, lines)).slice(0, 20);
+  return uniqueLineItemCandidates(reconcileUnmatchedLineItem(candidates, unmatchedNames, lines)).slice(
+    0,
+    MAX_LINE_ITEM_CANDIDATES,
+  );
 }
 
 function normalizeShopNameCandidate(line: string): { value: string; confidenceBoost: number } {
