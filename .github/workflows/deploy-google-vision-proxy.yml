@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: google-vision-proxy-live
@@ -22,6 +23,8 @@ jobs:
     env:
       GCP_PROJECT_ID: cakb-dev
       GCP_REGION: asia-northeast1
+      GCP_WORKLOAD_IDENTITY_PROVIDER: projects/389919357434/locations/global/workloadIdentityPools/github-actions/providers/github
+      GCP_DEPLOY_SERVICE_ACCOUNT: github-cloud-run-deploy@cakb-dev.iam.gserviceaccount.com
       CLOUD_RUN_SERVICE: cakb-google-vision-proxy
       CLOUD_RUN_SERVICE_ACCOUNT: cakb-vision-proxy@cakb-dev.iam.gserviceaccount.com
       CORS_ORIGINS: https://cakb-dev.web.app,https://cakb-dev.firebaseapp.com
@@ -49,7 +52,9 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CAKB_DEV }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_DEPLOY_SERVICE_ACCOUNT }}
 
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
@@ -60,7 +65,6 @@ jobs:
             --source server/google-vision-proxy \
             --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
-            --allow-unauthenticated \
             --service-account "$CLOUD_RUN_SERVICE_ACCOUNT" \
             --update-env-vars "^~^CORS_ORIGINS=$CORS_ORIGINS~REQUIRE_FIREBASE_AUTH=true~REQUIRE_HOUSEHOLD_MEMBERSHIP=true~FIREBASE_PROJECT_ID=$GCP_PROJECT_ID~MAX_IMAGE_BYTES=5242880~OCR_RATE_LIMIT_MAX_REQUESTS=10~OCR_RATE_LIMIT_WINDOW_SECONDS=60~OCR_MONTHLY_LIMIT=900~ALLOWED_AUTH_EMAILS=" \
             --quiet

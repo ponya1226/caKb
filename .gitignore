@@ -12,3 +12,4 @@ yarn-error.log*
 pnpm-debug.log*
 *.tsbuildinfo
 .codex-dev*.log
+gha-creds-*.json

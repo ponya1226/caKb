@@ -134,7 +134,7 @@ Firebase Hosting, Firebase Auth, Cloud Firestore, and Google Sheets one-way expo
 - Google Vision Proxy must verify Firebase ID tokens when `REQUIRE_FIREBASE_AUTH=true`; keep this enabled for hosted environments.
 - Hosted Google Vision Proxy deployments must require active household membership with `REQUIRE_HOUSEHOLD_MEMBERSHIP=true`. `ALLOWED_AUTH_EMAILS` is an optional additional restriction only; do not hard-code real user email addresses in the repository or expose them via GitHub variables.
 - Firebase client config must come from `VITE_FIREBASE_*`; do not commit real `.env` values or service account keys.
-- Firebase Hosting deploy credentials must stay in GitHub Secrets or local Firebase CLI auth; do not commit deploy tokens or service account JSON.
+- Hosted Firebase and Cloud Run deploy workflows must use GitHub OIDC and Google Cloud Workload Identity Federation. Do not restore long-lived deploy tokens or service account JSON without a new security decision.
 - Google Sheets export must require Firebase authentication, active household owner authorization, and direct editor sharing to the Cloud Run service account. Do not add bidirectional import or service account keys without a new decision.
 - Adding other external services, paid APIs, bidirectional sync, or receipt-image cloud storage still requires explicit user approval and an ADR.
 

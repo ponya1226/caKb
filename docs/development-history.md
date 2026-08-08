@@ -1,5 +1,36 @@
 # Development History
 
+## 2026-08-09 GitHub Actions Keyless Deploy Authentication
+
+目的: production deployで共有していた長期service account JSONを廃止し、GitHub workflowごとの短時間認証と用途別権限へ移行する。
+
+主な変更:
+
+- GitHub OIDCとGoogle Cloud Workload Identity Federationを構成
+- immutableなrepository ID、owner ID、`main` branchをprovider conditionで制限
+- `workflow_ref` 単位でFirebase deploy用とCloud Run deploy用service accountのimpersonationを分離
+- Firebase CLIとCloud Run deploy workflowをservice account JSONからWIF認証へ変更
+- Cloud Run deploy専用service accountへsource deployの最小権限を付与
+- `gha-creds-*.json` をGitとDocker build contextから除外
+- ADR 0010とFirebase、Proxy、SDLCの運用ドキュメントを更新
+
+検証結果:
+
+- WIF providerと両service accountのIAM policyをGoogle Cloudから読み戻し、conditionと `workflow_ref` 制限を確認
+- `npm run lint`: 成功
+- フロントエンドテスト: 23ファイル、107件成功
+- フロントエンドproduction build: 成功。既存の大きいchunk警告のみ
+- Proxyテスト: 6ファイル、27件成功
+- Proxy TypeScript build: 成功
+- `git diff --check`: 成功
+- ローカルのFirestore RulesテストはJava未導入のため未実行。Java 21を設定したPull Request CIで確認する
+
+残課題:
+
+- Pull Request CIと、merge後のFirebase Hosting、Firestore Rules、Cloud Run実deployを確認する
+- deploy成功後に旧GitHub Secret、ユーザー管理service account key、Firebase deploy accountの旧Cloud Run、Cloud Build、Cloud Storage権限を削除する
+- Cloud Run source buildが利用する既定Compute service accountのEditor権限を、専用build service accountへ移行する
+
 ## 2026-08-09 Dependabot Initial Run Adjustment
 
 目的: Dependabot初回実行で未計画のmajor updateを含む多数のPull Requestが同時作成されたため、継続運用できる更新量へ調整する。

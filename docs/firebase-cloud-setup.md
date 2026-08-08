@@ -39,11 +39,12 @@ npx firebase-tools deploy --only hosting --project cakb-dev
 
 GitHub Actionsからdeployする場合:
 
-1. Firebase deploy用service accountを作成する
-2. GitHub Secret `FIREBASE_SERVICE_ACCOUNT_CAKB_DEV` にservice account JSONを登録する
-3. GitHub Actionsの `Deploy Firebase Hosting` workflowを手動実行する
+1. `github-actions` WIF pool/providerを構成する
+2. provider conditionで対象repository、`main` branch、Hosting workflowを固定する
+3. Hosting workflowの `workflow_ref` だけが `github-firebase-hosting-deploy` service accountを利用できるように `roles/iam.workloadIdentityUser` を付与する
+4. GitHub Actionsの `Deploy Firebase Hosting` workflowを実行する
 
-service account JSON、token、secretはrepoへコミットしません。公開先はFirebase Hostingに統一し、GitHub Pages workflowは使用しません。
+GitHub ActionsはOIDCで短時間認証し、service account JSON、token、secretを保存しません。WIFの決定と失効手順は `docs/decisions/0010-github-actions-wif-deploy-auth.md` を参照してください。公開先はFirebase Hostingに統一し、GitHub Pages workflowは使用しません。
 
 ## Firestore Data Shape
 

@@ -8,7 +8,7 @@ on:
 
 permissions:
   contents: read
-  checks: write
+  id-token: write
 
 concurrency:
   group: firebase-hosting-live
@@ -18,6 +18,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
+      GCP_PROJECT_ID: cakb-dev
+      GCP_WORKLOAD_IDENTITY_PROVIDER: projects/389919357434/locations/global/workloadIdentityPools/github-actions/providers/github
+      GCP_DEPLOY_SERVICE_ACCOUNT: github-firebase-hosting-deploy@cakb-dev.iam.gserviceaccount.com
       VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
       VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
       VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
@@ -53,20 +56,19 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Deploy Firestore Rules
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
-        run: |
-          printf '%s' '${{ secrets.FIREBASE_SERVICE_ACCOUNT_CAKB_DEV }}' > "$GOOGLE_APPLICATION_CREDENTIALS"
-          npx --yes firebase-tools@14.16.0 deploy --only firestore:rules --project cakb-dev --non-interactive
-
-      - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a # v0.11.0
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CAKB_DEV }}
-          projectId: cakb-dev
-          channelId: live
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Deploy Firestore Rules and Firebase Hosting
+        run: |
+          npx --yes firebase-tools@14.16.0 deploy \
+            --only firestore:rules,hosting \
+            --project "$GCP_PROJECT_ID" \
+            --non-interactive
 
       - name: Verify deployed application
         run: |

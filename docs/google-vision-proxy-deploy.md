@@ -115,6 +115,8 @@ Cloud Run ProxyをGitHub Actionsからデプロイする場合も、active house
 
 この値はAPIキーではありません。ただし、公開URLなので無制限利用を許可するものではありません。
 
+GitHub ActionsのCloud Run deployは、`github-actions` WIF pool/providerと `github-cloud-run-deploy` deploy用service accountを使用します。provider conditionは対象repositoryと `main` branchへ限定し、service accountのIAM bindingはCloud Run workflowの `workflow_ref` へ限定します。service account JSONやdeploy tokenはGitHubへ登録しません。詳細は `docs/decisions/0010-github-actions-wif-deploy-auth.md` を参照してください。
+
 ## 8. Firebase Hostingを再デプロイする
 
 GitHub Actionsの `Deploy Firebase Hosting` を手動実行するか、ローカルで `npm run deploy:hosting` を実行します。
