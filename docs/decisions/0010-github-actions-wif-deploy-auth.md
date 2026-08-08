@@ -14,6 +14,7 @@ Pull Request必須化とCI強化後も、長期鍵の漏えい範囲と用途間
 - GitHub ActionsからGoogle Cloudへの認証は、GitHub OIDCとGoogle Cloud Workload Identity Federationを使用する。
 - service account JSON、access token、deploy tokenはGitHub Actionsに保存しない。
 - Firebase HostingとFirestore Rulesは `github-firebase-hosting-deploy`、Cloud Runは `github-cloud-run-deploy` を使用する。
+- Cloud Run source buildは `cakb-cloud-run-builder` を明示指定し、`roles/run.builder` だけを付与する。Editor権限を持つ既定Compute service accountは使用しない。
 - GitHub用WIF pool/providerは1組にし、provider conditionでGitHub repository ID、owner ID、`main` branchを固定する。
 - service accountのIAM bindingを `workflow_ref` で限定し、各workflowは対応するservice accountだけをimpersonateできるようにする。
 - Cloud Run deployでは既存のpublic invoker policyを変更せず、revision更新だけを行う。
@@ -32,6 +33,7 @@ Pull Request必須化とCI強化後も、長期鍵の漏えい範囲と用途間
 - workflow名や配置を変更する場合はservice accountのIAM bindingを更新し、default branchやrepository ownerを変更する場合はprovider conditionも更新する必要がある。
 - Firebase HostingとFirestore Rulesは同一workflow内で同時に配布する。さらに厳密な分離が必要になった場合はworkflowとservice accountを分割する。
 - 保存データ、Firestore schema、Security Rulesの内容、Cloud Run runtime service accountは変更しない。
+- Cloud Run deployer、build service account、runtime service accountを分離し、各役割の `actAs` は必要な組み合わせだけに限定する。
 
 ## Security / Privacy
 

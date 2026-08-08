@@ -26,6 +26,7 @@ jobs:
       GCP_WORKLOAD_IDENTITY_PROVIDER: projects/389919357434/locations/global/workloadIdentityPools/github-actions/providers/github
       GCP_DEPLOY_SERVICE_ACCOUNT: github-cloud-run-deploy@cakb-dev.iam.gserviceaccount.com
       CLOUD_RUN_SERVICE: cakb-google-vision-proxy
+      CLOUD_RUN_BUILD_SERVICE_ACCOUNT: cakb-cloud-run-builder@cakb-dev.iam.gserviceaccount.com
       CLOUD_RUN_SERVICE_ACCOUNT: cakb-vision-proxy@cakb-dev.iam.gserviceaccount.com
       CORS_ORIGINS: https://cakb-dev.web.app,https://cakb-dev.firebaseapp.com
     steps:
@@ -65,6 +66,7 @@ jobs:
             --source server/google-vision-proxy \
             --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
+            --build-service-account "projects/$GCP_PROJECT_ID/serviceAccounts/$CLOUD_RUN_BUILD_SERVICE_ACCOUNT" \
             --service-account "$CLOUD_RUN_SERVICE_ACCOUNT" \
             --update-env-vars "^~^CORS_ORIGINS=$CORS_ORIGINS~REQUIRE_FIREBASE_AUTH=true~REQUIRE_HOUSEHOLD_MEMBERSHIP=true~FIREBASE_PROJECT_ID=$GCP_PROJECT_ID~MAX_IMAGE_BYTES=5242880~OCR_RATE_LIMIT_MAX_REQUESTS=10~OCR_RATE_LIMIT_WINDOW_SECONDS=60~OCR_MONTHLY_LIMIT=900~ALLOWED_AUTH_EMAILS=" \
             --quiet

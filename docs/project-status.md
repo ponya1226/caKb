@@ -9,6 +9,7 @@ Last Updated: 2026-08-09
 - GitHub Actionsのcommit SHA固定とNode.js 24への実行環境統一
 - GitHub OIDCとWorkload Identity Federationによる鍵なしproduction deploy
 - Firebase Hosting/Firestore RulesとCloud Runのdeploy service account分離
+- Cloud Run source build専用service accountと `roles/run.builder` による既定Compute identityからの分離
 - 脆弱性の非公開報告手順、SDLC、ロールバック方針の文書化
 - ルート依存関係の既知脆弱性解消と、Proxy依存関係のhigh以上の既知脆弱性解消
 
@@ -178,7 +179,7 @@ Last Updated: 2026-08-09
 - OCR品目候補は最大50件。50品目を超える非常に長いレシートは確認画面で追加入力が必要
 - ログイン済みかつクラウド家計簿がある場合の支出データ正本はFirestore。未ログイン時やクラウド家計簿未作成時はIndexedDBへフォールバックするため、保存先表示と移行手順の継続的な分かりやすさ改善が必要。
 - Firebase HostingとCloud Runのdeploy workflowはWIF provider conditionのworkflow pathと結合している。workflow名や配置を変更する場合はGoogle Cloud側のcondition更新が必要。
-- Cloud Run source buildは既定Compute service accountを使用しており、同アカウントにはEditor権限が残っている。専用build service accountと `roles/run.builder` へ移行する必要がある。
+- 既定Compute service accountにEditor権限が残っている。Cloud Run source buildからは分離済みだが、他用途の利用有無を確認してから権限を削除する必要がある。
 - Firestore Rulesの基本的なmember/非member/owner権限はEmulatorテスト済み。招待機能追加時は招待コードとmember作成条件のテスト拡充が必要。
 - Google Sheets出力はownerによる手動全件置換のみ。自動実行、差分同期、再試行キュー、Sheets側変更の取り込みは未対応。
 - カテゴリ削除は支出で未使用の場合のみ可能。使用中カテゴリの統合や一括付け替えは未対応。
@@ -216,7 +217,7 @@ Last Updated: 2026-08-09
 ## Next Recommended Priorities
 
 - staging環境とproduction承認ゲートを追加する
-- Cloud Run source buildを専用build service accountへ移行し、既定Compute service accountのEditor権限を削除する
+- 既定Compute service accountの利用状況を確認し、残存するEditor権限を削除する
 - Playwrightによる主要動線のbrowser smoke testを追加する
 - Recharts 3移行とメインbundle分割を個別Pull Requestで検証する
 - 管理者と家族の別Googleアカウントを使い、招待、参加、支出共有、解除をスマホ実機で確認する

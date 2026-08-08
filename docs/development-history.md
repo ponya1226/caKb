@@ -11,6 +11,7 @@
 - `workflow_ref` 単位でFirebase deploy用とCloud Run deploy用service accountのimpersonationを分離
 - Firebase CLIとCloud Run deploy workflowをservice account JSONからWIF認証へ変更
 - Cloud Run deploy専用service accountへsource deployの最小権限を付与
+- Cloud Run source build専用service accountへ `roles/run.builder` だけを付与し、workflowから明示指定
 - `gha-creds-*.json` をGitとDocker build contextから除外
 - ADR 0010とFirebase、Proxy、SDLCの運用ドキュメントを更新
 
@@ -29,7 +30,7 @@
 
 - Pull Request CIと、merge後のFirebase Hosting、Firestore Rules、Cloud Run実deployを確認する
 - deploy成功後に旧GitHub Secret、ユーザー管理service account key、Firebase deploy accountの旧Cloud Run、Cloud Build、Cloud Storage権限を削除する
-- Cloud Run source buildが利用する既定Compute service accountのEditor権限を、専用build service accountへ移行する
+- 既定Compute service accountに残るEditor権限はCloud Run buildから分離済み。他用途の利用有無を確認してから削除する
 
 ## 2026-08-09 Dependabot Initial Run Adjustment
 
