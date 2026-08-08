@@ -24,7 +24,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.1.2",
     "tsx": "^4.16.5",
     "typescript": "^5.7.2",
     "vitest": "^4.1.9"
