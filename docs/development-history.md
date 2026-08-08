@@ -12,6 +12,7 @@
 - Firebase CLIとCloud Run deploy workflowをservice account JSONからWIF認証へ変更
 - Cloud Run deploy専用service accountへsource deployの最小権限を付与
 - Cloud Run source build専用service accountへ `roles/run.builder` だけを付与し、workflowから明示指定
+- 旧GitHub Secret、ユーザー管理service account key、Firebase deploy accountのCloud Run、Cloud Build、Cloud Storage、不要な `actAs` 権限を削除
 - `gha-creds-*.json` をGitとDocker build contextから除外
 - ADR 0010とFirebase、Proxy、SDLCの運用ドキュメントを更新
 
@@ -24,12 +25,14 @@
 - Proxyテスト: 6ファイル、27件成功
 - Proxy TypeScript build: 成功
 - `git diff --check`: 成功
-- ローカルのFirestore RulesテストはJava未導入のため未実行。Java 21を設定したPull Request CIで確認する
+- ローカルのFirestore RulesテストはJava未導入のため未実行。Pull Request #20と#21のJava 21 CIで成功
+- Firebase Hosting/Rules deploy run `31282075760` とCloud Run deploy run `31282310883` がWIFで成功
+- 最新Cloud Buildが `cakb-cloud-run-builder` を使用したことを確認
+- Firebase HostingはHTTP 200、Cloud Run `/health` はHTTP 200、未認証OCRはHTTP 401を確認
+- 旧Secret、ユーザー管理鍵、旧過剰権限の削除後、Firebase run `31282524613` とCloud Run run `31282524639` を手動再実行して成功
 
 残課題:
 
-- Pull Request CIと、merge後のFirebase Hosting、Firestore Rules、Cloud Run実deployを確認する
-- deploy成功後に旧GitHub Secret、ユーザー管理service account key、Firebase deploy accountの旧Cloud Run、Cloud Build、Cloud Storage権限を削除する
 - 既定Compute service accountに残るEditor権限はCloud Run buildから分離済み。他用途の利用有無を確認してから削除する
 
 ## 2026-08-09 Dependabot Initial Run Adjustment

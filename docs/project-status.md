@@ -10,6 +10,7 @@ Last Updated: 2026-08-09
 - GitHub OIDCとWorkload Identity Federationによる鍵なしproduction deploy
 - Firebase Hosting/Firestore RulesとCloud Runのdeploy service account分離
 - Cloud Run source build専用service accountと `roles/run.builder` による既定Compute identityからの分離
+- 旧GitHub deploy Secret、ユーザー管理service account key、共有deployerのCloud Run/Build/Storage権限削除
 - 脆弱性の非公開報告手順、SDLC、ロールバック方針の文書化
 - ルート依存関係の既知脆弱性解消と、Proxy依存関係のhigh以上の既知脆弱性解消
 

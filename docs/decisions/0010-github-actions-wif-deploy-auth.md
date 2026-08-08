@@ -50,3 +50,12 @@ Pull Request必須化とCI強化後も、長期鍵の漏えい範囲と用途間
 - Firebase Hostingの公開URLとCloud Runの `/health` が成功する。
 - Cloud Runの未認証OCRリクエストが引き続き拒否される。
 - GitHub Secretとユーザー管理service account keyを削除した後もworkflowを手動再実行できる。
+
+## Outcome
+
+- Pull Request #20と#21の必須CIがすべて成功した。
+- Firebase Hosting、Firestore Rules、Cloud RunをWIFでdeployし、公開URL、`/health`、未認証OCRの401を確認した。
+- Cloud Run source buildは専用 `cakb-cloud-run-builder` を使用して成功した。
+- 旧GitHub Secretとユーザー管理service account keyを削除した。
+- Firebase deploy accountからCloud Run、Cloud Build、Cloud Storage、Compute/runtime service accountの旧権限を削除した。
+- 旧credentialと旧権限の削除後に両workflowを手動再実行し、WIFだけで成功することを確認した。
