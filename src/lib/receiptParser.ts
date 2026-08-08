@@ -1,4 +1,4 @@
-import type { ReceiptCandidate, ReceiptLineItemCandidate, ReceiptParseResult } from "../types";
+import type { OcrTextBlock, ReceiptCandidate, ReceiptLineItemCandidate, ReceiptParseResult } from "../types";
 
 const FINAL_AMOUNT_KEYWORD_PATTERN =
   /(合\s*計|現\s*計|お\s*買\s*上\s*計|お\s*買\s*い\s*上\s*げ\s*計|総\s*合\s*計|請\s*求|支\s*払|お\s*支\s*払|Pay\s*Pay|y\s*Pay|計\s*$)/i;
@@ -48,11 +48,122 @@ type PendingLineItemAmount = {
   confidence: number;
 };
 
+type PositionedOcrWord = {
+  text: string;
+  x: number;
+  y: number;
+  height: number;
+  centerY: number;
+};
+
+type SpatialOcrLine = {
+  words: PositionedOcrWord[];
+  top: number;
+  bottom: number;
+  centerY: number;
+};
+
 function normalizeText(value: string): string {
   return value
     .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
     .replace(/[，、]/g, ",")
     .replace(/[\\￥]/g, "¥");
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) {
+    return 0;
+  }
+
+  const sortedValues = [...values].sort((a, b) => a - b);
+  const middleIndex = Math.floor(sortedValues.length / 2);
+  return sortedValues.length % 2 === 0
+    ? (sortedValues[middleIndex - 1] + sortedValues[middleIndex]) / 2
+    : sortedValues[middleIndex];
+}
+
+function toPositionedOcrWords(blocks: OcrTextBlock[] | undefined): PositionedOcrWord[] {
+  return (blocks ?? [])
+    .filter((block) => block.granularity === "word" && Boolean(block.boundingBox))
+    .map((block) => {
+      const boundingBox = block.boundingBox;
+      if (!boundingBox) {
+        return null;
+      }
+
+      const text = normalizeText(block.text).trim();
+      const height = Math.max(1, boundingBox.height);
+      if (!text) {
+        return null;
+      }
+
+      return {
+        text,
+        x: boundingBox.x,
+        y: boundingBox.y,
+        height,
+        centerY: boundingBox.y + height / 2,
+      };
+    })
+    .filter((word): word is PositionedOcrWord => word !== null);
+}
+
+function addWordToSpatialLine(line: SpatialOcrLine, word: PositionedOcrWord): void {
+  line.words.push(word);
+  line.top = Math.min(line.top, word.y);
+  line.bottom = Math.max(line.bottom, word.y + word.height);
+  line.centerY = line.words.reduce((sum, item) => sum + item.centerY, 0) / line.words.length;
+}
+
+function getVerticalOverlapRatio(line: SpatialOcrLine, word: PositionedOcrWord): number {
+  const overlap = Math.max(0, Math.min(line.bottom, word.y + word.height) - Math.max(line.top, word.y));
+  return overlap / Math.max(1, Math.min(line.bottom - line.top, word.height));
+}
+
+function joinSpatialWords(words: PositionedOcrWord[]): string {
+  return [...words]
+    .sort((a, b) => a.x - b.x)
+    .map((word) => word.text)
+    .join(" ");
+}
+
+function reconstructSpatialTextLines(blocks: OcrTextBlock[] | undefined): string[] {
+  const words = toPositionedOcrWords(blocks);
+  if (words.length < 2) {
+    return [];
+  }
+
+  const typicalHeight = Math.max(1, median(words.map((word) => word.height)));
+  const lines: SpatialOcrLine[] = [];
+  [...words]
+    .sort((a, b) => a.centerY - b.centerY || a.x - b.x)
+    .forEach((word) => {
+      const matchingLine = lines
+        .map((line) => ({
+          line,
+          distance: Math.abs(line.centerY - word.centerY),
+          overlapRatio: getVerticalOverlapRatio(line, word),
+        }))
+        .filter(({ distance, overlapRatio }) => overlapRatio >= 0.35 || distance <= typicalHeight * 0.5)
+        .sort((a, b) => a.distance - b.distance)[0]?.line;
+
+      if (matchingLine) {
+        addWordToSpatialLine(matchingLine, word);
+        return;
+      }
+
+      lines.push({
+        words: [word],
+        top: word.y,
+        bottom: word.y + word.height,
+        centerY: word.centerY,
+      });
+    });
+
+  return lines
+    .sort((a, b) => a.centerY - b.centerY)
+    .map((line) => joinSpatialWords(line.words).trim())
+    .filter(Boolean);
 }
 
 function normalizeAmountText(value: string): string {
@@ -945,17 +1056,21 @@ function extractShopNameCandidates(lines: string[]): Array<ReceiptCandidate<stri
   return uniqueCandidates(candidates).slice(0, 5);
 }
 
-export function parseReceiptText(text: string): ReceiptParseResult {
+export function parseReceiptText(text: string, blocks?: OcrTextBlock[]): ReceiptParseResult {
   const lines = normalizeText(text)
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
+  const spatialLines = reconstructSpatialTextLines(blocks);
+  const spatialLineItemCandidates = spatialLines.length > 0 ? extractLineItemCandidates(spatialLines) : [];
+
   return {
     dateCandidates: extractDateCandidates(lines),
     shopNameCandidates: extractShopNameCandidates(lines),
     amountCandidates: extractAmountCandidates(lines),
-    lineItemCandidates: extractLineItemCandidates(lines),
+    lineItemCandidates:
+      spatialLineItemCandidates.length > 0 ? spatialLineItemCandidates : extractLineItemCandidates(lines),
   };
 }
 

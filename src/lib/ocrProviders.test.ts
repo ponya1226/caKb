@@ -88,11 +88,21 @@ describe("ocrProviders", () => {
         return Response.json({
           provider: "googleVision",
           text: "合計\n¥481",
+          blocks: [{
+            text: "¥481",
+            granularity: "word",
+            boundingBox: { x: 120, y: 80, width: 40, height: 18 },
+          }],
         });
       },
     });
 
     expect(result.text).toBe("合計\n¥481");
+    expect(result.blocks).toEqual([{
+      text: "¥481",
+      granularity: "word",
+      boundingBox: { x: 120, y: 80, width: 40, height: 18 },
+    }]);
   });
 
   it("uses candidates from both providers through the same parser", async () => {

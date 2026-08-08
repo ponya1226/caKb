@@ -137,7 +137,10 @@ export function ReceiptCaptureScreen({
   const hasLargeSelectedFile = selectedFiles.some((file) => file.size > LARGE_RECEIPT_IMAGE_BYTES);
   const isGoogleVisionSelected = ocrProvider === "googleVision";
   const isDetectingCrop = !isGoogleVisionSelected && receiptSelections.some((selection) => selection.cropStatus === "detecting");
-  const parseResult = ocrText ? parseReceiptText(ocrText) : null;
+  const parseResult = useMemo(
+    () => (ocrText ? parseReceiptText(ocrText, lastOcrBlocks) : null),
+    [lastOcrBlocks, ocrText],
+  );
   const ocrPresets = useMemo(() => getOcrPresets(savedOcrCrop), [savedOcrCrop]);
   const isGoogleVisionAvailable = isGoogleVisionProviderConfigured();
   const canUseGoogleVision = isGoogleVisionAvailable && isGoogleVisionAuthenticated;
@@ -332,7 +335,7 @@ export function ReceiptCaptureScreen({
 
   function createDraftFromOcr(file: File, imageUrl: string, ocrResult: OcrRunResult): ReceiptDraft {
     const text = ocrResult.text;
-    const parsed = parseReceiptText(text);
+    const parsed = parseReceiptText(text, ocrResult.blocks);
     const initialShopName = parsed.shopNameCandidates[0]?.value ?? "";
     const categorySuggestion = suggestCategoryForShop(initialShopName);
 
@@ -506,7 +509,7 @@ export function ReceiptCaptureScreen({
 
       if (receiptSelections.length === 1 && selectedReceipt) {
         const ocrResult = await runOcrForSelection(selectedReceipt, setProgress, activeProvider, googleVisionAuthToken);
-        const parsed = parseReceiptText(ocrResult.text);
+        const parsed = parseReceiptText(ocrResult.text, ocrResult.blocks);
         const initialShopName = parsed.shopNameCandidates[0]?.value ?? "";
         const categorySuggestion = suggestCategoryForShop(initialShopName);
         setOcrText(ocrResult.text);

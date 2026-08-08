@@ -79,9 +79,17 @@ npm start
 {
   "provider": "googleVision",
   "text": "...",
-  "blocks": []
+  "blocks": [
+    {
+      "text": "商品名",
+      "granularity": "word",
+      "boundingBox": { "x": 20, "y": 100, "width": 80, "height": 20 }
+    }
+  ]
 }
 ```
+
+`blocks` はGoogle Visionの単語座標です。フロントエンドは同じ高さの単語を印字行へ再構成し、品目名と右側の金額を対応付けます。旧Proxyなど単語座標がないレスポンスでは、OCR全文による従来解析へ戻ります。
 
 Sheets出力リクエスト:
 

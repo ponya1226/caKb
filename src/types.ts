@@ -4,6 +4,7 @@ export type OcrProvider = "localTesseract" | "googleVision";
 
 export type OcrTextBlock = {
   text: string;
+  granularity?: "word";
   boundingBox?: {
     x: number;
     y: number;

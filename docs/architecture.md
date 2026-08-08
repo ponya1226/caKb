@@ -94,7 +94,7 @@ OCRはProvider抽象を通して実行します。
 - `localTesseract`: ブラウザ内でTesseract.jsを実行する既存Provider
 - `googleVision`: 自前Proxy経由でGoogle Cloud Vision OCRを利用する任意Provider
 
-どのProviderでも、OCR全文を取得した後は既存の `receiptParser.ts` で日付、店舗名、金額候補を抽出し、OCR確認画面でユーザーが修正してからIndexedDBに保存します。支出データのIndexedDB schemaは変更しません。
+どのProviderでも、OCR全文を取得した後は既存の `receiptParser.ts` で日付、店舗名、金額候補を抽出し、OCR確認画面でユーザーが修正してから保存します。Google VisionではProxyが単語と座標を返し、`receiptParser.ts` が同じ高さの単語を左から右へ並べ直して品目名と金額を対応付けます。単語座標がない場合はOCR全文による従来解析へ戻ります。支出データの保存schemaは変更しません。
 
 Google Vision利用時はレシート画像を外部サービスへ送信しますが、フロントエンドにGoogle Cloud認証情報は置かず、Proxy側でも画像やOCR全文を永続保存しません。Hosting環境ではFirebase ID tokenをProxyで検証し、未ログイン状態ではGoogle Vision OCRを利用できないようにします。
 

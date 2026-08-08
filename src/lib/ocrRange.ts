@@ -107,7 +107,7 @@ async function runSingleOcr(
     onProgress,
   });
   const text = result.text;
-  const parsed = parseReceiptText(text);
+  const parsed = parseReceiptText(text, result.blocks);
   return {
     provider: result.provider,
     text,
@@ -139,7 +139,7 @@ export async function runOcrWithRangeMode(
       googleVisionAuthToken: options.googleVisionAuthToken,
       onProgress: options.onProgress,
     });
-    const parsed = parseReceiptText(result.text);
+    const parsed = parseReceiptText(result.text, result.blocks);
     return {
       provider: result.provider,
       text: result.text,

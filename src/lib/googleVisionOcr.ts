@@ -5,6 +5,7 @@ const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 type GoogleVisionProxyBlock = {
   text: unknown;
+  granularity?: unknown;
   boundingBox?: unknown;
 };
 
@@ -82,6 +83,7 @@ function normalizeBlock(block: GoogleVisionProxyBlock): OcrTextBlock | null {
 
   return {
     text: block.text,
+    ...(block.granularity === "word" ? { granularity: block.granularity } : {}),
     ...(isBoundingBox(block.boundingBox) ? { boundingBox: block.boundingBox } : {}),
   };
 }
@@ -107,11 +109,12 @@ function normalizeResponse(response: GoogleVisionProxyResponse): OcrResult {
     throw new Error("オンライン読み取りから文字を受け取れませんでした");
   }
 
+  const blocks = normalizeBlocks(response.blocks);
   return {
     provider: GOOGLE_VISION_PROVIDER,
     text: response.text.trim(),
     ...(typeof response.confidence === "number" && Number.isFinite(response.confidence) ? { confidence: response.confidence } : {}),
-    ...(normalizeBlocks(response.blocks) ? { blocks: normalizeBlocks(response.blocks) } : {}),
+    ...(blocks ? { blocks } : {}),
   };
 }
 

@@ -1,4 +1,4 @@
-import vision, { protos } from "@google-cloud/vision";
+import vision from "@google-cloud/vision";
 import cors from "cors";
 import express from "express";
 import {
@@ -10,24 +10,13 @@ import {
 } from "./auth.js";
 import { parseAllowedOrigins, parseMaxImageBytes, validateOcrRequestBody } from "./validation.js";
 import { FixedWindowRateLimiter, parseNonNegativeInteger } from "./rateLimit.js";
+import { extractWordBlocks } from "./ocrBlocks.js";
 import { createFirestoreMonthlyUsageQuota, parseMonthlyUsageLimit } from "./usageQuota.js";
 import {
   exportActiveHouseholdExpenses,
   GoogleSheetsExportError,
   isValidSpreadsheetId,
 } from "./sheetsExport.js";
-
-type BoundingBox = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-type OcrTextBlock = {
-  text: string;
-  boundingBox?: BoundingBox;
-};
 
 const app = express();
 const port = Number(process.env.PORT ?? 8080);
@@ -61,45 +50,6 @@ app.use(cors({
     callback(new Error("Origin is not allowed"));
   },
 }));
-
-function toBoundingBox(vertices: protos.google.cloud.vision.v1.IVertex[] | null | undefined): BoundingBox | undefined {
-  const points = (vertices ?? []).filter((vertex) => typeof vertex.x === "number" && typeof vertex.y === "number");
-  if (points.length === 0) {
-    return undefined;
-  }
-
-  const xs = points.map((point) => point.x ?? 0);
-  const ys = points.map((point) => point.y ?? 0);
-  const minX = Math.min(...xs);
-  const minY = Math.min(...ys);
-  const maxX = Math.max(...xs);
-  const maxY = Math.max(...ys);
-
-  return {
-    x: minX,
-    y: minY,
-    width: Math.max(0, maxX - minX),
-    height: Math.max(0, maxY - minY),
-  };
-}
-
-function blockText(block: protos.google.cloud.vision.v1.IBlock): string {
-  return (block.paragraphs ?? [])
-    .flatMap((paragraph) => paragraph.words ?? [])
-    .map((word) => (word.symbols ?? []).map((symbol) => symbol.text ?? "").join(""))
-    .filter(Boolean)
-    .join(" ");
-}
-
-function extractBlocks(response: protos.google.cloud.vision.v1.IAnnotateImageResponse): OcrTextBlock[] {
-  return (response.fullTextAnnotation?.pages ?? [])
-    .flatMap((page) => page.blocks ?? [])
-    .map((block) => ({
-      text: blockText(block),
-      boundingBox: toBoundingBox(block.boundingBox?.vertices),
-    }))
-    .filter((block) => block.text.trim().length > 0);
-}
 
 app.get("/health", (_request, response) => {
   response.json({ ok: true });
@@ -167,7 +117,7 @@ app.post("/api/ocr", async (request, response) => {
     response.json({
       provider: "googleVision",
       text,
-      blocks: extractBlocks(result),
+      blocks: extractWordBlocks(result),
     });
   } catch {
     response.status(502).json({ error: "Google Vision OCR failed" });

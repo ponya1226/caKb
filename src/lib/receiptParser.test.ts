@@ -192,6 +192,43 @@ describe("parseReceiptText", () => {
     ]);
   });
 
+  it("uses positioned Vision words to pair products with prices when OCR text order is mixed", () => {
+    const result = parseReceiptText(
+      `
+        SAMPLE MARKET
+        ¥159
+        商品B
+        ¥299
+        商品A
+        小計 ¥458
+      `,
+      [
+        { text: "商品A", granularity: "word", boundingBox: { x: 20, y: 100, width: 80, height: 20 } },
+        { text: "¥159", granularity: "word", boundingBox: { x: 250, y: 102, width: 45, height: 18 } },
+        { text: "商品B", granularity: "word", boundingBox: { x: 20, y: 132, width: 80, height: 20 } },
+        { text: "¥299", granularity: "word", boundingBox: { x: 250, y: 130, width: 45, height: 18 } },
+        { text: "小計", granularity: "word", boundingBox: { x: 20, y: 170, width: 45, height: 20 } },
+        { text: "¥458", granularity: "word", boundingBox: { x: 250, y: 170, width: 45, height: 20 } },
+      ],
+    );
+
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["商品A", 159],
+      ["商品B", 299],
+    ]);
+  });
+
+  it("falls back to OCR text when blocks are not word-level", () => {
+    const result = parseReceiptText(
+      "SAMPLE MARKET\n商品A ¥159\n小計 ¥159",
+      [{ text: "商品B ¥999", boundingBox: { x: 10, y: 10, width: 200, height: 40 } }],
+    );
+
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["商品A", 159],
+    ]);
+  });
+
   it("extracts line item candidates from tea shop style yen rows", () => {
     const result = parseReceiptText(`
       SAMPLE TEA

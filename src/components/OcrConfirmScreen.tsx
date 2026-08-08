@@ -168,7 +168,7 @@ export function OcrConfirmScreen({
         googleVisionAuthToken,
         onProgress: setProgress,
       });
-      const parsed = parseReceiptText(ocrResult.text);
+      const parsed = parseReceiptText(ocrResult.text, ocrResult.blocks);
       const shopName = parsed.shopNameCandidates[0]?.value ?? draft.initialValues.shopName;
       const categorySuggestion = suggestCategoryForShop(shopName);
       const nextDraft: ReceiptDraft = {
