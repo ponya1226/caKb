@@ -593,10 +593,8 @@ textarea {
 }
 
 .account-panel span {
-  overflow: hidden;
   color: var(--text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .account-error {

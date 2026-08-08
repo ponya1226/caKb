@@ -105,11 +105,11 @@ export function getSafeAuthErrorMessage(error: unknown): string {
 
   switch (code) {
     case "auth/unauthorized-domain":
-      return "ログイン元ドメインがFirebaseで許可されていません。正規URLの cakb-dev.firebaseapp.com から開き、Firebase Authenticationの承認済みドメインを確認してください。";
+      return "このURLではGoogleログインを利用できません。正しいアプリURL（cakb-dev.firebaseapp.com）から開いてください。";
     case "auth/operation-not-allowed":
-      return "Firebase AuthenticationでGoogleログインが有効になっていません。Sign-in methodのGoogleを有効化してください。";
+      return "Googleログインは現在利用できません。管理者にお問い合わせください。";
     case "auth/popup-blocked":
-      return "ブラウザにポップアップがブロックされました。ポップアップを許可するか、Firebase HostingのURLからもう一度ログインしてください。";
+      return "ログイン画面を開けませんでした。ブラウザでポップアップを許可して、もう一度お試しください。";
     case "auth/operation-not-supported-in-this-environment":
       return "このブラウザ環境ではポップアップログインを開始できませんでした。通常のブラウザで開くか、ポップアップを許可してもう一度ログインしてください。";
     case "auth/popup-closed-by-user":
@@ -117,13 +117,13 @@ export function getSafeAuthErrorMessage(error: unknown): string {
       return "Googleログイン画面が閉じられました。もう一度ログインしてください。";
     case "auth/invalid-api-key":
     case "auth/api-key-not-valid.-please-pass-a-valid-api-key.":
-      return "Firebase API keyが正しくありません。GitHub Repository VariablesのFirebase設定値を確認してください。";
+      return "ログイン機能の設定に問題があります。管理者にお問い合わせください。";
     case "auth/configuration-not-found":
-      return "Firebase Authentication設定が見つかりません。FirebaseプロジェクトでAuthenticationを有効化してください。";
+      return "Googleログインの準備が完了していません。管理者にお問い合わせください。";
     case "auth/network-request-failed":
       return "ネットワークエラーでログインできませんでした。通信状態を確認してもう一度試してください。";
     default:
-      return code ? `ログイン処理に失敗しました。Firebase error: ${code}` : "ログイン処理に失敗しました。";
+      return "ログインできませんでした。しばらくしてからもう一度お試しください。";
   }
 }
 
@@ -192,7 +192,7 @@ export function useFirebaseAuth(): FirebaseAuthState {
 
             setUser(toAuthenticatedUser(result.user));
             return userProfileModule.upsertUserProfile(services.firestore, result.user).catch(() => {
-              setError("ログインは完了しましたが、プロフィール保存に失敗しました。Firestore Rulesを確認してください。");
+              setError("ログインは完了しましたが、利用者情報を保存できませんでした。もう一度お試しください。");
             });
           })
           .catch((unknownError) => {
@@ -209,7 +209,7 @@ export function useFirebaseAuth(): FirebaseAuthState {
         }
 
         setIsLoading(false);
-        setError("Firebase Authの初期化に失敗しました。");
+        setError("ログイン機能を開始できませんでした。画面を再読み込みしてください。");
       });
 
     return () => {
@@ -221,7 +221,7 @@ export function useFirebaseAuth(): FirebaseAuthState {
   const signInWithGoogle = useCallback(async () => {
     const services = await loadServices();
     if (!services) {
-      setError("Firebase設定が未設定です。");
+      setError("ログイン機能は現在利用できません。");
       return;
     }
 
@@ -245,7 +245,7 @@ export function useFirebaseAuth(): FirebaseAuthState {
       const credential = await signInWithPopup(services.auth, services.googleProvider);
       setUser(toAuthenticatedUser(credential.user));
       await upsertUserProfile(services.firestore, credential.user).catch(() => {
-        setError("ログインは完了しましたが、プロフィール保存に失敗しました。Firestore Rulesを確認してください。");
+        setError("ログインは完了しましたが、利用者情報を保存できませんでした。もう一度お試しください。");
       });
     } catch (unknownError) {
       setError(getSafeAuthErrorMessage(unknownError));

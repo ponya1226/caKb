@@ -159,7 +159,7 @@ export function OcrCropPreview({ imageSrc, imageAlt, crop, compact = false, onCr
             <button
               className="ocr-crop-move-area"
               type="button"
-              aria-label="OCR範囲を移動"
+              aria-label="読み取る範囲を移動"
               onPointerDown={(event) => startDrag("move", event)}
             />
             {(Object.keys(sideLabels) as Array<keyof OcrCropRatios>).map((side) => (
@@ -167,7 +167,7 @@ export function OcrCropPreview({ imageSrc, imageAlt, crop, compact = false, onCr
                 key={side}
                 className={`ocr-crop-handle ${side}`}
                 type="button"
-                aria-label={`OCR範囲の${sideLabels[side]}端を調整`}
+                aria-label={`読み取る範囲の${sideLabels[side]}端を調整`}
                 onPointerDown={(event) => startDrag(side, event)}
               />
             ))}

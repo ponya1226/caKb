@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import { getSafeAuthErrorMessage, selectGoogleSignInMode, shouldFallbackToRedirect } from "./useFirebaseAuth";
 
 describe("useFirebaseAuth helpers", () => {
-  it("returns actionable messages for common Firebase Auth setup errors", () => {
+  it("returns actionable messages without exposing implementation details", () => {
     expect(getSafeAuthErrorMessage({ code: "auth/unauthorized-domain" })).toContain("cakb-dev.firebaseapp.com");
     expect(getSafeAuthErrorMessage({ code: "auth/operation-not-allowed" })).toContain("Googleログイン");
-    expect(getSafeAuthErrorMessage({ code: "auth/invalid-api-key" })).toContain("Firebase API key");
-    expect(getSafeAuthErrorMessage({ code: "auth/configuration-not-found" })).toContain("Authentication");
+    expect(getSafeAuthErrorMessage({ code: "auth/invalid-api-key" })).toContain("管理者");
+    expect(getSafeAuthErrorMessage({ code: "auth/configuration-not-found" })).toContain("管理者");
+    expect(getSafeAuthErrorMessage({ code: "auth/internal-error" })).not.toContain("auth/internal-error");
   });
 
   it("does not start an automatic redirect fallback after popup errors", () => {

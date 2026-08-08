@@ -262,7 +262,7 @@ export function SettingsScreen({
 
   async function handleRequestPersistentStorage() {
     const granted = await onRequestPersistentStorage();
-    setStatusMessage(granted ? "永続保存を有効にしました" : "永続保存を有効にできませんでした。ブラウザ設定を確認してください");
+    setStatusMessage(granted ? "端末内データを消去されにくくしました" : "設定を変更できませんでした。ブラウザ設定を確認してください");
   }
 
   async function handleReset() {
@@ -279,7 +279,7 @@ export function SettingsScreen({
   }
 
   async function handleMigrateLocalData() {
-    if (!window.confirm("現在のIndexedDB内の支出、カテゴリ、店舗別カテゴリルールをFirestoreへコピーします。実行しますか？")) {
+    if (!window.confirm("この端末の支出、カテゴリ、店舗ごとのカテゴリ設定をクラウドへコピーします。実行しますか？")) {
       return;
     }
 
@@ -326,7 +326,7 @@ export function SettingsScreen({
     const result = await googleSheetsSync.exportExpenses(spreadsheetInput);
     if (result) {
       setSpreadsheetInput(result.spreadsheetId);
-      setStatusMessage(`${result.exportedExpenses}件をGoogle Sheetsへ出力しました`);
+      setStatusMessage(`${result.exportedExpenses}件をGoogleスプレッドシートへ書き出しました`);
     }
   }
 
@@ -334,7 +334,7 @@ export function SettingsScreen({
     <section className="screen">
       <div className="screen-heading">
         <div>
-          <p className="eyebrow">Local</p>
+          <p className="eyebrow">データと共有</p>
           <h1>設定</h1>
         </div>
       </div>
@@ -349,13 +349,13 @@ export function SettingsScreen({
 
         <div className="account-panel">
           <div>
-            <strong>{firebaseAuth.user ? firebaseAuth.user.displayName : firebaseAuth.isConfigured ? "未ログイン" : "Firebase未設定"}</strong>
+            <strong>{firebaseAuth.user ? firebaseAuth.user.displayName : firebaseAuth.isConfigured ? "未ログイン" : "ログイン機能を利用できません"}</strong>
             <span>
               {firebaseAuth.user
                 ? firebaseAuth.user.email || "メールアドレス未設定"
                 : firebaseAuth.isConfigured
-                  ? "Googleログインでクラウド化準備を開始できます"
-                  : "Firebase環境変数を設定するとログイン機能を使えます"}
+                  ? "Googleでログインすると家族と共有できます"
+                  : "現在のアプリではGoogleログインを利用できません"}
             </span>
           </div>
           {firebaseAuth.user ? (
@@ -387,36 +387,36 @@ export function SettingsScreen({
 
         <p className="subtle-text storage-note">
           {storageMode === "cloud"
-            ? `ログイン先: ${cloudHousehold.household?.household.name ?? "クラウド家計簿"} / 保存先: Firestore。支出、カテゴリ、JSONインポートは家族で共有されます。`
+            ? `利用中: ${cloudHousehold.household?.household.name ?? "家族の家計簿"} / 保存先: クラウド。支出、カテゴリ、読み込んだバックアップは家族で共有されます。`
             : firebaseAuth.user
-              ? "Googleログイン中ですが、現在の保存先はこの端末のIndexedDBです。クラウド家計簿を作成または参加するとFirestore保存に切り替わります。"
-              : "未ログインです。現在の保存先はこの端末のIndexedDBです。"}
+              ? "Googleログイン中ですが、現在の保存先はこの端末です。家族の家計簿を作成または参加するとクラウド保存に切り替わります。"
+              : "未ログインです。現在のデータはこの端末に保存されています。"}
         </p>
         {hasLocalShopCategoryRulesToMigrate && (
           <p className="inline-notice">
-            ローカルの店舗ルールがあります。ローカルデータのクラウド移行を実行すると家族で共有できます。
+            この端末だけに保存された店舗設定があります。端末のデータをクラウドへコピーすると家族で共有できます。
           </p>
         )}
       </section>
 
       <section className="content-section">
         <div className="section-title-row">
-          <h2>クラウド家計簿</h2>
+          <h2>家族の家計簿</h2>
         </div>
 
         {!firebaseAuth.isConfigured ? (
-          <div className="empty-state">Firebase設定後に利用できます</div>
+          <div className="empty-state">クラウド機能は現在利用できません</div>
         ) : !firebaseAuth.user ? (
           <div className="empty-state">Googleログイン後に作成できます</div>
         ) : cloudHousehold.isLoading ? (
-          <div className="empty-state">クラウド家計簿を確認中</div>
+          <div className="empty-state">家族の家計簿を確認中</div>
         ) : cloudHousehold.household ? (
           <>
             <div className="cloud-panel">
               <div>
                 <strong>{cloudHousehold.household.household.name}</strong>
                 <span>権限: {cloudHousehold.household.member.role === "owner" ? "管理者" : "メンバー"}</span>
-                <span>保存先: Firestore</span>
+                <span>保存先: クラウド</span>
                 <span>
                   接続状態: {
                     cloudConnection?.status === "online"
@@ -434,7 +434,7 @@ export function SettingsScreen({
               </div>
               <button className="button button-secondary" type="button" onClick={handleMigrateLocalData} disabled={cloudHousehold.isWorking}>
                 <Upload size={18} aria-hidden="true" />
-                ローカルデータを移行
+                この端末のデータをコピー
               </button>
             </div>
 
@@ -528,8 +528,8 @@ export function SettingsScreen({
 
         {cloudHousehold.lastMigration && (
           <div className="inline-status">
-            Firestoreへコピーしました: 支出{cloudHousehold.lastMigration.expenses}件、カテゴリ{cloudHousehold.lastMigration.categories}件、店舗ルール{cloudHousehold.lastMigration.shopCategoryRules}件
-            <p>最終移行: {formatCloudDate(cloudHousehold.lastMigration.completedAt)}</p>
+            クラウドへコピーしました: 支出{cloudHousehold.lastMigration.expenses}件、カテゴリ{cloudHousehold.lastMigration.categories}件、店舗設定{cloudHousehold.lastMigration.shopCategoryRules}件
+            <p>最終コピー: {formatCloudDate(cloudHousehold.lastMigration.completedAt)}</p>
             {cloudHousehold.lastMigration.warnings?.map((warning) => (
               <p key={warning}>{warning}</p>
             ))}
@@ -550,27 +550,27 @@ export function SettingsScreen({
         )}
 
         <p className="subtle-text storage-note">
-          移行は同じIDへ上書きするコピーです。同じデータを再移行しても重複しません。クラウド家計簿がある場合、支出登録・一覧表示はFirestore保存を使用します。
+          コピー済みのデータは重複しません。家族の家計簿がある場合、新しい支出やカテゴリはクラウドに保存されます。
         </p>
       </section>
 
       <section className="content-section">
         <div className="section-title-row">
-          <h2>Google Sheets出力</h2>
+          <h2>Googleスプレッドシート</h2>
           <FileSpreadsheet size={20} aria-hidden="true" />
         </div>
 
         {storageMode !== "cloud" || !cloudHousehold.household ? (
-          <div className="empty-state">クラウド家計簿の作成または参加後に利用できます</div>
+          <div className="empty-state">家族の家計簿を作成または参加すると利用できます</div>
         ) : cloudHousehold.household.member.role !== "owner" ? (
           <div className="empty-state">管理者のみ設定できます</div>
         ) : !googleSheetsSync.isConfigured ? (
-          <div className="empty-state">Google Sheets出力Proxyが未設定です</div>
+          <div className="empty-state">スプレッドシートへの書き出しは現在利用できません</div>
         ) : (
           <div className="sheet-sync-panel">
             <div className="privacy-note">
-              <strong>外部送信</strong>
-              <span>Firestoreの支出をGoogle Sheetsへ送信します。Sheets側の編集内容はcaKbへ取り込みません。</span>
+              <strong>データの書き出し</strong>
+              <span>クラウドに保存した支出をGoogleスプレッドシートへ書き出します。スプレッドシート側の変更はcaKbへ反映されません。</span>
             </div>
 
             <div className="sheet-share-row">
@@ -584,7 +584,7 @@ export function SettingsScreen({
             </div>
 
             <label className="field">
-              <span>スプレッドシートURLまたはID</span>
+              <span>スプレッドシートのURL</span>
               <input
                 type="text"
                 inputMode="url"
@@ -601,14 +601,14 @@ export function SettingsScreen({
               disabled={googleSheetsSync.isLoading || googleSheetsSync.isWorking || !spreadsheetInput.trim()}
             >
               <Upload size={18} aria-hidden="true" />
-              {googleSheetsSync.isWorking ? "出力中" : "支出をSheetsへ出力"}
+              {googleSheetsSync.isWorking ? "書き出し中" : "支出一覧を書き出す"}
             </button>
 
             {googleSheetsSync.settings?.lastSyncedAt && (
               <div className="sheet-sync-result">
                 <div>
-                  <strong>{googleSheetsSync.settings.lastExportedExpenseCount ?? 0}件出力済み</strong>
-                  <span>最終出力: {formatCloudDate(googleSheetsSync.settings.lastSyncedAt)}</span>
+                  <strong>{googleSheetsSync.settings.lastExportedExpenseCount ?? 0}件を書き出し済み</strong>
+                  <span>最終書き出し: {formatCloudDate(googleSheetsSync.settings.lastSyncedAt)}</span>
                 </div>
                 <a
                   className="icon-button"
@@ -646,11 +646,11 @@ export function SettingsScreen({
           <div className="status-card">
             {storageMode === "cloud" ? <Cloud size={20} aria-hidden="true" /> : <Database size={20} aria-hidden="true" />}
             <span>現在の保存先</span>
-            <strong>{storageMode === "cloud" ? "Firestore" : `IndexedDB ${formatIndexedDbStatus(storageHealth)}`}</strong>
+            <strong>{storageMode === "cloud" ? "クラウド" : `この端末（${formatIndexedDbStatus(storageHealth)}）`}</strong>
           </div>
           <div className="status-card">
             <ShieldCheck size={20} aria-hidden="true" />
-            <span>永続保存</span>
+            <span>端末内データの保護</span>
             <strong>{formatPersistentStorageStatus(storageHealth)}</strong>
           </div>
           <div className="status-card">
@@ -666,20 +666,20 @@ export function SettingsScreen({
             <strong>{formatOptionalFileSize(storageHealth?.usageBytes)}</strong>
           </div>
           <div className="status-card">
-            <span>推定上限</span>
+            <span>保存できる目安</span>
             <strong>{formatOptionalFileSize(storageHealth?.quotaBytes)}</strong>
           </div>
         </div>
 
         <p className="subtle-text storage-note">
           {storageMode === "cloud"
-            ? "クラウド家計簿の支出とカテゴリはFirestoreへ保存され、同じ家計簿の家族に反映されます。"
-            : "同じブラウザ・同じURLではIndexedDBに保存されます。プライベートブラウズ、サイトデータ削除、端末容量不足では消える場合があります。"}
+            ? "支出とカテゴリはクラウドに保存され、同じ家計簿に参加している家族へ反映されます。"
+            : "この端末のブラウザに保存されます。プライベートブラウズ、サイトデータ削除、端末容量不足では消える場合があります。"}
         </p>
 
         {!storageHealth?.persistentStorageGranted && storageHealth?.persistentStorageSupported && (
           <button className="button button-secondary full-width" type="button" onClick={handleRequestPersistentStorage}>
-            永続保存をリクエスト
+            端末内データを消去されにくくする
           </button>
         )}
       </section>
@@ -688,7 +688,7 @@ export function SettingsScreen({
         <article className="setting-row">
           <div>
             <strong>レシート画像保存</strong>
-            <span>IndexedDBに画像Blobを保存</span>
+            <span>レシート画像をこの端末に保存</span>
           </div>
           <button
             className="icon-button"
@@ -841,22 +841,22 @@ export function SettingsScreen({
       <div className="settings-list">
         <button className="setting-action" type="button" onClick={handleExportCsv}>
           <Download size={20} aria-hidden="true" />
-          CSVエクスポート
+          表計算用ファイルを書き出す
         </button>
 
         <button className="setting-action" type="button" onClick={handleExportJson}>
           <FileJson size={20} aria-hidden="true" />
-          JSONバックアップ
+          バックアップを保存
         </button>
 
         <button className="setting-action" type="button" onClick={() => handleSelectImportFile("append")}>
           <Upload size={20} aria-hidden="true" />
-          JSONから追加復元
+          バックアップから追加
         </button>
 
         <button className="setting-action" type="button" onClick={() => handleSelectImportFile("replace")}>
           <Upload size={20} aria-hidden="true" />
-          JSONで置き換え復元
+          バックアップで置き換え
         </button>
 
         <button className="setting-action danger" type="button" onClick={handleReset}>
@@ -875,6 +875,7 @@ export function SettingsScreen({
         className="visually-hidden"
         type="file"
         accept="application/json,.json"
+        aria-label="バックアップファイルを選択"
         onChange={(event) => handleImportFile(event.target.files?.[0])}
       />
     </section>

@@ -46,7 +46,7 @@ function getMimeType(image: File | Blob): string {
 function assertSupportedImage(image: File | Blob): string {
   const mimeType = getMimeType(image);
   if (!ALLOWED_IMAGE_TYPES.has(mimeType)) {
-    throw new Error("Google Vision OCRで利用できない画像形式です");
+    throw new Error("この画像形式はオンライン読み取りに対応していません");
   }
 
   return mimeType;
@@ -100,11 +100,11 @@ function normalizeBlocks(value: unknown): OcrTextBlock[] | undefined {
 
 function normalizeResponse(response: GoogleVisionProxyResponse): OcrResult {
   if (response.provider !== GOOGLE_VISION_PROVIDER) {
-    throw new Error("Google Vision OCR Proxyの応答形式が正しくありません");
+    throw new Error("オンライン読み取りから正しい結果を受け取れませんでした");
   }
 
   if (typeof response.text !== "string") {
-    throw new Error("Google Vision OCR Proxyの応答にOCR全文がありません");
+    throw new Error("オンライン読み取りから文字を受け取れませんでした");
   }
 
   return {
@@ -118,7 +118,7 @@ function normalizeResponse(response: GoogleVisionProxyResponse): OcrResult {
 export async function runGoogleVisionOcr(image: File | Blob, options: GoogleVisionOcrOptions = {}): Promise<OcrResult> {
   const proxyUrl = normalizeProxyUrl(options.proxyUrl ?? getConfiguredGoogleVisionProxyUrl());
   if (!proxyUrl) {
-    throw new Error("Google Vision OCR Proxy URLが設定されていません");
+    throw new Error("オンライン読み取りは現在利用できません");
   }
 
   const mimeType = assertSupportedImage(image);
@@ -141,11 +141,11 @@ export async function runGoogleVisionOcr(image: File | Blob, options: GoogleVisi
     if (response.status === 429) {
       const errorBody = await response.json().catch(() => null) as GoogleVisionProxyErrorResponse | null;
       if (errorBody?.code === "monthly_limit") {
-        throw new Error("今月の高精度OCR利用上限に達しました。ローカルOCRまたは手入力を利用してください");
+        throw new Error("今月のオンライン読み取り回数が上限に達しました。端末内読み取りまたは手入力を利用してください");
       }
-      throw new Error("高精度OCRを続けて実行しています。少し待ってから再試行するか、ローカルOCRを利用してください");
+      throw new Error("オンライン読み取りを続けて実行しています。少し待ってからやり直すか、端末内読み取りを利用してください");
     }
-    throw new Error("Google Vision OCRに失敗しました。ローカルOCRまたは手入力を利用してください");
+    throw new Error("オンラインでレシートを読み取れませんでした。端末内読み取りまたは手入力を利用してください");
   }
 
   const responseBody = await response.json() as GoogleVisionProxyResponse;

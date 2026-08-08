@@ -290,7 +290,7 @@ export function ReceiptCaptureScreen({
     }
 
     if (receiptSelections.length > 1) {
-      return `画像ごとにOCR範囲を保持しています。使用範囲: ${selection.presetLabel ?? "手動補正"}`;
+      return `画像ごとに読み取る範囲を保持しています。使用範囲: ${selection.presetLabel ?? "手動調整"}`;
     }
 
     return `使用範囲: ${selection.presetLabel ?? "手動補正"}`;
@@ -465,7 +465,7 @@ export function ReceiptCaptureScreen({
 
     const token = await getGoogleVisionIdToken();
     if (!token) {
-      throw new Error("高精度OCRにはGoogleログインが必要です。設定画面でログインするか、ローカルOCRを利用してください。");
+      throw new Error("オンライン読み取りにはGoogleログインが必要です。設定画面でログインするか、端末内読み取りを利用してください。");
     }
 
     return token;
@@ -477,7 +477,7 @@ export function ReceiptCaptureScreen({
       draftsByPreviewUrl,
     );
     if (drafts.length === 0) {
-      setError("確認できるOCR結果がありません");
+      setError("確認できる読み取り結果がありません");
       return;
     }
 
@@ -499,7 +499,7 @@ export function ReceiptCaptureScreen({
     }
     setIsRunning(true);
     setError(null);
-    setProgress({ status: "starting", progress: 0 });
+    setProgress({ status: "読み取りを準備中", progress: 0 });
 
     try {
       const googleVisionAuthToken = await resolveGoogleVisionAuthToken(activeProvider);
@@ -587,7 +587,7 @@ export function ReceiptCaptureScreen({
         } catch (unknownError) {
           failedCount += 1;
           delete nextDrafts[selection.previewUrl];
-          const message = unknownError instanceof Error ? unknownError.message : "OCRに失敗しました";
+          const message = unknownError instanceof Error ? unknownError.message : "レシートを読み取れませんでした";
           setBatchItems((currentItems) => currentItems.map((item) => (
             item.key === selection.previewUrl
               ? { ...item, status: "failed", error: message }
@@ -601,10 +601,10 @@ export function ReceiptCaptureScreen({
       if (failedCount === 0) {
         confirmBatchDrafts(nextDrafts);
       } else {
-        setError(`${failedCount}枚のOCRに失敗しました。失敗した画像だけ再試行できます。`);
+        setError(`${failedCount}枚を読み取れませんでした。失敗した画像だけやり直せます。`);
       }
     } catch (unknownError) {
-      setError(unknownError instanceof Error ? unknownError.message : "OCRに失敗しました");
+      setError(unknownError instanceof Error ? unknownError.message : "レシートを読み取れませんでした");
     } finally {
       setIsRunning(false);
     }
@@ -648,14 +648,14 @@ export function ReceiptCaptureScreen({
     }
 
     if (isRunning) {
-      return "OCR中";
+      return "読み取り中";
     }
 
     if (selectedFiles.length > 1) {
-      return isGoogleVisionSelected ? "高精度OCRで一括実行" : "一括OCR実行";
+      return isGoogleVisionSelected ? "オンラインでまとめて読み取る" : "端末内でまとめて読み取る";
     }
 
-    return isGoogleVisionSelected ? "高精度OCR実行" : "OCR実行";
+    return isGoogleVisionSelected ? "オンラインで読み取る" : "端末内で読み取る";
   }
 
   const failedBatchCount = batchItems.filter((item) => item.status === "failed").length;
@@ -665,13 +665,13 @@ export function ReceiptCaptureScreen({
     <section className="screen">
       <div className="screen-heading">
         <div>
-          <p className="eyebrow">OCR</p>
+          <p className="eyebrow">レシート読み取り</p>
           <h1>レシート登録</h1>
         </div>
       </div>
 
-      <input ref={cameraInputRef} className="visually-hidden" type="file" accept="image/*" capture="environment" onChange={handleFileChange} />
-      <input ref={uploadInputRef} className="visually-hidden" type="file" accept="image/*" multiple onChange={handleFileChange} />
+      <input ref={cameraInputRef} className="visually-hidden" type="file" accept="image/*" capture="environment" aria-label="撮影するレシート画像を選択" onChange={handleFileChange} />
+      <input ref={uploadInputRef} className="visually-hidden" type="file" accept="image/*" multiple aria-label="読み取るレシート画像を選択" onChange={handleFileChange} />
 
       <div className="capture-actions">
         <button className="button button-primary" type="button" onClick={() => cameraInputRef.current?.click()}>
@@ -686,9 +686,9 @@ export function ReceiptCaptureScreen({
 
       <section className="content-section">
         <div className="section-title-row">
-          <h2>OCR方式</h2>
+          <h2>読み取り方法</h2>
         </div>
-        <div className="provider-selector" role="group" aria-label="OCR方式">
+        <div className="provider-selector" role="group" aria-label="レシートの読み取り方法">
           <button
             className={ocrProvider === "googleVision" ? "button button-primary" : "button button-secondary"}
             type="button"
@@ -698,7 +698,7 @@ export function ReceiptCaptureScreen({
             }}
             disabled={!canUseGoogleVision}
           >
-            高精度OCR（推奨）
+            オンライン読み取り（推奨）
           </button>
           <button
             className={ocrProvider === "localTesseract" ? "button button-primary" : "button button-secondary"}
@@ -708,22 +708,22 @@ export function ReceiptCaptureScreen({
               applyProviderDefaultRange("localTesseract");
             }}
           >
-            ローカルOCR
+            端末内読み取り
           </button>
         </div>
         {ocrProvider === "googleVision" ? (
           <div className="privacy-note">
-            <p>高精度OCRでは、レシート画像をGoogle Cloud Visionへ送信して文字認識します。</p>
-            <p>画像はOCR処理にのみ使用し、caKb側ではサーバーに保存しません。</p>
-            <p>通信環境やAPI設定により失敗する場合があります。その場合はローカルOCRまたは手入力を利用してください。</p>
+            <p>オンライン読み取りでは、レシート画像をGoogleの文字読み取りサービスへ送信します。</p>
+            <p>画像は文字の読み取りにだけ使用し、caKbのサーバーには保存しません。</p>
+            <p>通信状況により失敗する場合があります。その場合は端末内読み取りまたは手入力を利用してください。</p>
           </div>
         ) : (
           <p className="subtle-text">
             {isGoogleVisionAvailable && !isGoogleVisionAuthenticated
-              ? "高精度OCRを使うにはGoogleログインが必要です。ローカルOCRは未ログインでも使えます。"
+              ? "オンライン読み取りにはGoogleログインが必要です。端末内読み取りはログインなしでも使えます。"
               : isGoogleVisionAvailable
-              ? "端末内でTesseract.jsを使ってOCRします。"
-              : "高精度OCRを使うには VITE_GOOGLE_VISION_PROXY_URL の設定が必要です。"}
+              ? "画像を外部へ送らず、この端末だけで文字を読み取ります。"
+              : "オンライン読み取りは現在利用できません。端末内読み取りを利用してください。"}
           </p>
         )}
       </section>
@@ -757,7 +757,7 @@ export function ReceiptCaptureScreen({
         <details className="ocr-crop-panel">
           <summary>範囲の補助設定</summary>
           <div className="section-title-row">
-            <h2>OCR範囲</h2>
+            <h2>読み取る範囲</h2>
             {!isGoogleVisionSelected && (
               <div className="preset-actions">
                 <button className={ocrMode === "auto" ? "button button-primary button-compact" : "button button-secondary button-compact"} type="button" onClick={applyAutoMode}>
@@ -794,7 +794,7 @@ export function ReceiptCaptureScreen({
           </div>
           <p className="subtle-text">
             {ocrProvider === "googleVision"
-              ? "高精度OCRでは写真全体を送信します。範囲調整はローカルOCR用の補助機能です。"
+              ? "オンライン読み取りでは写真全体を使用します。範囲調整は端末内読み取り用の補助機能です。"
               : selectedReceipt ? getCropDescription(selectedReceipt) : ""}
           </p>
           {!isGoogleVisionSelected && (
@@ -834,9 +834,9 @@ export function ReceiptCaptureScreen({
             <strong>{selectedFiles.length === 1 ? selectedFile.name : `${selectedFiles.length}枚選択`}</strong>
             <span>{formatFileSize(totalFileSize)}</span>
           </div>
-          <p>{selectedFiles.length === 1 ? "選択画像の容量を確認しています。" : "複数画像を順番にOCRします。"}</p>
+          <p>{selectedFiles.length === 1 ? "選択画像の容量を確認しています。" : "複数画像を順番に読み取ります。"}</p>
           {hasLargeSelectedFile && (
-            <p>画像が大きいため、OCRに時間がかかる可能性があります。</p>
+            <p>画像が大きいため、読み取りに時間がかかる可能性があります。</p>
           )}
         </div>
       )}
@@ -858,9 +858,9 @@ export function ReceiptCaptureScreen({
       )}
 
       {receiptSelections.length > 1 && batchItems.some((item) => item.status !== "waiting") && (
-        <section className="batch-status-panel" aria-label="一括OCRの処理状況">
+        <section className="batch-status-panel" aria-label="まとめて読み取る処理の状況">
           <div className="section-title-row">
-            <h2>一括OCR状況</h2>
+            <h2>まとめて読み取る状況</h2>
             <span>{completedBatchCount}/{batchItems.length}件成功</span>
           </div>
           <div className="batch-status-list">
@@ -879,9 +879,9 @@ export function ReceiptCaptureScreen({
                     {item.status === "completed"
                       ? "確認待ち"
                       : item.status === "failed"
-                        ? item.error ?? "OCRに失敗しました"
+                        ? item.error ?? "読み取れませんでした"
                         : item.status === "processing"
-                          ? "OCR中"
+                          ? "読み取り中"
                           : "待機中"}
                   </span>
                 </div>
@@ -909,7 +909,7 @@ export function ReceiptCaptureScreen({
           <p>{error}</p>
           {ocrProvider === "googleVision" && (
             <button className="button button-secondary button-compact" type="button" onClick={() => void handleRunOcr("localTesseract", failedBatchCount > 0)}>
-              ローカルOCRで再試行
+              端末内読み取りでやり直す
             </button>
           )}
         </div>
@@ -935,7 +935,7 @@ export function ReceiptCaptureScreen({
       {ocrText && (
         <section className="content-section">
           <div className="section-title-row">
-            <h2>OCR結果全文</h2>
+            <h2>読み取った文字</h2>
             <CopyTextButton text={ocrText} label="全文コピー" />
           </div>
           <pre className="ocr-text">{ocrText}</pre>
@@ -944,8 +944,8 @@ export function ReceiptCaptureScreen({
 
       {ocrImagePreviewUrl && (
         <details className="content-section ocr-debug-panel">
-          <summary>補正画像を確認</summary>
-          <img src={ocrImagePreviewUrl} alt="OCRに渡した補正後画像" />
+          <summary>読み取りに使用した画像を確認</summary>
+          <img src={ocrImagePreviewUrl} alt="読み取り用に見やすくした画像" />
         </details>
       )}
     </section>

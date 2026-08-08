@@ -60,16 +60,14 @@ function formatCloudMigrationError(unknownError: unknown): string {
   const code = typeof unknownError === "object" && unknownError && "code" in unknownError ? unknownError.code : null;
 
   if (code === "permission-denied") {
-    return "Firestoreへの書き込み権限がありません。ログイン状態とクラウド家計簿の権限を確認してください。";
+    return "この家計簿へ保存する権限がありません。ログイン状態と参加状況を確認してください。";
   }
 
   if (message.includes("Unsupported field value: undefined")) {
     return "クラウド移行用に変換できないデータが含まれています。画面を再読み込みしてからもう一度実行してください。";
   }
 
-  return typeof code === "string"
-    ? `ローカルデータのクラウド移行に失敗しました。エラーコード: ${code}`
-    : "ローカルデータのクラウド移行に失敗しました。";
+  return "この端末のデータをクラウドへコピーできませんでした。通信状態を確認して、もう一度お試しください。";
 }
 
 export function useCloudHousehold(user: AuthenticatedUser | null): CloudHouseholdState {
@@ -140,7 +138,7 @@ export function useCloudHousehold(user: AuthenticatedUser | null): CloudHousehol
       try {
         const services = await getServices();
         if (!services) {
-          setError("Firebase設定が未設定です。");
+          setError("クラウド機能は現在利用できません。");
           return;
         }
 
@@ -168,7 +166,7 @@ export function useCloudHousehold(user: AuthenticatedUser | null): CloudHousehol
     try {
       const services = await getServices();
       if (!services) {
-        setError("Firebase設定が未設定です。");
+        setError("クラウド機能は現在利用できません。");
         return;
       }
 
@@ -202,7 +200,7 @@ export function useCloudHousehold(user: AuthenticatedUser | null): CloudHousehol
     try {
       const services = await getServices();
       if (!services) {
-        setError("Firebase設定が未設定です。");
+        setError("クラウド機能は現在利用できません。");
         return;
       }
       setInvite(await createHouseholdInvite(services.firestore, household.household.id, user.uid));
@@ -225,7 +223,7 @@ export function useCloudHousehold(user: AuthenticatedUser | null): CloudHousehol
       try {
         const services = await getServices();
         if (!services) {
-          setError("Firebase設定が未設定です。");
+          setError("クラウド機能は現在利用できません。");
           return;
         }
         await joinHouseholdWithInvite(services.firestore, user, code);
@@ -258,7 +256,7 @@ export function useCloudHousehold(user: AuthenticatedUser | null): CloudHousehol
       try {
         const services = await getServices();
         if (!services) {
-          setError("Firebase設定が未設定です。");
+          setError("クラウド機能は現在利用できません。");
           return;
         }
         await removeHouseholdMember(services.firestore, household.household.id, uid);

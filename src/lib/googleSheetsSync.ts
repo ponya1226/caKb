@@ -76,7 +76,7 @@ function normalizeExportResponse(value: SheetExportResponse): GoogleSheetsExport
     || !Number.isInteger(value.exportedExpenses)
     || typeof value.lastSyncedAt !== "string"
   ) {
-    throw new Error("Google Sheets出力の応答形式が正しくありません");
+    throw new Error("スプレッドシートへの書き出し結果を確認できませんでした");
   }
 
   return {
@@ -98,7 +98,7 @@ export async function exportExpensesToGoogleSheets(
 
   const proxyUrl = normalizeUrl(options.proxyUrl ?? getConfiguredGoogleSheetsProxyUrl());
   if (!proxyUrl) {
-    throw new Error("Google Sheets出力Proxyが設定されていません");
+    throw new Error("スプレッドシートへの書き出しは現在利用できません");
   }
 
   const response = await (options.fetcher ?? fetch)(proxyUrl, {
@@ -116,15 +116,15 @@ export async function exportExpensesToGoogleSheets(
       throw new Error("ログイン期限が切れています。再ログインしてください");
     }
     if (response.status === 403 || errorBody?.code === "forbidden") {
-      throw new Error("Google Sheets出力はクラウド家計簿の管理者だけが実行できます");
+      throw new Error("スプレッドシートへの書き出しは家計簿の管理者だけが実行できます");
     }
     if (response.status === 429) {
-      throw new Error("Google Sheets出力を続けて実行しています。少し待ってから再試行してください");
+      throw new Error("続けて書き出しを実行しています。少し待ってからもう一度お試しください");
     }
     if (errorBody?.code === "spreadsheet_unavailable") {
-      throw new Error("スプレッドシートを開けません。URLとサービスアカウントへの編集権限を確認してください");
+      throw new Error("スプレッドシートを開けません。URLと、画面に表示された共有先メールアドレスの編集権限を確認してください");
     }
-    throw new Error("Google Sheetsへの出力に失敗しました。Sheets API設定と共有権限を確認してください");
+    throw new Error("スプレッドシートへ書き出せませんでした。共有設定を確認して、もう一度お試しください");
   }
 
   return normalizeExportResponse(await response.json() as SheetExportResponse);

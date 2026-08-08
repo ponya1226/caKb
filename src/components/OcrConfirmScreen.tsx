@@ -146,7 +146,7 @@ export function OcrConfirmScreen({
 
   async function handleRerunOcr() {
     setIsRunning(true);
-    setProgress({ status: "starting", progress: 0 });
+    setProgress({ status: "読み取りを準備中", progress: 0 });
     setError(null);
 
     try {
@@ -154,7 +154,7 @@ export function OcrConfirmScreen({
       const isGoogleVision = provider === "googleVision";
       const googleVisionAuthToken = isGoogleVision ? await getGoogleVisionIdToken() : null;
       if (isGoogleVision && !googleVisionAuthToken) {
-        throw new Error("Google Visionで再OCRするにはGoogleログインが必要です。");
+        throw new Error("オンラインで読み直すにはGoogleログインが必要です。");
       }
 
       const ocrResult = await runOcrWithRangeMode(draft.imageFile, {
@@ -205,7 +205,7 @@ export function OcrConfirmScreen({
       }
       onUpdateDraft(nextDraft);
     } catch (unknownError) {
-      setError(unknownError instanceof Error ? unknownError.message : "OCRに失敗しました");
+      setError(unknownError instanceof Error ? unknownError.message : "レシートを読み取れませんでした");
     } finally {
       setIsRunning(false);
     }
@@ -220,7 +220,7 @@ export function OcrConfirmScreen({
               ? `保存前確認 ${queuePosition.current}/${queuePosition.total}`
               : "保存前確認"}
           </p>
-          <h1>OCR確認</h1>
+          <h1>読み取り結果の確認</h1>
         </div>
         <button className="icon-button" type="button" onClick={onBack} aria-label="戻る">
           <ArrowLeft size={22} aria-hidden="true" />
@@ -241,7 +241,7 @@ export function OcrConfirmScreen({
       </div>
 
       <div className="save-mode">
-        <span>読み取り方式: {getOcrProviderLabel(draft.ocrProvider)}</span>
+        <span>読み取り方法: {getOcrProviderLabel(draft.ocrProvider)}</span>
       </div>
 
       {suggestedCategory && (
@@ -253,7 +253,7 @@ export function OcrConfirmScreen({
       <details className="ocr-crop-panel">
         <summary>範囲の補助設定</summary>
         <div className="section-title-row">
-          <h2>このレシートを再OCR</h2>
+          <h2>このレシートを読み直す</h2>
           {!isDraftGoogleVision && (
             <div className="preset-actions">
               <button className={ocrMode === "auto" ? "button button-primary button-compact" : "button button-secondary button-compact"} type="button" onClick={applyAutoMode}>
@@ -284,9 +284,9 @@ export function OcrConfirmScreen({
         </div>
         <p className="subtle-text">
           {isDraftGoogleVision
-            ? "Google Visionでは写真全体を送信して再OCRします。範囲調整はローカルOCR用の補助機能です。"
+            ? "オンライン読み取りでは写真全体を送信して読み直します。範囲調整は端末内読み取り用の補助機能です。"
             : ocrMode === "auto"
-            ? "確認中の1枚だけ複数の範囲で再OCRします。"
+            ? "確認中の1枚だけ、複数の範囲で読み直します。"
             : `使用範囲: ${selectedPresetLabel ?? "手動補正"}`}
         </p>
         {!isDraftGoogleVision && (
@@ -321,7 +321,7 @@ export function OcrConfirmScreen({
 
       <button className="button button-primary full-width" type="button" onClick={handleRerunOcr} disabled={isRunning}>
         <Play size={18} aria-hidden="true" />
-        {isRunning ? "再OCR中" : isDraftGoogleVision ? "写真全体で再OCR" : "この範囲で再OCR"}
+        {isRunning ? "読み直し中" : isDraftGoogleVision ? "写真全体を読み直す" : "この範囲を読み直す"}
       </button>
         {progress && (
           <div className="progress-box">
@@ -363,7 +363,7 @@ export function OcrConfirmScreen({
 
       <section className="content-section">
         <div className="section-title-row">
-          <h2>OCR結果全文</h2>
+          <h2>読み取った文字</h2>
           <CopyTextButton text={draft.ocrText} label="全文コピー" />
         </div>
         <pre className="ocr-text">{draft.ocrText}</pre>
@@ -371,8 +371,8 @@ export function OcrConfirmScreen({
 
       {draft.ocrImagePreviewUrl && (
         <details className="content-section ocr-debug-panel">
-          <summary>補正画像を確認</summary>
-          <img src={draft.ocrImagePreviewUrl} alt="OCRに渡した補正後画像" />
+          <summary>読み取りに使用した画像を確認</summary>
+          <img src={draft.ocrImagePreviewUrl} alt="読み取り用に見やすくした画像" />
         </details>
       )}
     </section>

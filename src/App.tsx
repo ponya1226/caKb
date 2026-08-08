@@ -250,7 +250,7 @@ export default function App() {
           {isCloudStorage ? <Cloud size={20} aria-hidden="true" /> : <ReceiptText size={20} aria-hidden="true" />}
         </div>
         <div className="brand-copy">
-          <span className="app-name">{isCloudStorage ? "クラウド家計簿" : "ローカル家計簿"}</span>
+          <span className="app-name">{isCloudStorage ? "家族の家計簿" : "この端末の家計簿"}</span>
           <span className="app-subtitle">
             {isCloudStorage
               ? `${activeHouseholdName ?? "共有家計簿"} / ${
@@ -267,8 +267,8 @@ export default function App() {
                 : "未ログイン / この端末に保存"}
           </span>
         </div>
-        <span className="storage-mode-badge" aria-label={`現在の保存先: ${isCloudStorage ? "クラウド" : "ローカル"}`}>
-          {isCloudStorage ? "クラウド" : "ローカル"}
+        <span className="storage-mode-badge" aria-label={`現在の保存先: ${isCloudStorage ? "クラウド" : "この端末"}`}>
+          {isCloudStorage ? "クラウド" : "この端末"}
         </span>
       </header>
 

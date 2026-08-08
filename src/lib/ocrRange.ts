@@ -191,7 +191,7 @@ export async function runOcrWithRangeMode(
   }
 
   if (!bestResult) {
-    throw new Error("OCR候補を作成できませんでした");
+    throw new Error("読み取り結果を作成できませんでした");
   }
 
   return bestResult;

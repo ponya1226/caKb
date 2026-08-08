@@ -54,7 +54,7 @@ export function useGoogleSheetsSync(
       })
       .catch(() => {
         if (isActive) {
-          setError("Google Sheets出力設定を読み込めませんでした");
+          setError("スプレッドシートの設定を読み込めませんでした");
         }
       })
       .finally(() => {
@@ -70,7 +70,7 @@ export function useGoogleSheetsSync(
 
   const exportExpenses = useCallback(async (spreadsheetInput: string) => {
     if (!householdId || !isOwner) {
-      setError("Google Sheets出力はクラウド家計簿の管理者だけが実行できます");
+      setError("スプレッドシートへの書き出しは家計簿の管理者だけが実行できます");
       return null;
     }
 
@@ -79,7 +79,7 @@ export function useGoogleSheetsSync(
     try {
       const authToken = await getIdToken();
       if (!authToken) {
-        setError("Google Sheets出力にはGoogleログインが必要です");
+        setError("スプレッドシートへの書き出しにはGoogleログインが必要です");
         return null;
       }
 
@@ -94,7 +94,7 @@ export function useGoogleSheetsSync(
       });
       return result;
     } catch (unknownError) {
-      setError(unknownError instanceof Error ? unknownError.message : "Google Sheetsへの出力に失敗しました");
+      setError(unknownError instanceof Error ? unknownError.message : "スプレッドシートへ書き出せませんでした");
       return null;
     } finally {
       setIsWorking(false);

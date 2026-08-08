@@ -35,10 +35,10 @@ export type RunOcrProviderOptions = {
 
 export function getOcrProviderLabel(provider: OcrProvider | undefined): string {
   if (provider === "googleVision") {
-    return "Google Vision";
+    return "オンライン読み取り";
   }
 
-  return "ローカルOCR";
+  return "端末内読み取り";
 }
 
 export function isGoogleVisionProviderConfigured(proxyUrl?: string | null): boolean {
@@ -47,14 +47,14 @@ export function isGoogleVisionProviderConfigured(proxyUrl?: string | null): bool
 
 export async function runOcrProvider(image: File | Blob, options: RunOcrProviderOptions): Promise<OcrProviderRunResult> {
   if (options.provider === "googleVision") {
-    options.onProgress?.({ status: "Google Vision OCRへ送信中", progress: 0.15 });
+    options.onProgress?.({ status: "オンラインで読み取り中", progress: 0.15 });
     const googleRunner = options.googleVisionRunner ?? runGoogleVisionOcr;
     const result = await googleRunner(image, {
       proxyUrl: options.googleVisionProxyUrl,
       authToken: options.googleVisionAuthToken,
       fetcher: options.fetcher,
     });
-    options.onProgress?.({ status: "Google Vision OCR完了", progress: 1 });
+    options.onProgress?.({ status: "読み取り完了", progress: 1 });
     return result;
   }
 

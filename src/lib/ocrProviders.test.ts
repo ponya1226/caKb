@@ -45,7 +45,7 @@ describe("ocrProviders", () => {
 
   it("rejects googleVision OCR when proxy URL is not configured", async () => {
     await expect(runGoogleVisionOcr(createImageBlob(), { proxyUrl: "" })).rejects.toThrow(
-      "Google Vision OCR Proxy URLが設定されていません",
+      "オンライン読み取りは現在利用できません",
     );
   });
 
@@ -55,7 +55,7 @@ describe("ocrProviders", () => {
         proxyUrl: "https://example.test/ocr",
         fetcher: async () => new Response("internal", { status: 500 }),
       }),
-    ).rejects.toThrow("Google Vision OCRに失敗しました");
+    ).rejects.toThrow("オンラインでレシートを読み取れませんでした");
   });
 
   it("explains when the monthly googleVision limit is reached", async () => {
@@ -64,7 +64,7 @@ describe("ocrProviders", () => {
         proxyUrl: "https://example.test/ocr",
         fetcher: async () => Response.json({ code: "monthly_limit" }, { status: 429 }),
       }),
-    ).rejects.toThrow("今月の高精度OCR利用上限に達しました");
+    ).rejects.toThrow("今月のオンライン読み取り回数が上限に達しました");
   });
 
   it("asks the user to wait after a short-term googleVision rate limit", async () => {
@@ -73,7 +73,7 @@ describe("ocrProviders", () => {
         proxyUrl: "https://example.test/ocr",
         fetcher: async () => Response.json({ code: "rate_limit" }, { status: 429 }),
       }),
-    ).rejects.toThrow("少し待ってから再試行");
+    ).rejects.toThrow("少し待ってからやり直す");
   });
 
   it("sends a Firebase ID token to the googleVision proxy", async () => {

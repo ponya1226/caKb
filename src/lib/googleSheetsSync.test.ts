@@ -48,6 +48,6 @@ describe("Google Sheets sync client", () => {
       proxyUrl: "https://proxy.example/api/sheets/export",
       authToken: "id-token",
       fetcher: async () => Response.json({ code: "spreadsheet_unavailable" }, { status: 502 }),
-    })).rejects.toThrow("サービスアカウントへの編集権限");
+    })).rejects.toThrow("共有先メールアドレスの編集権限");
   });
 });

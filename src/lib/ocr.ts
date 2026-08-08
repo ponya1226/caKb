@@ -65,6 +65,22 @@ function hasCrop(crop?: OcrCropRatios): crop is OcrCropRatios {
   return Boolean(crop && (crop.top > 0 || crop.right > 0 || crop.bottom > 0 || crop.left > 0));
 }
 
+function formatTesseractStatus(status: string | undefined): string {
+  if (!status) {
+    return "文字を読み取り中";
+  }
+  if (status.includes("loading")) {
+    return "読み取り機能を準備中";
+  }
+  if (status.includes("initializing")) {
+    return "文字の読み取りを準備中";
+  }
+  if (status.includes("recognizing")) {
+    return "文字を読み取り中";
+  }
+  return "文字を読み取り中";
+}
+
 function clampRatioPercent(value: number): number {
   return Math.max(0, Math.min(100, value)) / 100;
 }
@@ -783,14 +799,14 @@ export async function runOcrDetailed(
   options: RunOcrOptions = {},
 ): Promise<RunOcrResult> {
   onProgress?.({
-    status: hasCrop(options.crop) ? "OCR範囲を準備中" : "starting",
+    status: hasCrop(options.crop) ? "読み取る範囲を準備中" : "読み取りを準備中",
     progress: 0,
   });
 
   const croppedImage = await cropImageForOcr(image, options.crop);
   const preprocessMode = options.preprocessMode ?? "contrast";
   onProgress?.({
-    status: options.preprocess ? "OCR画像を補正中" : "OCR画像を準備中",
+    status: options.preprocess ? "画像を見やすく調整中" : "画像を準備中",
     progress: 0,
   });
   const imageForOcr = options.preprocess ? await preprocessImageForOcr(croppedImage, preprocessMode) : await addWhitePadding(croppedImage);
@@ -801,7 +817,7 @@ export async function runOcrDetailed(
     worker = await createWorker("jpn+eng", OEM.LSTM_ONLY, {
       logger: (message: TesseractLog) => {
         onProgress?.({
-          status: message.status ?? "processing",
+          status: formatTesseractStatus(message.status),
           progress: message.progress ?? 0,
         });
       },
