@@ -27,7 +27,8 @@ GitHub Actionsはcommit SHAで固定します。Dependabotでnpm、GitHub Action
 - credential、token、実レシート、OCR全文、家計簿データをissue、Pull Request、CI logへ載せない。
 - 脆弱性は `SECURITY.md` に従って非公開報告する。
 - secret scanning、push protection、Dependabot security updatesを有効にする。
-- production deploy用の長期service account keyは暫定運用とし、Workload Identity Federationと用途別service accountへ移行する。
+- production deployはGitHub OIDCとWorkload Identity Federationで短時間認証し、FirebaseとCloud Runでdeploy用service accountを分離する。
+- WIF provider conditionでrepository ID、owner ID、`main` branchを固定し、service accountのIAM bindingを `workflow_ref` で限定する。
 - Proxyの間接依存に残るmoderate advisoryは、上流の安全な更新を監視する。破壊的な旧版への強制変更は行わない。
 
 ## リリース確認
@@ -50,9 +51,7 @@ merge後は次を確認します。
 
 ## 次の改善
 
-1. GitHub Actionsのservice account JSONをWorkload Identity Federationへ置き換える。
-2. Hosting、Rules、Cloud Runで用途別の最小権限service accountを使用する。
-3. staging環境とproduction承認ゲートを追加する。
-4. Playwrightでログイン前、ローカル登録、主要画面のbrowser smoke testを追加する。
-5. TypeScript型検査とは別にESLint、formatter、coverage基準を導入する。
-6. 主要画面と巨大モジュールを責務単位に分割する。
+1. staging環境とproduction承認ゲートを追加する。
+2. Playwrightでログイン前、ローカル登録、主要画面のbrowser smoke testを追加する。
+3. TypeScript型検査とは別にESLint、formatter、coverage基準を導入する。
+4. 主要画面と巨大モジュールを責務単位に分割する。

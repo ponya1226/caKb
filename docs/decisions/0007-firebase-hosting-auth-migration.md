@@ -52,3 +52,4 @@ caKbは今後、家族共有、Firestore正本化、Google Sheets同期へ進む
 - 2026-07-27にGitHub Pages workflowを削除し、Firebase Hostingを唯一の公開先とした。
 - Google Vision ProxyのCORS許可originからGitHub Pagesを削除した。
 - Firebase HostingとCloud Runのworkflowにデプロイ後smoke testを追加した。
+- GitHub Actionsのdeploy credential管理は、2026-08-09のADR 0010でservice account JSONからWorkload Identity Federationへ更新した。
