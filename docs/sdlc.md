@@ -20,7 +20,7 @@ caKbは、短期ブランチ、Pull Request、必須CI、`main` へのmerge、�
 - `Proxy CI`: Proxyのユニットテスト、TypeScript build、production依存監査
 - `Dependency Review`: Pull Requestで追加される重大度high以上の既知脆弱性を拒否
 
-GitHub Actionsはcommit SHAで固定します。Dependabotでnpm、GitHub Actions、Docker base imageの更新Pull Requestを週次作成します。
+GitHub Actionsはcommit SHAで固定します。Dependabotでnpm、GitHub Actions、Docker base imageの更新Pull Requestを週次作成します。npmとDockerの自動Pull Requestはminor/patchに限定し、major updateは影響範囲を確認する個別タスクとして扱います。
 
 ## セキュリティ
 
