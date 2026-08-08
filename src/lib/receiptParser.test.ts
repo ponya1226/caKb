@@ -120,6 +120,31 @@ describe("parseReceiptText", () => {
     );
   });
 
+  it("excludes electronic money balance after payment from total candidates", () => {
+    const result = parseReceiptText(`
+      SAMPLE CONVENIENCE
+      サンプル駅店
+      2026年 8月 8日 (土) 16:25
+      【領収証】
+      合
+      やわらかロングタオル
+      348
+      計
+      ¥348
+      (10%対象 ¥348)
+      交通系マネー
+      ¥348
+      交通系マネー残高は以下の通りです。
+      支払後残高
+      ¥1,494
+      カードNo SAMPLE-0000
+    `);
+
+    expect(result.amountCandidates[0]?.value).toBe(348);
+    expect(result.amountCandidates.map((candidate) => candidate.value)).not.toContain(1494);
+    expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toContain(1494);
+  });
+
   it("extracts line item candidates from convenience store style rows", () => {
     const result = parseReceiptText(`
       SAMPLE CONVENIENCE

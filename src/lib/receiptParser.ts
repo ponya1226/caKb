@@ -5,14 +5,15 @@ const FINAL_AMOUNT_KEYWORD_PATTERN =
 const SUPPORTING_AMOUNT_KEYWORD_PATTERN = /(税\s*込|小\s*計|消\s*費\s*税)/;
 const CASH_TENDERED_KEYWORD_PATTERN = /(現\s*金|お\s*預|預\s*り)/;
 const CHANGE_AMOUNT_KEYWORD_PATTERN = /(お\s*釣|おつり|釣\s*り|釣銭)/;
+const BALANCE_AMOUNT_KEYWORD_PATTERN = /(残\s*高|利用\s*可能\s*額)/;
 const SHOP_EXCLUDE_PATTERN = /(領収|レシート|明細|登録番号|TEL|電話|合計|税込|小計|現計|釣|お預|クレジット|ポイント)/i;
 const MONEY_AMOUNT_PATTERN = /¥\s*[%A-Za-z]*\s*[\dOo〇○Cc¢][\dOo〇○Cc¢,\s.．()[\]（）]{0,14}(?:円)?/g;
 const PLAIN_AMOUNT_PATTERN = /[\d][\d,\s]{1,12}(?:円)?/g;
 const LINE_ITEM_EXCLUDE_PATTERN =
-  /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|領収|明細|登録番号|TEL|電話|レジ|伝票|No\.?|WAON|POINT|ポイント|クーポン|http|https|お買上|マーク|軽減税率|株式会社|収いたしました|満足宣言)/i;
+  /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|残\s*高|利用\s*可能\s*額|領収|明細|登録番号|TEL|電話|レジ|伝票|No\.?|WAON|POINT|ポイント|クーポン|http|https|お買上|マーク|軽減税率|株式会社|収いたしました|満足宣言)/i;
 const LINE_ITEM_NAME_EXCLUDE_PATTERN = /^[\s\-_=*※¥\d,.()（）[\]【】「」'"#]+$/;
 const AMOUNT_SECTION_LABEL_PATTERN =
-  /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|お\s*買\s*上\s*計)/i;
+  /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|残\s*高|利用\s*可能\s*額|お\s*買\s*上\s*計)/i;
 const LINE_ITEM_DISCOUNT_PATTERN = /(割\s*引|値\s*引)/i;
 const LINE_ITEM_TAX_SUMMARY_PATTERN = /\d+\s*%\s*税(?:\s|$)|\d+\s*%\s*(?:内|外)?税\s*対象|税込金額|税抜対象額/i;
 const QUANTITY_AMOUNT_CONTEXT_PATTERN = /(g|ｇ|kg|㎏|ml|mL|ＭＬ|枚|個|本|点|袋|パック|連|P|ｐ)$/i;
@@ -287,7 +288,8 @@ function getAmountContextLine(lines: string[], index: number): string {
     FINAL_AMOUNT_KEYWORD_PATTERN.test(previousLine) ||
     SUPPORTING_AMOUNT_KEYWORD_PATTERN.test(previousLine) ||
     CASH_TENDERED_KEYWORD_PATTERN.test(previousLine) ||
-    CHANGE_AMOUNT_KEYWORD_PATTERN.test(previousLine)
+    CHANGE_AMOUNT_KEYWORD_PATTERN.test(previousLine) ||
+    BALANCE_AMOUNT_KEYWORD_PATTERN.test(previousLine)
   ) {
     return `${previousLine} ${line}`;
   }
@@ -306,6 +308,10 @@ function extractAmountCandidates(lines: string[]): Array<ReceiptCandidate<number
     }
 
     const contextLine = getAmountContextLine(lines, index);
+    if (BALANCE_AMOUNT_KEYWORD_PATTERN.test(contextLine)) {
+      return;
+    }
+
     const hasKeyword =
       FINAL_AMOUNT_KEYWORD_PATTERN.test(contextLine) ||
       SUPPORTING_AMOUNT_KEYWORD_PATTERN.test(contextLine) ||
