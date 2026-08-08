@@ -56,12 +56,26 @@ gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
 
 すでに同名のサービスアカウントがある場合は、作成コマンドはスキップして構いません。
 
+source buildはruntime identityと分離した専用service accountを使用します。
+
+```bash
+gcloud iam service-accounts create cakb-cloud-run-builder \
+  --display-name="caKb Cloud Run Builder"
+```
+
+```bash
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member="serviceAccount:cakb-cloud-run-builder@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/run.builder"
+```
+
 ## 5. Cloud Runへデプロイする
 
 ```bash
 gcloud run deploy cakb-google-vision-proxy \
   --source . \
   --allow-unauthenticated \
+  --build-service-account="projects/YOUR_PROJECT_ID/serviceAccounts/cakb-cloud-run-builder@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
   --service-account="cakb-vision-proxy@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
   --set-env-vars="^~^CORS_ORIGINS=https://cakb-dev.web.app,https://cakb-dev.firebaseapp.com~REQUIRE_FIREBASE_AUTH=true~REQUIRE_HOUSEHOLD_MEMBERSHIP=true~FIREBASE_PROJECT_ID=YOUR_PROJECT_ID~MAX_IMAGE_BYTES=5242880~OCR_RATE_LIMIT_MAX_REQUESTS=10~OCR_RATE_LIMIT_WINDOW_SECONDS=60~OCR_MONTHLY_LIMIT=900"
 ```
