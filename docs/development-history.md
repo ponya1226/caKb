@@ -1,5 +1,23 @@
 # Development History
 
+## 2026-08-09 Dependabot Initial Run Adjustment
+
+目的: Dependabot初回実行で未計画のmajor updateを含む多数のPull Requestが同時作成されたため、継続運用できる更新量へ調整する。
+
+主な変更:
+
+- root、Google Vision Proxy、Dockerの自動更新をminor/patchへ限定
+- major updateは互換性と実機影響を確認する個別タスクとして扱う方針をSDLCへ追記
+
+検証結果:
+
+- Dependabot設定差分と `git diff --check` を確認
+- Pull Request CIで設定読み込みと既存検証を確認する
+
+残課題:
+
+- Recharts 3、React 19、Tesseract 7などのmajor updateは個別に評価する
+
 ## 2026-08-09 SDLC Hardening Phase 1
 
 目的: `main` への直接変更とデプロイ前検証への依存を減らし、Pull Request単位で品質、依存関係、セキュリティを確認できる開発フローへ移行する。
