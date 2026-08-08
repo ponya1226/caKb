@@ -6,6 +6,47 @@ function lineItems(text: string): Array<[string, number]> {
 }
 
 describe("receiptParser anonymized receipt regressions", () => {
+  it("extracts one convenience-store product and excludes header, payment, and card details", () => {
+    const result = parseReceiptText(`
+      SAMPLE CONVENIENCE
+      サンプル駅店
+      登録番号 T0000000000000
+      架空都架空区架空町 1 13
+      電話: 000-0000-0000 店コード 000000
+      2026年 8月 8日 (土) 16:25
+      レジ #000000
+      担当: サンプル
+      348
+      【領収証】
+      やわらかロングタオルブルー
+      合
+      計
+      (内消費税等
+      ¥348
+      \\31)
+      (10%対象
+      \\348)
+      (内消費税額
+      \\31)
+      点
+      数
+      1個
+      上記正に領収いたしました
+      交通系マネー
+      ¥348
+      交通系マネー残高は以下の通りです。
+      支払後残高
+      ¥1,494
+      カードNo
+      SAMPLE-****-****-2760
+    `);
+
+    expect(result.amountCandidates[0]?.value).toBe(348);
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["やわらかロングタオルブルー", 348],
+    ]);
+  });
+
   it("extracts Japanese convenience-store products and excludes payment and coupon sections", () => {
     const result = parseReceiptText(`
       SAMPLE CONVENIENCE

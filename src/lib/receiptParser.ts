@@ -11,9 +11,13 @@ const MONEY_AMOUNT_PATTERN = /¥\s*[%A-Za-z]*\s*[\dOo〇○Cc¢][\dOo〇○Cc¢,
 const PLAIN_AMOUNT_PATTERN = /[\d][\d,\s]{1,12}(?:円)?/g;
 const LINE_ITEM_EXCLUDE_PATTERN =
   /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|残\s*高|利用\s*可能\s*額|領収|明細|登録番号|TEL|電話|レジ|伝票|No\.?|WAON|POINT|ポイント|クーポン|http|https|お買上|マーク|軽減税率|株式会社|収いたしました|満足宣言)/i;
+const LINE_ITEM_PAYMENT_PATTERN =
+  /(交通\s*系\s*マネー|電子\s*マネー|電子\s*決済|クレジット|カード|QUIC\s*Pay|Suica|PASMO)/i;
+const LINE_ITEM_STAFF_PATTERN = /(?:担当|責|貴|係員|スタッフ)\s*[:：]/i;
+const RECEIPT_MARKER_PATTERN = /(領\s*収\s*[証書]|レシート)/i;
 const LINE_ITEM_NAME_EXCLUDE_PATTERN = /^[\s\-_=*※¥\d,.()（）[\]【】「」'"#]+$/;
 const AMOUNT_SECTION_LABEL_PATTERN =
-  /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|残\s*高|利用\s*可能\s*額|お\s*買\s*上\s*計)/i;
+  /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|残\s*高|利用\s*可能\s*額|お\s*買\s*上\s*計|交通\s*系\s*マネー|電子\s*マネー|クレジット|カード)/i;
 const LINE_ITEM_DISCOUNT_PATTERN = /(割\s*引|値\s*引)/i;
 const LINE_ITEM_TAX_SUMMARY_PATTERN = /\d+\s*%\s*税(?:\s|$)|\d+\s*%\s*(?:内|外)?税\s*対象|税込金額|税抜対象額/i;
 const QUANTITY_AMOUNT_CONTEXT_PATTERN = /(g|ｇ|kg|㎏|ml|mL|ＭＬ|枚|個|本|点|袋|パック|連|P|ｐ)$/i;
@@ -367,7 +371,19 @@ function cleanLineItemName(line: string, match: AmountMatch): string {
 
 function isReceiptCodeLikeLine(line: string): boolean {
   const compactLine = normalizeText(line).replace(/\s/g, "");
-  return /\d{12,}/.test(compactLine) || /\d{2,4}-\d{2,4}-\d{2,4}/.test(compactLine);
+  return (
+    /\d{12,}/.test(compactLine) ||
+    /\d{2,4}-\d{2,4}-\d{2,4}/.test(compactLine) ||
+    /(?:[*＊Xx]{2,}[-ー]?){1,}\d{3,4}$/.test(compactLine)
+  );
+}
+
+function isAddressLikeLineItemLine(line: string): boolean {
+  const normalizedLine = normalizeText(line);
+  return (
+    /(都|道|府|県).*(市|区|郡|町|村)/.test(normalizedLine) ||
+    /(?:市|区|郡|町|村|丁目|番地).*(?:\d+\s*[-ー－]\s*\d+|\d+\s+\d+)/.test(normalizedLine)
+  );
 }
 
 function shouldSkipLineItemLine(line: string): boolean {
@@ -381,6 +397,14 @@ function shouldSkipLineItemLine(line: string): boolean {
   }
 
   if (LINE_ITEM_EXCLUDE_PATTERN.test(normalizedLine)) {
+    return true;
+  }
+
+  if (
+    LINE_ITEM_PAYMENT_PATTERN.test(normalizedLine) ||
+    LINE_ITEM_STAFF_PATTERN.test(normalizedLine) ||
+    isAddressLikeLineItemLine(normalizedLine)
+  ) {
     return true;
   }
 
@@ -539,6 +563,79 @@ function reconcileUnmatchedLineItem(
   ];
 }
 
+function findReceiptItemCount(lines: string[]): number | null {
+  const compactText = normalizeText(lines.join(" ")).replace(/\s/g, "");
+  const countMatch = compactText.match(/(?:点+数|お買上商品数|商品数)[:：]?(\d+)(?:個|点)?|(?:(\d+)点買)/);
+  const count = Number(countMatch?.[1] ?? countMatch?.[2]);
+  return Number.isInteger(count) && count > 0 ? count : null;
+}
+
+function findSingleReceiptProductName(lines: string[]): { name: string; line: string } | null {
+  const receiptMarkerIndex = lines.findIndex((line) => RECEIPT_MARKER_PATTERN.test(normalizeText(line)));
+  if (receiptMarkerIndex < 0) {
+    return null;
+  }
+
+  let summaryIndex = -1;
+  for (let index = receiptMarkerIndex + 1; index < lines.length; index += 1) {
+    const line = normalizeText(lines[index]).trim();
+    const nextLine = normalizeText(lines[index + 1] ?? "").trim();
+    if ((/^合$/.test(line) && /^計$/.test(nextLine)) || AMOUNT_SECTION_LABEL_PATTERN.test(line)) {
+      summaryIndex = index;
+      break;
+    }
+  }
+
+  if (summaryIndex <= receiptMarkerIndex + 1) {
+    return null;
+  }
+
+  const productLines = lines
+    .slice(receiptMarkerIndex + 1, summaryIndex)
+    .filter((line) => !shouldSkipLineItemLine(line))
+    .filter((line) => extractLineItemAmountMatchesFromLine(line).length === 0)
+    .filter(isPotentialSplitLineItemNameLine)
+    .map((line) => normalizeLineItemName(line));
+
+  if (productLines.length === 0 || productLines.length > 2) {
+    return null;
+  }
+
+  const name = normalizeLineItemName(productLines.join(" "));
+  if (!isUsableLineItemName(name)) {
+    return null;
+  }
+
+  return {
+    name,
+    line: productLines.join(" / "),
+  };
+}
+
+function inferSingleReceiptLineItem(
+  candidates: ReceiptLineItemCandidate[],
+  lines: string[],
+): ReceiptLineItemCandidate[] {
+  if (candidates.length > 0 || findReceiptItemCount(lines) !== 1) {
+    return candidates;
+  }
+
+  const product = findSingleReceiptProductName(lines);
+  const totalAmount = extractAmountCandidates(lines)[0]?.value;
+  if (!product || !totalAmount) {
+    return candidates;
+  }
+
+  return [
+    {
+      name: product.name,
+      amount: totalAmount,
+      line: `${product.line} / 1点・合計から補完`,
+      confidence: 0.58,
+    },
+  ];
+}
+
 function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] {
   const candidates: ReceiptLineItemCandidate[] = [];
   const pendingNames: PendingLineItemName[] = [];
@@ -673,7 +770,8 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
     });
   });
 
-  return uniqueLineItemCandidates(reconcileUnmatchedLineItem(candidates, unmatchedNames, lines)).slice(
+  const reconciledCandidates = reconcileUnmatchedLineItem(candidates, unmatchedNames, lines);
+  return uniqueLineItemCandidates(inferSingleReceiptLineItem(reconciledCandidates, lines)).slice(
     0,
     MAX_LINE_ITEM_CANDIDATES,
   );
