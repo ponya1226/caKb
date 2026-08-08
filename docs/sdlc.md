@@ -29,6 +29,7 @@ GitHub Actionsはcommit SHAで固定します。Dependabotでnpm、GitHub Action
 - secret scanning、push protection、Dependabot security updatesを有効にする。
 - production deployはGitHub OIDCとWorkload Identity Federationで短時間認証し、FirebaseとCloud Runでdeploy用service accountを分離する。
 - WIF provider conditionでrepository ID、owner ID、`main` branchを固定し、service accountのIAM bindingを `workflow_ref` で限定する。
+- Cloud Run source buildは専用service accountを明示し、deploy、build、runtimeのidentityを分離する。
 - Proxyの間接依存に残るmoderate advisoryは、上流の安全な更新を監視する。破壊的な旧版への強制変更は行わない。
 
 ## リリース確認
