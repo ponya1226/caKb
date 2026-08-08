@@ -1,5 +1,35 @@
 # Development History
 
+## 2026-08-09 SDLC Hardening Phase 1
+
+目的: `main` への直接変更とデプロイ前検証への依存を減らし、Pull Request単位で品質、依存関係、セキュリティを確認できる開発フローへ移行する。
+
+主な変更:
+
+- Frontend、Firestore Rules、Google Vision Proxy、Dependency ReviewのPull Request CIを追加
+- Dependabotのnpm、GitHub Actions、Docker週次更新を追加
+- GitHub Actionsをcommit SHAで固定し、開発、CI、Cloud RunをNode.js 24へ統一
+- Pull Request template、`SECURITY.md`、`docs/sdlc.md`、改行・エディタ設定を追加
+- rootとProxyの互換範囲内で依存関係を更新
+
+検証結果:
+
+- rootの `npm audit`: 既知脆弱性0件
+- Proxyの `npm audit`: high/critical 0件、上流依存によるmoderate 6件
+- `npm run lint`: 成功
+- フロントエンドテスト: 23ファイル、107件成功
+- フロントエンドproduction build: 成功。既存の大きいchunk警告を技術的負債へ記録
+- Proxyテスト: 6ファイル、27件成功
+- Proxy TypeScript build: 成功
+- ローカルのFirestore RulesテストはJava未導入のため未実行。Java 21を設定したPull Request CIで確認する
+- Pull Request CIとデプロイ結果はPull Request作成後に確認する
+
+残課題:
+
+- GitHub Actions認証を長期service account JSONからWorkload Identity Federationへ移行
+- staging環境、production承認ゲート、browser E2E、coverage基準の追加
+- LICENSEの選定はリポジトリ所有者の判断が必要
+
 ## 2026-08-08 Vision Word Position Line Items
 
 目的: 複数品目レシートでGoogle VisionのOCR全文の読み取り順が入れ替わっても、印字位置に基づいて品目名と金額を対応付ける。

@@ -20,7 +20,7 @@
 
 ## セットアップ
 
-Node.js 20以上を前提にしています。
+Node.js 24とnpm 11を前提にしています。ルートの `.node-version` と同じバージョンを使用してください。
 
 ```powershell
 npm install
@@ -50,7 +50,9 @@ npm run build
 
 - `AGENTS.md`: 開発ルールと完了条件
 - `CONTRIBUTING.md`: 作業手順と検証
+- `SECURITY.md`: 脆弱性の非公開報告方法
 - `docs/architecture.md`: 構成と依存方向
+- `docs/sdlc.md`: ブランチ、CI、リリース、ロールバック手順
 - `docs/development-roadmap.md`: 今後の開発方針
 - `docs/project-status.md`: 実装状況
 - `docs/development-history.md`: 作業履歴

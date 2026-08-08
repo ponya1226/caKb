@@ -1,8 +1,14 @@
 # Project Status
 
-Last Updated: 2026-08-08
+Last Updated: 2026-08-09
 
 ## Implemented
+
+- Pull Request向けFrontend、Firestore Rules、Google Vision Proxy、Dependency Review CI
+- Dependabotによるnpm、GitHub Actions、Docker base imageの週次更新
+- GitHub Actionsのcommit SHA固定とNode.js 24への実行環境統一
+- 脆弱性の非公開報告手順、SDLC、ロールバック方針の文書化
+- ルート依存関係の既知脆弱性解消と、Proxy依存関係のhigh以上の既知脆弱性解消
 
 - Google Visionの単語座標を使い、同じ印字行の商品名と右側金額を位置順に再構成して品目候補を抽出
 - 単語座標がない旧Proxy・端末内読み取りでは、従来のOCR全文解析へ自動フォールバック
@@ -162,6 +168,10 @@ Last Updated: 2026-08-08
 
 ## Technical Debt
 
+- GitHub Actionsのproduction deployは長期service account JSONを共有している。Workload Identity FederationとHosting、Rules、Cloud Runの用途別service accountへの移行が必要。
+- staging環境、production承認ゲート、browser E2E、coverage基準は未導入。
+- Recharts 2系は保守終了警告が出ている。3系への移行影響を確認してmajor updateする必要がある。
+- production buildのメインchunkは約988KB。Firebase importの静的・動的混在と共通chunk構成を見直す必要がある。
 - Google Visionの単語座標による行再構成は実装済み。強い傾き、湾曲、複数列レイアウトでは追加調整が必要になる可能性がある。
 - 品目明細は支出の付加情報として保存しており、品目別カテゴリ集計、品目別自動カテゴライズ、数量/単価、商品マスタ、Google Sheets品目別出力は未対応
 - OCR品目候補は最大50件。50品目を超える非常に長いレシートは確認画面で追加入力が必要
@@ -203,6 +213,10 @@ Last Updated: 2026-08-08
 
 ## Next Recommended Priorities
 
+- GitHub Actions認証をWorkload Identity Federationと用途別service accountへ移行する
+- staging環境とproduction承認ゲートを追加する
+- Playwrightによる主要動線のbrowser smoke testを追加する
+- Recharts 3移行とメインbundle分割を個別Pull Requestで検証する
 - 管理者と家族の別Googleアカウントを使い、招待、参加、支出共有、解除をスマホ実機で確認する
 - 別端末で店舗ルールの追加・変更・削除と、同じ支出の競合通知を実機確認する
 
