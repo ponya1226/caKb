@@ -120,18 +120,28 @@ describe("parseReceiptText", () => {
     );
   });
 
-  it("excludes electronic money balance after payment from total candidates", () => {
+  it("excludes electronic money balance when total label and amount are split by tax lines", () => {
     const result = parseReceiptText(`
       SAMPLE CONVENIENCE
       サンプル駅店
       2026年 8月 8日 (土) 16:25
-      【領収証】
-      合
-      やわらかロングタオル
       348
+      【領収証】
+      やわらかロングタオル
+      合
       計
+      (内消費税等
       ¥348
-      (10%対象 ¥348)
+      \\31)
+      (10%対象
+      \\348)
+      (内消費税額
+      \\31)
+      点
+      点
+      数
+      1個
+      上記正に領収いたしました
       交通系マネー
       ¥348
       交通系マネー残高は以下の通りです。
