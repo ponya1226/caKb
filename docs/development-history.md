@@ -1,5 +1,33 @@
 # Development History
 
+## 2026-08-09 Browser Smoke Coverage Extension
+
+目的: 最初のスマホbrowser smoke testを、支出の更新・削除とOCR確認画面の入力・保存まで拡張する。
+
+主な変更:
+
+- IndexedDBへの手入力支出テストを、登録、一覧確認、編集、削除の一連の動線へ拡張
+- `tests/e2e/harness/` に匿名OCR結果と2品目だけを持つテスト専用画面を追加
+- 本番の `OcrConfirmScreen` と `ExpenseEditor` をfixture serverから直接描画し、本番アプリへテスト用入口を追加せず検証
+- 店舗名、総額、メモ、品目名、品目金額、店舗カテゴリ保存設定の修正値が保存callbackへ渡ることを確認
+- Playwrightがproduction previewとfixture用Vite serverを同時に管理するよう設定
+- E2E専用のTypeScript設定を追加し、Playwright設定、テスト、fixtureもstrict modeで検査
+- ADR 0012、README、SDLC、Project Status、Roadmapを更新
+
+検証結果:
+
+- `npm run lint`: 成功
+- `npm run test`: 23ファイル、107件成功
+- `npm run lint:e2e`: 成功
+- `npm run test:e2e`: mobile Chromium 4件成功
+- production build: 成功。既存の大きいchunk警告のみ
+- `git diff --check`: 成功
+
+残課題:
+
+- Firebase認証済みのクラウド支出共有は実アカウントをCIへ持ち込まず、実機確認を継続する
+- staging環境を導入した後、同じbrowser smoke testを配信物へ適用する
+
 ## 2026-08-09 Playwright Browser Smoke Tests
 
 目的: 実機で確認した一般利用者向け画面とGoogleの文字読み取り固定動線を、今後のPull Requestで自動的に回帰確認できるようにする。

@@ -5,7 +5,7 @@ Last Updated: 2026-08-09
 ## Implemented
 
 - Pull Request向けFrontend、Firestore Rules、Google Vision Proxy、Dependency Review CI
-- PlaywrightとChromiumによるスマホ向けBrowser Smoke CI。アカウント、Googleの文字読み取り固定、IndexedDB手入力登録、横overflowを検証
+- PlaywrightとChromiumによるスマホ向けBrowser Smoke CI。アカウント、Googleの文字読み取り固定、IndexedDB支出CRUD、匿名fixtureのOCR確認、横overflowを検証
 - Dependabotによるnpm、GitHub Actions、Docker base imageの週次更新
 - GitHub Actionsのcommit SHA固定とNode.js 24への実行環境統一
 - GitHub OIDCとWorkload Identity Federationによる鍵なしproduction deploy
@@ -197,7 +197,7 @@ Last Updated: 2026-08-09
 ## Next Recommended Priorities
 
 - staging環境とproduction承認ゲートを追加する
-- Playwrightへ支出編集・削除とfixtureベースのOCR確認画面テストを追加する
+- staging配信物へPlaywright browser smoke testを実行する
 - Recharts 3移行とメインbundle分割を個別Pull Requestで検証する
 - 管理者と家族の別Googleアカウントを使い、招待、参加、支出共有、解除をスマホ実機で確認する
 - 別端末で店舗ルールの追加・変更・削除と、同じ支出の競合通知を実機確認する

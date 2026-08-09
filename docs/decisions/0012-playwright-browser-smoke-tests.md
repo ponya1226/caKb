@@ -17,15 +17,18 @@ Googleログインは外部ポップアップと実アカウントを必要と�
   - アカウント画面の一般利用者向け表示
   - Googleの文字読み取りに固定されたレシート登録画面
   - 旧OCR方式、範囲、画像補正UIが表示されないこと
-  - IndexedDBへ手入力支出を保存し、一覧へ反映できること
+  - IndexedDBへ手入力支出を保存し、一覧で編集・削除できること
+  - テスト専用の匿名fixtureでOCR確認画面の総額、店舗、メモ、品目、カテゴリルールを修正して保存できること
   - 主要画面に横方向のoverflowがないこと
+- OCR確認fixtureは `tests/e2e/harness/` だけに置き、本番アプリの配信物や実行経路へテスト用入口を追加しない。
+- Playwright設定、テスト、fixtureは専用のTypeScript設定でstrict type checkする。
 - テスト失敗時はPlaywrightのHTML report、screenshot、traceを短期間のCI artifactとして保存する。
 - Googleログイン、owner/memberの実アカウント切り替え、外部OCR送信はbrowser smoke testの対象外とする。権限ロジックは単体テスト、実認証は別アカウントの実機確認で検証する。
 - 実レシート、実メールアドレス、Firebase credentialをテストデータへ含めない。
 
 ## Consequences
 
-- 利用者向け主要動線の表示崩れと不要機能の再混入をPull Requestで検出できる。
+- 利用者向け主要動線の表示崩れ、支出CRUD、OCR確認値の受け渡し、不要機能の再混入をPull Requestで検出できる。
 - Chromiumのインストールとproduction buildによりCI時間が増える。
 - Google認証、Firestoreの複数利用者共有、実際のGoogle Vision応答は引き続き統合・実機確認が必要になる。
 
@@ -38,5 +41,5 @@ Googleログインは外部ポップアップと実アカウントを必要と�
 ## Follow-up
 
 - owner/memberの別アカウントで招待、参加、支出共有、解除を実機確認する。
-- 安定運用後に支出編集・削除とOCR確認画面のfixtureベーステストを追加する。
+- クラウド認証済みの支出共有は、credentialを使わない安全なfixture方針が確立した場合に追加する。
 - staging環境を追加する場合は、デプロイ後の同じsmoke testを再利用する。
