@@ -1,5 +1,33 @@
 # Development History
 
+## 2026-08-09 Default Compute Editor Removal
+
+目的: Cloud Run source buildの専用identity移行後に残っていた既定Compute service accountのEditor権限を、安全に監査して削除する。
+
+主な変更:
+
+- Cloud Run service、Cloud Run Jobs、Cloud Build履歴、service account key、プロジェクトIAMを監査
+- Cloud Asset InventoryとPolicy SimulatorをIAM変更前後の確認に導入
+- 既定Compute service accountの `roles/editor` を削除
+- deploy、build、runtimeの許可ロール、変更前後の監査、最小権限での復旧手順を `docs/gcp-iam-baseline.md` に文書化
+- ADR 0010、SDLC、Project StatusへIAM基準を反映
+
+検証結果:
+
+- Cloud Run runtimeは `cakb-vision-proxy`、直近Cloud Build 2件は `cakb-cloud-run-builder` を使用し、Cloud Run JobとCloud Build triggerは0件
+- Compute Engine APIは未使用・無効で、既定Compute service accountのユーザー管理鍵は0件
+- Cloud Asset Inventoryでは削除前の参照がプロジェクトEditor 1件のみ
+- Policy Simulatorでは失われる直近アクセスが2026-07-19の `logging.logEntries.create` とsource bucketの `storage.objects.get` のみ
+- Editor削除後、Cloud Asset InventoryとプロジェクトIAMの参照は0件
+- Firebase Hosting / Rules run `31294068547`: 成功
+- Cloud Run run `31294073738`: 成功
+- 最新Cloud Build `7f402467-ae64-4d7b-8df2-8b103f1ed78a` は `cakb-cloud-run-builder` で成功
+- Firebase Hosting: HTTP 200、Proxy `/health`: HTTP 200、未認証 `/api/ocr`: HTTP 401
+
+残課題:
+
+- `cakb-dev` は組織・フォルダ配下ではないため、既定service accountへのOwner/Editor付与を禁止する管理制約はenforceできない。組織配下へ移すまではCloud Asset Inventoryでbinding 0件を定期監査する
+
 ## 2026-08-09 GitHub Actions Keyless Deploy Authentication
 
 目的: production deployで共有していた長期service account JSONを廃止し、GitHub workflowごとの短時間認証と用途別権限へ移行する。

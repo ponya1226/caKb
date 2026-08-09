@@ -15,6 +15,8 @@ Pull Request必須化とCI強化後も、長期鍵の漏えい範囲と用途間
 - service account JSON、access token、deploy tokenはGitHub Actionsに保存しない。
 - Firebase HostingとFirestore Rulesは `github-firebase-hosting-deploy`、Cloud Runは `github-cloud-run-deploy` を使用する。
 - Cloud Run source buildは `cakb-cloud-run-builder` を明示指定し、`roles/run.builder` だけを付与する。Editor権限を持つ既定Compute service accountは使用しない。
+- 専用builderでの継続成功とPolicy Simulatorの影響確認後、既定Compute service accountのプロジェクトEditor権限を削除する。
+- Organization Policy Administratorを管理できる組織配下では、`constraints/iam.managed.preventPrivilegedBasicRolesForDefaultServiceAccounts` をenforceする。単独プロジェクトではCloud Asset Inventoryによる定期監査でbindingの再追加を検知する。
 - GitHub用WIF pool/providerは1組にし、provider conditionでGitHub repository ID、owner ID、`main` branchを固定する。
 - service accountのIAM bindingを `workflow_ref` で限定し、各workflowは対応するservice accountだけをimpersonateできるようにする。
 - Cloud Run deployでは既存のpublic invoker policyを変更せず、revision更新だけを行う。
@@ -34,6 +36,7 @@ Pull Request必須化とCI強化後も、長期鍵の漏えい範囲と用途間
 - Firebase HostingとFirestore Rulesは同一workflow内で同時に配布する。さらに厳密な分離が必要になった場合はworkflowとservice accountを分割する。
 - 保存データ、Firestore schema、Security Rulesの内容、Cloud Run runtime service accountは変更しない。
 - Cloud Run deployer、build service account、runtime service accountを分離し、各役割の `actAs` は必要な組み合わせだけに限定する。
+- IAMの許可ロール、監査、復旧手順は `docs/gcp-iam-baseline.md` を運用基準とする。
 
 ## Security / Privacy
 
@@ -41,6 +44,7 @@ Pull Request必須化とCI強化後も、長期鍵の漏えい範囲と用途間
 - GitHub workflowには `id-token: write` と `contents: read` だけを付与する。
 - `gha-creds-*.json` は一時ファイルとして扱い、GitとDocker build contextから除外する。
 - WIF移行後に長期鍵を復旧手段として残さない。緊急時は所有者による手動deployまたは直前revisionへのrollbackを使用する。
+- 既定Compute service accountへのEditor再付与を復旧手段にしない。不足permissionは用途別service accountへ最小ロールとして付与する。
 - レシート画像、OCR全文、家計簿データの処理・保存方式は変更しない。
 
 ## Verification
@@ -50,6 +54,7 @@ Pull Request必須化とCI強化後も、長期鍵の漏えい範囲と用途間
 - Firebase Hostingの公開URLとCloud Runの `/health` が成功する。
 - Cloud Runの未認証OCRリクエストが引き続き拒否される。
 - GitHub Secretとユーザー管理service account keyを削除した後もworkflowを手動再実行できる。
+- Cloud Asset InventoryとPolicy Simulatorで、既定Compute service accountのEditor削除影響を確認する。
 
 ## Outcome
 
@@ -59,3 +64,9 @@ Pull Request必須化とCI強化後も、長期鍵の漏えい範囲と用途間
 - 旧GitHub Secretとユーザー管理service account keyを削除した。
 - Firebase deploy accountからCloud Run、Cloud Build、Cloud Storage、Compute/runtime service accountの旧権限を削除した。
 - 旧credentialと旧権限の削除後に両workflowを手動再実行し、WIFだけで成功することを確認した。
+- Cloud Asset Inventoryで既定Compute service accountの参照がEditor 1件だけであることを確認した。
+- Policy Simulatorでは、Editor削除で失われる直近アクセスが2026-07-19の旧Cloud Buildによるログ書き込みとsource bucket取得だけであることを確認した。
+- 既定Compute service accountのEditorを削除し、Cloud Asset InventoryとプロジェクトIAMの参照が0件になったことを確認した。
+- Firebase run `31294068547` とCloud Run run `31294073738` を再実行して成功し、最新Cloud Buildが専用 `cakb-cloud-run-builder` を使用した。
+- Firebase HostingのHTTP 200、Proxy `/health` のHTTP 200、未認証OCRのHTTP 401を確認した。
+- `cakb-dev` は組織配下ではないため管理制約はenforceできない。組織配下へ移すまではCloud Asset Inventoryの定期監査を継続する。
