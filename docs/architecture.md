@@ -2,7 +2,7 @@
 
 ## 方針
 
-MVPはブラウザだけで完結します。支出、カテゴリ、任意のレシート画像はIndexedDBに保存し、設定はlocalStorageに保存します。外部DB、ログイン、サーバーAPIは使いません。
+caKbは「家計簿をつけなくていい家計簿」を中心に、撮影後のConfidence判定で通常レシートを自動保存し、例外だけを確認する構成です。ローカル利用では支出、カテゴリ、任意のレシート画像をIndexedDB、設定をlocalStorageへ保存します。クラウド家計簿ではFirestoreを正本にします。
 
 家族共有、認証に対応するため、Firebase Hosting、Firebase Auth、Cloud Firestoreを使ってクラウド正本化しています。詳細は `docs/decisions/0005-family-cloud-ledger-direction.md` と `docs/decisions/0007-firebase-hosting-auth-migration.md` に従います。
 
@@ -11,9 +11,12 @@ MVPはブラウザだけで完結します。支出、カテゴリ、任意の�
 ```text
 React screens/components
   -> useBudgetData hook
-    -> IndexedDB repository
+    -> BudgetRepository
+      -> IndexedDB repository
+      -> Firestore repository
   -> OCR runner
   -> receipt parser
+  -> receipt confidence assessment
   -> CSV exporter
 ```
 
@@ -94,7 +97,7 @@ Firebase client configは `VITE_FIREBASE_*` 環境変数から読み取り、未
 - `receiptOcr.ts`: 利用画面向けの単一入口、進捗表示、設定有無の判定
 - `googleVisionOcr.ts`: 自前Proxyへの画像送信、レスポンス検証、安全なエラー変換
 
-OCR全文を取得した後は既存の `receiptParser.ts` で日付、店舗名、金額候補を抽出し、確認画面でユーザーが修正してから保存します。Proxyが返す単語と座標を使い、`receiptParser.ts` が同じ高さの単語を左から右へ並べ直して品目名と金額を対応付けます。単語座標がない場合はOCR全文による解析へ戻ります。支出データの保存schemaは変更しません。
+OCR全文を取得した後は `receiptParser.ts` で日付、店舗名、金額候補と残高リスクを抽出し、`receiptConfidence.ts` が説明可能な信号から自動保存可否を決めます。High confidenceの単体レシートは `useBudgetData` 経由で自動保存し、Lowまたはuncertainだけを既存確認画面へ送ります。Proxyが返す単語と座標を使い、`receiptParser.ts` が同じ高さの単語を左から右へ並べ直して品目名と金額を対応付けます。単語座標がない場合はOCR全文による解析へ戻ります。Confidenceと理由は画面状態で扱い、支出データの保存schemaは変更しません。
 
 Google Vision利用時はレシート画像を外部サービスへ送信しますが、フロントエンドにGoogle Cloud認証情報は置かず、Proxy側でも画像やOCR全文を永続保存しません。Hosting環境ではFirebase ID tokenをProxyで検証し、未ログイン状態ではGoogle Vision OCRを利用できないようにします。
 
@@ -102,11 +105,11 @@ Proxyは認証済みUID単位の短時間レート制限と、Firestore `ocrUsag
 
 ## レシート候補抽出
 
-候補抽出では「合計」「税込」「現計」「お買上計」などの周辺にある金額を優先し、保存前に確認画面でユーザー修正を必須にします。Provider選択、範囲調整、画像補正は通常画面へ表示しません。
+候補抽出では「合計」「税込」「現計」「お買上計」などの周辺にある金額を優先します。競合する強い金額、別額の残高、日付・店舗・カテゴリの未解決があれば要確認にし、安全に解決できた場合だけ自動保存します。Provider選択、範囲調整、画像補正は通常画面へ表示しません。
 
 レシートのカテゴリ初期値は、店舗別カテゴリルールを最優先し、次に保存済み支出の店舗名とOCR候補の店舗名を正規化して照合した直近カテゴリを使います。店舗別カテゴリルールはクラウド利用時はFirestore、ローカル利用時はlocalStorageに保存し、IndexedDB schemaは変更しません。
 
-複数レシート登録は、選択された画像を順番にGoogle Visionへ送り、確認画面で1枚ずつ修正・保存します。失敗した画像だけ再試行でき、途中で未保存の確認キューを破棄しても保存済み支出は残ります。
+複数レシート登録は初期の自動保存対象外です。選択された画像を順番にGoogle Visionへ送り、確認画面で1枚ずつ修正・保存します。失敗した画像だけ再試行でき、途中で未保存の確認キューを破棄しても保存済み支出は残ります。
 
 ## PWA
 

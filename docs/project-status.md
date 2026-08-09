@@ -4,6 +4,13 @@ Last Updated: 2026-08-09
 
 ## Implemented
 
+- 中心コンセプトを「家計簿をつけなくていい家計簿」へ変更し、ADR 0014で全件確認からConfidence-based Exception Handlingへ移行
+- OCR成功、総額、日付、店舗、カテゴリ、競合金額、残高、品目整合性を説明可能な信号として返す決定論的Confidence判定
+- High confidenceな単体レシートの確認画面なし自動保存と、登録直後10秒間のUndo
+- Lowまたはuncertainな単体レシートの理由付き要確認画面へのフォールバック
+- ホームの最優先「レシートを撮る」からネイティブカメラを開き、撮影後に単体レシートを自動読取
+- 残高、競合金額、日付・店舗欠落、OCR部分失敗を含む匿名Confidence fixtureとPlaywright回帰テスト
+
 - Pull Request向けFrontend、Firestore Rules、Google Vision Proxy、Dependency Review CI
 - PlaywrightとChromiumによるスマホ向けBrowser Smoke CI。アカウント、Googleの文字読み取り固定、IndexedDB支出CRUD、匿名fixtureのOCR確認、横overflowを検証
 - Dependabotによるnpm、GitHub Actions、Docker base imageの週次更新
@@ -161,6 +168,10 @@ Last Updated: 2026-08-09
 
 ## Technical Debt
 
+- 要確認ドラフトは初期の縦切りでは画面状態だけに保持する。アプリ終了後も残る要確認Inboxと件数表示には、保存先・削除・画像保持期間を含む設計が必要。
+- Confidence初期閾値は安全側で、カテゴリは店舗ルールまたは同一・類似店舗履歴がない場合に要確認となる。自動保存率、Undo率、総額修正率を評価してから緩和する。
+- 単体レシートだけがConfidence自動保存対象。複数枚は現行の全件確認キューを維持している。
+
 - stagingは同じFirebase project上のHosting previewであり、Authentication、Firestore、Cloud Runは分離されていない。認証済み共有動線の自動統合テストが必要になった場合は別projectを検討する。
 - browser E2Eは主要な未ログイン動線を対象としているが、coverage基準は未導入。
 - Recharts 2系は保守終了警告が出ている。3系への移行影響を確認してmajor updateする必要がある。
@@ -198,6 +209,12 @@ Last Updated: 2026-08-09
 - Browser Smoke CIは未ログインのChromiumを対象とし、実Googleログイン、owner/member切り替え、外部OCR応答は実機・統合確認が必要。
 
 ## Next Recommended Priorities
+
+- 管理者・家族の実レシートで、High自動保存、Low要確認、10秒Undoをスマホ実機確認する
+- 要確認ドラフトを再起動後も保持する最小Inboxと、ホームの要確認件数表示を設計する
+- 個人情報を送らずに自動保存率、要確認理由、Undo率、総額修正率を評価する方法を決める
+- 匿名fixtureを蓄積し、誤った総額がHighにならないことを確認してからConfidence閾値を調整する
+- 単体の安全性確認後、複数枚を画像単位のHigh自動保存とLow確認キューへ拡張する
 
 - Recharts 3移行とメインbundle分割を個別Pull Requestで検証する
 - 管理者と家族の別Googleアカウントを使い、招待、参加、支出共有、解除をスマホ実機で確認する

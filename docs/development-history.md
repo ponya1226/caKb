@@ -1,5 +1,34 @@
 # Development History
 
+## 2026-08-09 Capture-first Confidence Auto Save
+
+目的: 中心コンセプトを「家計簿をつけなくていい家計簿」へ変更し、全件確認からHigh confidence自動保存・例外確認へ移行する最初の縦切りを作る。
+
+主な変更:
+
+- ADR 0014を追加し、ADR 0011の保存前全件確認要件をConfidence-based Exception Handlingで置き換え
+- OCR成功、総額、日付、店舗、カテゴリ、競合金額、残高、品目整合性を説明可能な信号として返す `receiptConfidence.ts` を追加
+- 店舗ルールまたは同一・類似店舗履歴でカテゴリを解決できるHigh confidence単体レシートを確認画面なしで自動保存
+- 残高、競合金額、日付・店舗・カテゴリ未解決などを理由付き「要確認」として既存確認画面へフォールバック
+- ホームの「レシートを撮る」からカメラを開き、単体撮影後は追加の読み取り操作を要求しない動線へ変更
+- 自動保存後10秒間の「元に戻す」を追加し、ローカル画像保存ON時は関連画像も削除
+- 匿名fixtureでスーパー、コンビニ、専門店、電子マネー残高、競合金額、日付・店舗欠落、OCR部分失敗を検証
+- README、AGENTS、Architecture、Roadmap、Project Statusを新方針へ更新
+
+検証結果:
+
+- `npm run lint`: 成功
+- `npm run test`: 24ファイル、116件成功
+- `npm run build`: 成功。既存の大きいchunk警告のみ
+- `npm run test:e2e`: mobile Chromium 6件成功
+
+残課題:
+
+- 要確認ドラフトは画面状態のみ。再起動後も保持するInboxとホームの要確認件数は未実装
+- Confidence初期閾値は安全側で、未知店舗はカテゴリ選択のため要確認になる
+- 複数枚は現行の全件確認キューを維持し、画像単位の自動保存は未実装
+- 実Google Visionと実アカウントを使ったHigh自動保存・Low要確認・Undoのスマホ実機確認が必要
+
 ## 2026-08-09 Staging And Production Deploy Gate
 
 目的: `main` merge後のFirebase Hosting配信物をproduction反映前に実URLで検証し、管理者承認なしに利用者へ配信されないリリース工程へ移行する。

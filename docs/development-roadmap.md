@@ -2,91 +2,83 @@
 
 Last Updated: 2026-08-09
 
-## 方針
+## Product Direction
 
-caKbは、Google Vision OCRで実レシートの読み取り精度を確保しつつ、保存前に必ずユーザーが確認・修正する家計簿として育てる。
+caKbの中心コンセプトは「家計簿をつけなくていい家計簿」とする。
 
-短期は利用者と管理者の導線分離、OCR候補抽出、品目明細の安定化を優先する。中期は家族共有を別端末で検証し、クラウド家計簿の運用を安定させる。長期はGoogle Sheets一方向同期と品目別活用を検討する。
+競合の機能数やGoogle Vision自体を差別化要因にせず、家計簿を記録するために必要な利用者操作を限りなくゼロにする。通常利用は「レシートを撮る、終了」を目標とし、全件確認ではなくConfidence-based Exception Handlingを採用する。
 
-## Phase 1: OCR確認体験と品目明細の安定化
+- High confidence: 自動保存
+- Lowまたはuncertain confidence: 要確認
+- 誤った総額の自動保存を最重要failureとして扱う
+- 品目明細は付加情報、日付・総額・店舗・カテゴリを支出の正本として優先する
+- セキュリティ、外部送信説明、household認可、production deploy gateはUX簡略化後も維持する
 
-- Google Vision OCR結果を前提に、店舗名、総額、品目、割引、税の候補抽出を継続調整する。
-- 利用者向け読み取りはGoogle Visionと画像全体に固定し、方式・範囲・補正を選ばせない。
-- 実レシートOCR結果は匿名化して回帰テストへ追加する。
-- 品目明細は支出の付加情報として扱い、月次、年次、カテゴリ集計の正本は `Expense.amount` のまま維持する。
-- 品目合計と総額との差分は、税、割引、OCR欠落の確認材料として表示する。
+詳細は `docs/decisions/0014-capture-first-auto-save-direction.md` に従う。
 
-コンビニ、総合スーパー、専門店、食品スーパーの匿名化OCR回帰テスト、最大50品目の候補保持、Google Vision単語座標による品目名と金額の行再構成まで完了。新しい誤分類が見つかった場合は同じ匿名化手順でケースを追加する。
+## Step A: 写真を撮るだけで記録完了
 
-Google Vision固定の撮影・アップロード・読み取り・確認導線と、旧Tesseract.js関連コードの削除まで完了。次は実機で単体、一括、失敗再試行を確認する。
+最優先フェーズ。Step Aが安定するまで、新しい分析APIや大規模機能へ進まない。
 
-## Phase 2: 運用基盤の整理
+### A1: 単体レシートの最初の縦切り
 
-- 正規確認URLは Firebase Hosting の `https://cakb-dev.firebaseapp.com` とする。
-- `main` へのpushで Firebase Hosting staging previewへ自動配布し、browser smoke test後にproduction承認を必須にする。
-- stagingで検証したHosting versionを再buildせずproductionへ昇格する。
-- GitHub Pages workflowは削除し、Firebase Hostingを唯一の公開先とする。
-- Google Vision ProxyはFirebase ID token検証とactive household membership認可を維持する。
-- UID単位の短時間レート制限とFirestore月間上限を適用する。共有トークンと監査ログ方針は必要性を継続判断する。
-- クラウド移行結果をユーザープロファイルへ記録し、再読み込み後も最終移行日時と件数を確認できるようにする。
-- Firestore RulesをEmulatorで検証し、Hostingと同じworkflowで配布する。
-- PWA更新通知から利用者が明示的に最新版へ切り替えられるようにする。
+- ホームの最優先操作を「レシートを撮る」にする。
+- 撮影後、単体画像は追加操作なしでGoogle Visionへ送る。
+- `receiptParser.ts` の候補を説明可能なConfidence信号で判定する。
+- 店舗ルールまたは同一・類似店舗履歴でカテゴリを解決でき、日付・店舗・総額が安全な場合だけ自動保存する。
+- 自動保存後に短時間のUndoを提供する。
+- 判断できない結果は理由付きで既存確認画面へ送る。
+- 匿名fixtureでスーパー、コンビニ、専門店、残高、競合金額、日付欠落、店舗欠落、OCR部分失敗を検証する。
 
-GitHub Pages停止、クラウド接続状態表示、安全なJSON置換復元、Playwrightによる未ログイン・レシート・支出CRUD・匿名OCR確認fixtureのスマホbrowser smoke testまで完了。Firebase Hosting staging previewへの自動配布、配信URLのbrowser smoke test、production承認ゲート、検証済みversionの本番昇格も導入した。次は管理者・家族の別端末実機確認とbundle改善を進める。
+### A2: 要確認Inboxと評価
 
-## Phase 3: Firestore正本化
+- 要確認ドラフトを再起動後も失わない最小のInboxを設計する。
+- ホームへ要確認件数を表示し、後からまとめて修正できるようにする。
+- 個人情報やOCR全文を運用ログへ送らず、自動保存率、要確認理由、Undo率、総額修正率を評価できる方針を決める。
+- 匿名fixtureで誤判定がないことを確認してから閾値を調整する。
+- 店舗ルール、履歴に続く決定論的なデフォルトカテゴリ推定が安全か検証する。
 
-- `BudgetRepository` 境界を維持し、UIからFirestoreを直接操作しない。
-- 支出、カテゴリ、店舗別カテゴリルール、品目明細をFirestoreへ保存する。
-- IndexedDBは移行元またはローカルキャッシュとして扱う。
-- Firestore Security Rulesのテストを追加し、家計簿メンバー以外が読めないことを検証する。
+### A3: 一括撮影への拡張
 
-Firestore正本化とローカルデータ移行は完了。以後は移行の運用確認と家族共有機能で必要なRules拡張を継続する。
+- 画像ごとにConfidence判定し、Highだけを自動保存する。
+- Lowだけを要確認キューへ残し、成功済み支出と明確に区別する。
+- 失敗分だけの再試行、途中離脱時の復元、重複保存防止を検証する。
 
-## Phase 4: 家族共有
+## Step B: 何もしなくても家計状況が分かる
 
-- Firebase AuthのGoogleログインを前提に、`household` と `members` を正式導入する。
-- 初期権限は `owner` と `member` に絞る。
-- 招待コードで家族メンバーを追加する。
-- メンバーはレシート登録、支出編集、カテゴリ利用ができる。
-- memberには通常利用に必要なアカウント、接続状態、参加メンバーだけを表示し、管理機能はowner専用メニューへ分離する。
+Step Aの安全性と利用実績を確認した後に着手する。
 
-期限付き・1回限りの招待コード、家族参加、メンバー一覧、管理者による解除までのMVPは完了。今後は複数端末での実機確認、登録者表示、共有店舗カテゴリルールのFirestore正本化を進める。
+- 今月の支出と前月比
+- カテゴリ別の増減
+- 支出増加要因
+- 月末支出予測
 
-Firestoreの支出・カテゴリはリアルタイム購読に対応し、支出一覧で登録者を確認できる。メンバー解除後は購読権限エラーを検知して再読み込み・ログアウトへ誘導し、Google Vision OCRもactive household memberだけに許可する。次は共有店舗カテゴリルールのFirestore正本化と複数端末での競合確認を進める。
+ホームは撮影CTA、今月の支出、前月比、要確認件数を中心にし、管理、家族、出力機能を主画面へ出さない。既存の月次、年次、カテゴリ集計は `Expense.amount` を正本として継続する。
 
-店舗別カテゴリルールのFirestore正本化とリアルタイム共有、支出更新・削除時の楽観的競合検知、Google Vision利用量制御まで完了。次は管理者・家族の別端末実機検証後、Google Sheets一方向同期を進める。
+## Step C: 家計データへの自然言語質問
 
-クラウド接続状態を同期済み・オフライン・再接続中・アクセス権なしに分け、一時障害時は表示済みデータを維持する。未接続時の書き込みは明示的に拒否し、復旧後に利用者が再実行する。
+「今月コンビニでいくら使ったか」などの自然言語質問は長期候補とする。外部LLM、送信データ、費用、回答根拠、誤回答時の扱いを別ADRで決めるまで実装しない。
 
-利用者画面と管理者メニューの分離は完了。次はowner/memberの別アカウントで、管理機能の非表示、レシート登録、支出共有をスマホ実機確認する。
+## Maintained Foundations
 
-## Phase 5: Google Sheets一方向同期
+- Firebase Hosting、Firebase Auth、Cloud Firestoreによる家族のクラウド家計簿
+- owner/memberの導線分離、招待、member解除、Firestore Rulesによるhousehold分離
+- Google Vision自前Proxy、Firebase ID token、active household membership、利用量制限
+- IndexedDB local repositoryとFirestore cloud repositoryの `BudgetRepository` 境界
+- 店舗別カテゴリルールと同一・類似店舗履歴
+- 品目明細、月次・年次集計、検索・フィルタ、バックアップ、CSV、Google Sheets一方向出力
+- Pull Request CI、Playwright、WIF/OIDC、staging preview、production承認ゲート
 
-- Firestoreを正本として、Google Sheetsへ一方向で出力する。
-- 初期版は支出1件を1行として出力する。
-- 品目別行出力、Sheets側編集の取り込み、双方向同期は初期対象外にする。
+これらはStep Aを支える既存基盤として維持する。利用者の通常フローへ管理操作を戻さない。
 
-owner専用の手動全件出力、`caKb支出` タブ作成・置換、同期設定と最終結果のFirestore保存まで完了。次は実スプレッドシートでの列構成確認後、自動実行や差分同期が必要かを判断する。
+## Deferred
 
-## Phase 5.5: 一括登録の復旧性
+- 銀行口座、クレジットカード、証券、資産、ポイント連携
+- 高度な予算管理
+- 新しいOCR Provider、Tesseract.js復活
+- 外部LLM API、複雑なAIエージェント
+- 商品マスタ、バーコード、厳密な単価・数量管理
+- Google Sheets双方向同期
+- 品目別カテゴリ集計と品目別自動カテゴライズ
 
-- 画像ごとに待機、OCR中、確認待ち、失敗を表示する。
-- 成功済み結果を保持し、失敗画像だけ再試行する。
-- 失敗画像を除外して成功分だけ確認する場合は明示操作にする。
-
-画像別状態表示、成功結果保持、失敗分再試行まで完了。処理途中の画面離脱からの復元は現時点では対象外とする。
-
-## Phase 5.6: 支出一覧の探索性
-
-- 選択月内の日付範囲と金額範囲で支出を絞り込む。
-- 店舗名・メモ・カテゴリ名検索、カテゴリフィルタ、詳細条件をANDで適用する。
-- スマホでは日常的な検索条件を常時表示し、詳細条件は折りたたむ。
-
-日付・金額の詳細条件、適用件数・合計、一括クリアまで完了。条件のURL保存や端末間共有は行わず、画面内状態として扱う。
-
-## Phase 6: 品目別活用
-
-- 品目明細の精度が安定してから、品目別カテゴリや品目別集計を検討する。
-- `ExpenseLineItem.categoryId?` の追加は、必要になった時点でADRを追加して判断する。
-- 商品マスタ、バーコード、単価、数量の厳密管理は当面対象外にする。
+対象外機能を追加する場合は、利用者操作を本当に減らすかを再評価し、必要なADRと明示承認を得る。

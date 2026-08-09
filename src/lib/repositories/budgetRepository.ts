@@ -33,6 +33,7 @@ export type BudgetRepository = {
   saveExpense: (expense: Expense, options?: ExpenseMutationOptions) => Promise<void>;
   deleteExpense: (id: string, options?: ExpenseMutationOptions) => Promise<void>;
   saveReceiptImage: (receiptImage: ReceiptImage) => Promise<void>;
+  deleteReceiptImage: (id: string) => Promise<void>;
   saveCategory: (category: Category) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   saveShopCategoryRule: (rule: ShopCategoryRule) => Promise<void>;

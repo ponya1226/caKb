@@ -2,6 +2,7 @@ import {
   clearApplicationData,
   deleteCategory,
   deleteExpense,
+  deleteReceiptImage,
   getCategories,
   getExpenses,
   importApplicationData,
@@ -35,6 +36,7 @@ export const localBudgetRepository: BudgetRepository = {
   saveExpense,
   deleteExpense,
   saveReceiptImage,
+  deleteReceiptImage,
   saveCategory,
   deleteCategory,
   saveShopCategoryRule: async (rule) => {

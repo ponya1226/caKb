@@ -149,6 +149,10 @@ export async function saveReceiptImage(receiptImage: ReceiptImage): Promise<void
   await putRecord("receiptImages", receiptImage);
 }
 
+export async function deleteReceiptImage(id: string): Promise<void> {
+  await deleteRecord("receiptImages", id);
+}
+
 export async function importApplicationData(
   expenses: Expense[],
   categories: Category[],

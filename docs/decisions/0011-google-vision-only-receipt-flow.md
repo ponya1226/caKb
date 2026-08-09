@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted. 保存前の全件確認要件はADR 0014で置き換えた。
 
 ## Context
 
@@ -18,7 +18,7 @@ ADR 0003ではGoogle VisionとTesseract.jsを選択可能なOCR Providerとし�
 - Google Visionを利用できない場合は、ログイン、再試行、手入力のいずれかを案内する。Tesseract.jsへの自動または手動フォールバックは利用画面へ出さない。
 - 利用画面から参照されなくなるTesseract.js、`localTesseract` Provider、範囲比較、画像前処理、範囲調整コンポーネントを削除する。
 - 旧バックアップを読み込めるよう、`AppSettings.lastOcrCrop` の互換読み込みだけは維持する。支出、IndexedDB、Firestoreの保存schemaは変更しない。
-- OCR後は従来どおり `receiptParser.ts` を通し、保存前に必ず利用者が確認・修正する。
+- OCR後は従来どおり `receiptParser.ts` を通す。保存判断はADR 0014のConfidence-based Exception Handlingに従う。
 
 ## Security and Privacy
 

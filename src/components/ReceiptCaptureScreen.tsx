@@ -1,9 +1,9 @@
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, CheckCircle2, FileImage, Play, RefreshCw, Send, XCircle } from "lucide-react";
-import { CopyTextButton } from "./CopyTextButton";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { Camera, CheckCircle2, FileImage, Play, RefreshCw, XCircle } from "lucide-react";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
 import { toDateInputValue } from "../lib/date";
 import { formatFileSize } from "../lib/format";
+import { assessReceiptConfidence } from "../lib/receiptConfidence";
 import {
   isReceiptOcrConfigured,
   runReceiptOcr,
@@ -15,7 +15,7 @@ import {
   selectReceiptBatchKeys,
   type ReceiptBatchItem,
 } from "../lib/receiptBatch";
-import type { OcrProgress, OcrResult, ReceiptCandidate, ReceiptCategorySuggestion, ReceiptDraft } from "../types";
+import type { Expense, OcrProgress, OcrResult, ReceiptCategorySuggestion, ReceiptDraft } from "../types";
 
 const LARGE_RECEIPT_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -26,74 +26,40 @@ type ReceiptSelection = {
 
 type ReceiptCaptureScreenProps = {
   onConfirm: (drafts: ReceiptDraft[]) => void;
+  onAutoSave: (draft: ReceiptDraft) => Promise<Expense>;
+  onAutoSaveComplete: (expense: Expense) => void;
   suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
   isGoogleVisionAuthenticated: boolean;
   getGoogleVisionIdToken: () => Promise<string | null>;
+  initialFiles?: File[];
+  onInitialFilesConsumed?: () => void;
+  ocrRunner?: typeof runReceiptOcr;
+  isOcrAvailable?: boolean;
 };
-
-function CandidateButtons<T>({
-  title,
-  candidates,
-  selectedValue,
-  onPick,
-}: {
-  title: string;
-  candidates: Array<ReceiptCandidate<T>>;
-  selectedValue: T | null | undefined;
-  onPick: (value: T) => void;
-}) {
-  return (
-    <div className="candidate-group">
-      <h3>{title}</h3>
-      {candidates.length === 0 ? (
-        <p className="subtle-text">候補なし</p>
-      ) : (
-        <div className="candidate-list">
-          {candidates.map((candidate) => {
-            const isSelected = candidate.value === selectedValue;
-
-            return (
-              <button
-                key={`${candidate.label}-${candidate.line}`}
-                className={isSelected ? "candidate-chip active" : "candidate-chip"}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => onPick(candidate.value)}
-              >
-                <span>{candidate.label}</span>
-                <small>{candidate.line}</small>
-                {isSelected && <small className="candidate-selected-badge">選択中</small>}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function ReceiptCaptureScreen({
   onConfirm,
+  onAutoSave,
+  onAutoSaveComplete,
   suggestCategoryForShop,
   isGoogleVisionAuthenticated,
   getGoogleVisionIdToken,
+  initialFiles,
+  onInitialFilesConsumed,
+  ocrRunner = runReceiptOcr,
+  isOcrAvailable,
 }: ReceiptCaptureScreenProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const transferredPreviewUrlsRef = useRef<Set<string>>(new Set());
   const receiptSelectionsRef = useRef<ReceiptSelection[]>([]);
   const batchDraftsRef = useRef<Record<string, ReceiptDraft>>({});
+  const consumedInitialFilesRef = useRef<File[] | null>(null);
   const [receiptSelections, setReceiptSelections] = useState<ReceiptSelection[]>([]);
   const [selectedFileIndex, setSelectedFileIndex] = useState(0);
-  const [ocrText, setOcrText] = useState("");
   const [progress, setProgress] = useState<OcrProgress | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pickedDate, setPickedDate] = useState(toDateInputValue(new Date()));
-  const [pickedShopName, setPickedShopName] = useState("");
-  const [pickedAmount, setPickedAmount] = useState(0);
-  const [pickedCategorySuggestion, setPickedCategorySuggestion] = useState<ReceiptCategorySuggestion | null>(null);
-  const [lastOcrBlocks, setLastOcrBlocks] = useState<ReceiptDraft["ocrBlocks"]>(undefined);
   const [batchItems, setBatchItems] = useState<ReceiptBatchItem[]>([]);
   const [batchDrafts, setBatchDrafts] = useState<Record<string, ReceiptDraft>>({});
 
@@ -103,11 +69,7 @@ export function ReceiptCaptureScreen({
   const imagePreviewUrl = selectedReceipt?.previewUrl ?? null;
   const totalFileSize = selectedFiles.reduce((total, file) => total + file.size, 0);
   const hasLargeSelectedFile = selectedFiles.some((file) => file.size > LARGE_RECEIPT_IMAGE_BYTES);
-  const parseResult = useMemo(
-    () => (ocrText ? parseReceiptText(ocrText, lastOcrBlocks) : null),
-    [lastOcrBlocks, ocrText],
-  );
-  const isGoogleVisionAvailable = isReceiptOcrConfigured();
+  const isGoogleVisionAvailable = isOcrAvailable ?? isReceiptOcrConfigured();
   const canReadReceipt = isGoogleVisionAvailable && isGoogleVisionAuthenticated;
   const failedBatchCount = batchItems.filter((item) => item.status === "failed").length;
   const completedBatchCount = batchItems.filter((item) => item.status === "completed").length;
@@ -123,6 +85,16 @@ export function ReceiptCaptureScreen({
   useEffect(() => {
     return () => revokeSelectionUrls(receiptSelectionsRef.current);
   }, []);
+
+  useEffect(() => {
+    if (!initialFiles || initialFiles.length === 0 || consumedInitialFilesRef.current === initialFiles) {
+      return;
+    }
+
+    consumedInitialFilesRef.current = initialFiles;
+    handleSelectedFiles(initialFiles);
+    onInitialFilesConsumed?.();
+  }, [initialFiles]);
 
   function revokeSelectionUrls(selections: ReceiptSelection[]) {
     selections.forEach((selection) => {
@@ -149,20 +121,19 @@ export function ReceiptCaptureScreen({
       return;
     }
 
+    handleSelectedFiles(files);
+    event.target.value = "";
+  }
+
+  function handleSelectedFiles(files: File[]) {
     revokeSelectionUrls(receiptSelections);
     transferredPreviewUrlsRef.current = new Set();
     const nextSelections = files.map(createReceiptSelection);
 
     setReceiptSelections(nextSelections);
     setSelectedFileIndex(0);
-    setOcrText("");
-    setLastOcrBlocks(undefined);
     setProgress(null);
     setError(null);
-    setPickedDate(toDateInputValue(new Date()));
-    setPickedShopName("");
-    setPickedAmount(0);
-    setPickedCategorySuggestion(null);
     batchDraftsRef.current = {};
     setBatchDrafts({});
     setBatchItems(nextSelections.map((selection) => ({
@@ -170,7 +141,10 @@ export function ReceiptCaptureScreen({
       fileName: selection.file.name,
       status: "waiting",
     })));
-    event.target.value = "";
+
+    if (nextSelections.length === 1 && canReadReceipt) {
+      void processSingleSelection(nextSelections[0]);
+    }
   }
 
   function createDraftFromOcr(file: File, imageUrl: string, ocrResult: OcrResult): ReceiptDraft {
@@ -178,7 +152,7 @@ export function ReceiptCaptureScreen({
     const initialShopName = parsed.shopNameCandidates[0]?.value ?? "";
     const categorySuggestion = suggestCategoryForShop(initialShopName);
 
-    return {
+    const draft: ReceiptDraft = {
       imageFile: file,
       imagePreviewUrl: imageUrl,
       ...(ocrResult.blocks ? { ocrBlocks: ocrResult.blocks } : {}),
@@ -194,11 +168,15 @@ export function ReceiptCaptureScreen({
       },
       ...(categorySuggestion ? { categorySuggestion } : {}),
     };
-  }
 
-  function pickShopName(shopName: string) {
-    setPickedShopName(shopName);
-    setPickedCategorySuggestion(suggestCategoryForShop(shopName));
+    return {
+      ...draft,
+      confidenceAssessment: assessReceiptConfidence({
+        ocrText: draft.ocrText,
+        parseResult: draft.parseResult,
+        categorySuggestion: draft.categorySuggestion,
+      }),
+    };
   }
 
   async function resolveGoogleVisionAuthToken(): Promise<string> {
@@ -208,7 +186,7 @@ export function ReceiptCaptureScreen({
 
     const token = await getGoogleVisionIdToken();
     if (!token) {
-      throw new Error("レシート読み取りにはGoogleログインが必要です。アカウント画面でログインしてください。");
+      throw new Error("レシート読み取りにはログインと家計簿への参加が必要です。アカウント画面を確認してください。");
     }
 
     return token;
@@ -219,10 +197,39 @@ export function ReceiptCaptureScreen({
     onProgress: (progress: OcrProgress) => void,
     googleVisionAuthToken: string,
   ): Promise<OcrResult> {
-    return runReceiptOcr(selection.file, {
+    return ocrRunner(selection.file, {
       authToken: googleVisionAuthToken,
       onProgress,
     });
+  }
+
+  async function processSingleSelection(selection: ReceiptSelection) {
+    setIsRunning(true);
+    setError(null);
+    setProgress({ status: "読み取りを準備中", progress: 0 });
+
+    try {
+      const googleVisionAuthToken = await resolveGoogleVisionAuthToken();
+      const ocrResult = await runOcrForSelection(selection, setProgress, googleVisionAuthToken);
+      const draft = createDraftFromOcr(selection.file, selection.previewUrl, ocrResult);
+
+      if (draft.confidenceAssessment?.decision === "autoSave") {
+        const expense = await onAutoSave(draft);
+        revokeSelectionUrls([selection]);
+        setReceiptSelections([]);
+        setBatchItems([]);
+        setProgress(null);
+        onAutoSaveComplete(expense);
+        return;
+      }
+
+      markPreviewUrlsTransferred([selection]);
+      onConfirm([draft]);
+    } catch (unknownError) {
+      setError(unknownError instanceof Error ? unknownError.message : "レシートを読み取れませんでした");
+    } finally {
+      setIsRunning(false);
+    }
   }
 
   function confirmBatchDrafts(draftsByPreviewUrl: Record<string, ReceiptDraft>) {
@@ -247,26 +254,17 @@ export function ReceiptCaptureScreen({
       return;
     }
 
+    if (receiptSelections.length === 1 && selectedReceipt) {
+      await processSingleSelection(selectedReceipt);
+      return;
+    }
+
     setIsRunning(true);
     setError(null);
     setProgress({ status: "読み取りを準備中", progress: 0 });
 
     try {
       const googleVisionAuthToken = await resolveGoogleVisionAuthToken();
-
-      if (receiptSelections.length === 1 && selectedReceipt) {
-        const ocrResult = await runOcrForSelection(selectedReceipt, setProgress, googleVisionAuthToken);
-        const parsed = parseReceiptText(ocrResult.text, ocrResult.blocks);
-        const initialShopName = parsed.shopNameCandidates[0]?.value ?? "";
-        const categorySuggestion = suggestCategoryForShop(initialShopName);
-        setOcrText(ocrResult.text);
-        setLastOcrBlocks(ocrResult.blocks);
-        setPickedDate(parsed.dateCandidates[0]?.value ?? toDateInputValue(new Date()));
-        setPickedShopName(initialShopName);
-        setPickedAmount(parsed.amountCandidates[0]?.value ?? 0);
-        setPickedCategorySuggestion(categorySuggestion);
-        return;
-      }
 
       const targetKeys = selectReceiptBatchKeys(batchItems, failedOnly);
       const targetSelections = receiptSelections.filter((selection) => targetKeys.has(selection.previewUrl));
@@ -335,31 +333,6 @@ export function ReceiptCaptureScreen({
     }
   }
 
-  function handleConfirm() {
-    if (!selectedReceipt || !parseResult) {
-      return;
-    }
-
-    const categorySuggestion = suggestCategoryForShop(pickedShopName) ?? pickedCategorySuggestion;
-    markPreviewUrlsTransferred([selectedReceipt]);
-    onConfirm([{
-      imageFile: selectedReceipt.file,
-      imagePreviewUrl: selectedReceipt.previewUrl,
-      ...(lastOcrBlocks ? { ocrBlocks: lastOcrBlocks } : {}),
-      ocrText,
-      parseResult,
-      initialValues: {
-        date: pickedDate,
-        shopName: pickedShopName,
-        amount: pickedAmount,
-        categoryId: categorySuggestion?.categoryId ?? DEFAULT_CATEGORY_ID,
-        memo: "",
-        lineItems: createLineItemsFromCandidates(parseResult.lineItemCandidates),
-      },
-      ...(categorySuggestion ? { categorySuggestion } : {}),
-    }]);
-  }
-
   function getOcrRunButtonLabel(): string {
     if (isRunning) {
       return "読み取り中";
@@ -381,11 +354,11 @@ export function ReceiptCaptureScreen({
       <input ref={uploadInputRef} className="visually-hidden" type="file" accept="image/*" multiple aria-label="読み取るレシート画像を選択" onChange={handleFileChange} />
 
       <div className="capture-actions">
-        <button className="button button-primary" type="button" onClick={() => cameraInputRef.current?.click()}>
+        <button className="button button-primary" type="button" disabled={isRunning} onClick={() => cameraInputRef.current?.click()}>
           <Camera size={19} aria-hidden="true" />
           撮影
         </button>
-        <button className="button button-secondary" type="button" onClick={() => uploadInputRef.current?.click()}>
+        <button className="button button-secondary" type="button" disabled={isRunning} onClick={() => uploadInputRef.current?.click()}>
           <FileImage size={19} aria-hidden="true" />
           アップロード
         </button>
@@ -399,7 +372,7 @@ export function ReceiptCaptureScreen({
       {!isGoogleVisionAvailable ? (
         <div className="inline-error">レシート読み取りは現在利用できません。手入力で登録してください。</div>
       ) : !isGoogleVisionAuthenticated ? (
-        <div className="inline-notice">レシートを読み取るには、アカウント画面でGoogleログインしてください。</div>
+        <div className="inline-notice">レシートを読み取るには、アカウント画面でログインして家計簿へ参加してください。</div>
       ) : null}
 
       {receiptSelections.length > 1 && (
@@ -508,32 +481,6 @@ export function ReceiptCaptureScreen({
         </div>
       )}
 
-      {parseResult && (
-        <div className="candidate-panel">
-          <CandidateButtons title="日付候補" candidates={parseResult.dateCandidates} selectedValue={pickedDate} onPick={setPickedDate} />
-          <CandidateButtons title="店舗名候補" candidates={parseResult.shopNameCandidates} selectedValue={pickedShopName} onPick={pickShopName} />
-          <CandidateButtons title="金額候補" candidates={parseResult.amountCandidates} selectedValue={pickedAmount} onPick={setPickedAmount} />
-          <div className="picked-summary">
-            <span>{pickedDate}</span>
-            <span>{pickedShopName || "店舗名未選択"}</span>
-            <strong>¥{pickedAmount.toLocaleString("ja-JP")}</strong>
-          </div>
-          <button className="button button-primary full-width" type="button" onClick={handleConfirm}>
-            <Send size={18} aria-hidden="true" />
-            確認へ
-          </button>
-        </div>
-      )}
-
-      {ocrText && (
-        <section className="content-section">
-          <div className="section-title-row">
-            <h2>読み取った文字</h2>
-            <CopyTextButton text={ocrText} label="全文コピー" />
-          </div>
-          <pre className="ocr-text">{ocrText}</pre>
-        </section>
-      )}
     </section>
   );
 }

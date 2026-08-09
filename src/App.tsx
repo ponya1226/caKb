@@ -1,14 +1,16 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { CalendarDays, Camera, CircleUserRound, Cloud, CloudOff, Home, List, Plus, ReceiptText, RefreshCw } from "lucide-react";
 import { ExpenseEditor } from "./components/ExpenseEditor";
+import { ReceiptAutoSaveNotice } from "./components/ReceiptAutoSaveNotice";
 import { useBudgetData } from "./hooks/useBudgetData";
 import { useCloudHousehold } from "./hooks/useCloudHousehold";
 import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { useGoogleSheetsSync } from "./hooks/useGoogleSheetsSync";
 import { normalizeShopNameForCategory } from "./lib/categorySuggestion";
 import { getFirebaseClientServices } from "./lib/firebaseConfig";
+import { isReceiptOcrConfigured } from "./lib/receiptOcr";
 import { createFirestoreBudgetRepository } from "./lib/repositories/firestoreBudgetRepository";
-import type { ExpenseFormValues, ReceiptDraft, ReceiptSaveOptions } from "./types";
+import type { Expense, ExpenseFormValues, ReceiptDraft, ReceiptSaveOptions } from "./types";
 
 type View = "dashboard" | "expenses" | "yearly" | "receipt" | "confirm" | "settings";
 
@@ -39,10 +41,21 @@ const navItems: Array<{ view: View; label: string; icon: typeof Home }> = [
   { view: "settings", label: "アカウント", icon: CircleUserRound },
 ];
 
+const AUTO_SAVE_UNDO_WINDOW_MS = 10_000;
+
+type RecentAutoSave = {
+  expense: Expense;
+  expiresAt: number;
+};
+
 export default function App() {
   const [view, setView] = useState<View>("dashboard");
   const [receiptDrafts, setReceiptDrafts] = useState<ReceiptDraft[]>([]);
   const [receiptBatchTotal, setReceiptBatchTotal] = useState(0);
+  const [initialReceiptFiles, setInitialReceiptFiles] = useState<File[] | null>(null);
+  const [recentAutoSave, setRecentAutoSave] = useState<RecentAutoSave | null>(null);
+  const [undoError, setUndoError] = useState<string | null>(null);
+  const [isUndoingAutoSave, setIsUndoingAutoSave] = useState(false);
   const [isManualQuickAddOpen, setIsManualQuickAddOpen] = useState(false);
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
   const firebaseAuth = useFirebaseAuth();
@@ -66,6 +79,7 @@ export default function App() {
     storageMode: cloudBudgetRepository ? "cloud" : "local",
   });
   const isCloudStorage = budgetData.storageMode === "cloud";
+  const canUseReceiptOcr = Boolean(firebaseAuth.user && cloudHousehold.household) && isReceiptOcrConfigured();
   const activeHouseholdName = cloudHousehold.household?.household.name;
   const cloudConnection = budgetData.cloudConnection;
   const householdMemberNameMap = useMemo(() => {
@@ -91,6 +105,18 @@ export default function App() {
     window.addEventListener("cakb:update-available", handleUpdateAvailable);
     return () => window.removeEventListener("cakb:update-available", handleUpdateAvailable);
   }, []);
+
+  useEffect(() => {
+    if (!recentAutoSave) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setRecentAutoSave((current) => current?.expense.id === recentAutoSave.expense.id ? null : current);
+      setUndoError(null);
+    }, Math.max(0, recentAutoSave.expiresAt - Date.now()));
+    return () => window.clearTimeout(timeoutId);
+  }, [recentAutoSave]);
 
   function revokeReceiptDraftUrls(drafts: ReceiptDraft[]) {
     drafts.forEach((draft) => {
@@ -149,6 +175,41 @@ export default function App() {
     setView("expenses");
   }
 
+  async function handleAutoSaveReceipt(draft: ReceiptDraft): Promise<Expense> {
+    return budgetData.addReceiptExpense(draft.initialValues, {
+      imageBlob: draft.imageFile,
+      ocrText: draft.ocrText,
+    });
+  }
+
+  function handleAutoSaveComplete(expense: Expense) {
+    setRecentAutoSave({ expense, expiresAt: Date.now() + AUTO_SAVE_UNDO_WINDOW_MS });
+    setUndoError(null);
+    setView("dashboard");
+  }
+
+  async function handleUndoAutoSave() {
+    if (!recentAutoSave || isUndoingAutoSave) {
+      return;
+    }
+
+    setIsUndoingAutoSave(true);
+    setUndoError(null);
+    try {
+      await budgetData.removeExpense(recentAutoSave.expense);
+      setRecentAutoSave(null);
+    } catch {
+      setUndoError("登録を元に戻せませんでした。支出一覧を確認してください。");
+    } finally {
+      setIsUndoingAutoSave(false);
+    }
+  }
+
+  function handleDashboardReceiptCapture(files: File[]) {
+    setInitialReceiptFiles(files);
+    setView("receipt");
+  }
+
   function handleReceiveDrafts(drafts: ReceiptDraft[]) {
     if (drafts.length === 0) {
       return;
@@ -165,6 +226,10 @@ export default function App() {
       revokeReceiptDraftUrls(receiptDrafts);
       setReceiptDrafts([]);
       setReceiptBatchTotal(0);
+    }
+
+    if (nextView !== "receipt") {
+      setInitialReceiptFiles(null);
     }
 
     setView(nextView);
@@ -291,13 +356,24 @@ export default function App() {
         </div>
       )}
 
+      {recentAutoSave && (
+        <ReceiptAutoSaveNotice
+          expense={recentAutoSave.expense}
+          error={undoError}
+          isUndoing={isUndoingAutoSave}
+          onUndo={() => void handleUndoAutoSave()}
+        />
+      )}
+
       <main className="app-main">
         <Suspense fallback={<ScreenFallback />}>
           {view === "dashboard" && (
             <DashboardScreen
               expenses={budgetData.expenses}
               categories={budgetData.categories}
-              onAddExpense={() => setIsManualQuickAddOpen(true)}
+              canCaptureReceipt={canUseReceiptOcr}
+              onCaptureReceipt={handleDashboardReceiptCapture}
+              onCaptureUnavailable={() => setView("settings")}
             />
           )}
 
@@ -316,9 +392,13 @@ export default function App() {
           {view === "receipt" && (
             <ReceiptCaptureScreen
               onConfirm={handleReceiveDrafts}
+              onAutoSave={handleAutoSaveReceipt}
+              onAutoSaveComplete={handleAutoSaveComplete}
               suggestCategoryForShop={budgetData.suggestCategoryForShop}
-              isGoogleVisionAuthenticated={Boolean(firebaseAuth.user)}
+              isGoogleVisionAuthenticated={Boolean(firebaseAuth.user && cloudHousehold.household)}
               getGoogleVisionIdToken={firebaseAuth.getIdToken}
+              initialFiles={initialReceiptFiles ?? undefined}
+              onInitialFilesConsumed={() => setInitialReceiptFiles(null)}
             />
           )}
 

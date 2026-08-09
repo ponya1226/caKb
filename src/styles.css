@@ -312,6 +312,12 @@ h3 {
   gap: 10px;
 }
 
+.dashboard-capture-button {
+  width: 100%;
+  min-height: 58px;
+  font-size: 1.02rem;
+}
+
 .privacy-note {
   display: grid;
   gap: 6px;
@@ -322,6 +328,31 @@ h3 {
   color: #0c4a6e;
   background: #f0f9ff;
   font-size: 0.86rem;
+}
+
+.review-required-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #fbbf24;
+  border-radius: 8px;
+  color: #92400e;
+  background: #fffbeb;
+}
+
+.review-required-notice div {
+  display: grid;
+  gap: 6px;
+}
+
+.review-required-notice ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.84rem;
 }
 
 .receipt-selection-strip {
@@ -1357,6 +1388,40 @@ textarea {
   font-weight: 700;
 }
 
+.auto-save-banner {
+  display: grid;
+  position: sticky;
+  top: 8px;
+  z-index: 41;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  max-width: 1080px;
+  margin: 8px auto;
+  padding: 10px 12px;
+  border: 1px solid #22c55e;
+  border-radius: 8px;
+  color: #166534;
+  background: #f0fdf4;
+  box-shadow: 0 10px 24px rgba(21, 128, 61, 0.12);
+}
+
+.auto-save-banner div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.auto-save-banner span,
+.auto-save-banner small {
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+}
+
+.auto-save-banner small {
+  color: var(--danger);
+}
+
 .connection-banner {
   display: grid;
   position: sticky;
@@ -1496,7 +1561,12 @@ textarea {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .connection-banner .button {
+  .auto-save-banner {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .connection-banner .button,
+  .auto-save-banner .button {
     grid-column: 1 / -1;
     width: 100%;
   }

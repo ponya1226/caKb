@@ -460,6 +460,17 @@ function extractAmountCandidates(lines: string[]): Array<ReceiptCandidate<number
   return uniqueCandidates(candidates).slice(0, 6);
 }
 
+function extractBalanceAmounts(lines: string[]): number[] {
+  const amounts = lines.flatMap((line, index) => {
+    const contextLine = getAmountContextLine(lines, index);
+    return BALANCE_AMOUNT_KEYWORD_PATTERN.test(contextLine)
+      ? extractAmountsFromLine(line)
+      : [];
+  });
+
+  return amounts.filter((amount, index) => amounts.indexOf(amount) === index);
+}
+
 function removeAmountToken(line: string, match: AmountMatch): string {
   return `${line.slice(0, match.index)} ${line.slice(match.index + match.raw.length)}`;
 }
@@ -1071,6 +1082,9 @@ export function parseReceiptText(text: string, blocks?: OcrTextBlock[]): Receipt
     amountCandidates: extractAmountCandidates(lines),
     lineItemCandidates:
       spatialLineItemCandidates.length > 0 ? spatialLineItemCandidates : extractLineItemCandidates(lines),
+    riskSignals: {
+      balanceAmounts: extractBalanceAmounts(lines),
+    },
   };
 }
 

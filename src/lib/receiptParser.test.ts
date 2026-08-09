@@ -153,6 +153,7 @@ describe("parseReceiptText", () => {
     expect(result.amountCandidates[0]?.value).toBe(348);
     expect(result.amountCandidates.map((candidate) => candidate.value)).not.toContain(1494);
     expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toContain(1494);
+    expect(result.riskSignals.balanceAmounts).toContain(1494);
   });
 
   it("extracts line item candidates from convenience store style rows", () => {

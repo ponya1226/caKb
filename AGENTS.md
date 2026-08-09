@@ -1,6 +1,6 @@
 # Project Overview
 
-caKbは、個人または家族で利用する家計簿PWAです。レシート画像を自前Proxy経由のGoogle Visionで読み取り、ユーザーが必ず確認・修正してからIndexedDBまたはFirestoreに支出を保存します。
+caKbは、個人または家族で利用する「家計簿をつけなくていい家計簿」PWAです。レシート画像を自前Proxy経由のGoogle Visionで読み取り、説明可能なConfidence判定がHighなら自動保存し、Lowまたはuncertainの場合だけ確認・修正してIndexedDBまたはFirestoreに保存します。
 
 MVPではバックエンド、ログイン、クラウド同期、家族共有、有料API、AI分析を実装しません。
 
@@ -33,6 +33,7 @@ public/             PWA manifest、service worker、アイコン
 - `lib` はReactに依存しない。
 - IndexedDBの詳細は `src/lib/db.ts` に閉じ込める。
 - OCR候補抽出は `src/lib/receiptParser.ts` に閉じ込め、画面に正規表現を散らさない。
+- 自動保存可否はReactに依存しないConfidence判定へ閉じ込め、UIで独自判定しない。
 
 ## Setup Commands
 
@@ -63,10 +64,12 @@ npm run test:e2e
 
 ## Development Principles
 
-- 動くMVPを優先し、クラウド同期や共有などの対象外機能を混ぜない。
+- 最重要判断基準は、家計簿のために利用者が行う操作を減らせるかとする。
 - 1タスク1目的で、無関係なリファクタリングを混ぜない。
 - 既存の型、Repository、UIパターンに合わせる。
-- OCR精度を断定しない。保存前に必ず確認画面を挟む。
+- OCR精度を断定しない。High confidenceだけを自動保存し、Lowまたはuncertainは必ず確認画面へ送る。無条件自動保存は禁止する。
+- Confidenceは不透明な数値だけにせず、総額、日付、店舗、カテゴリ、競合金額、残高、品目整合性などの根拠を型で説明可能にする。
+- 品目明細は付加情報とし、品目欠落だけを理由に必ず要確認へ落とさない。
 - 保存先は利用状態に応じてIndexedDBまたはFirestoreとし、画面上で現在の保存先を明示する。
 - 主要な方針変更、保存形式変更、ライブラリ追加はADRを残す。
 - 大きな機能完了時は `docs/project-status.md` と `docs/development-history.md` を更新する。
@@ -99,7 +102,8 @@ UI変更では次を手動確認する。
 
 - スマホ幅で主要ボタンと入力が押しやすい。
 - 支出の登録、編集、削除ができる。
-- OCR結果を確認画面で修正して保存できる。
+- High confidenceの単体レシートを確認画面なしで保存し、短時間Undoできる。
+- Lowまたはuncertainの読み取り結果を理由付き確認画面で修正して保存できる。
 - 再読み込み後もIndexedDBのデータが残る。
 - CSVエクスポートが実行できる。
 
@@ -134,6 +138,7 @@ Firebase Hosting, Firebase Auth, Cloud Firestore, and Google Sheets one-way expo
 - Do not persist uploaded receipt images on the proxy.
 - Keep the user-facing receipt flow fixed to Google Vision. Do not reintroduce Tesseract.js, Provider selection, crop controls, or local fallback without a new ADR and explicit approval.
 - External OCR use must be visible to the user before sending an image.
+- External OCRの説明は維持するが、撮影ごとの不要な追加確認クリックは要求しない。
 - Google Vision Proxy must verify Firebase ID tokens when `REQUIRE_FIREBASE_AUTH=true`; keep this enabled for hosted environments.
 - Hosted Google Vision Proxy deployments must require active household membership with `REQUIRE_HOUSEHOLD_MEMBERSHIP=true`. `ALLOWED_AUTH_EMAILS` is an optional additional restriction only; do not hard-code real user email addresses in the repository or expose them via GitHub variables.
 - Firebase client config must come from `VITE_FIREBASE_*`; do not commit real `.env` values or service account keys.
@@ -143,8 +148,8 @@ Firebase Hosting, Firebase Auth, Cloud Firestore, and Google Sheets one-way expo
 
 ## Prohibited Actions
 
-- 有料APIを導入する。
-- バックエンド、ログイン、クラウド同期、家族共有をMVPへ混ぜる。
-- OCR結果を確認なしで自動保存する。
+- 明示承認とADRなしに新しい有料APIや外部サービスを導入する。
+- 銀行・カード連携、外部LLM、新OCR Providerなど当面対象外の機能を混ぜる。
+- Confidence判定なしでOCR結果を自動保存する、またはLow/uncertainを自動保存する。
 - レシート画像保存OFFでも画像Blobを保存する。
 - `git reset --hard` や破壊的なcheckoutを無断で実行する。
