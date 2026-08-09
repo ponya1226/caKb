@@ -11,6 +11,7 @@
 - [ ] `npm run lint`
 - [ ] `npm run test`
 - [ ] `npm run build`
+- [ ] `npm run test:e2e`, when UI or a primary user flow changes
 - [ ] Proxy tests and build, when `server/google-vision-proxy/` changes
 - [ ] Firestore Rules tests, when `firestore.rules` changes
 - [ ] `git diff --check`

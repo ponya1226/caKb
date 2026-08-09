@@ -1,5 +1,32 @@
 # Development History
 
+## 2026-08-09 Playwright Browser Smoke Tests
+
+目的: 実機で確認した一般利用者向け画面とGoogleの文字読み取り固定動線を、今後のPull Requestで自動的に回帰確認できるようにする。
+
+主な変更:
+
+- PlaywrightとChromiumのスマホ設定を開発用テスト基盤として追加
+- 未ログインのアカウント画面で一般利用者向け情報が表示され、管理者の招待操作が表示されないことを確認
+- レシート画面がGoogleの文字読み取りに固定され、旧OCR方式、範囲、画像補正UIが表示されないことを確認
+- 手入力支出をIndexedDBへ保存し、支出一覧へ店舗名と金額が反映されることを確認
+- 390px相当のスマホ幅で主要画面に横overflowがないことを確認
+- Pull Request CIへ `Browser Smoke CI` を追加し、失敗時のreport、screenshot、traceをartifactとして保持
+- ADR 0012、SDLC、Contributing、Pull Request template、Project Status、Roadmapを更新
+
+検証結果:
+
+- `npm run lint`: 成功
+- `npm run test`: 23ファイル、107件成功
+- `npm run test:e2e`: mobile Chromium 3件成功
+- production build: 成功。既存の大きいchunk警告のみ
+- `git diff --check`: 成功
+
+残課題:
+
+- 実Googleログインとowner/member切り替えはcredentialをCIへ持ち込まず、別アカウントの実機確認を継続する
+- 支出編集・削除とOCR確認画面はfixtureを用意してbrowser smoke testを拡張する
+
 ## 2026-08-09 User UI and Google Vision Flow Simplification
 
 目的: 一般利用者の画面から管理操作と旧OCR調整を外し、日常的なレシート登録とアカウント確認に必要な操作だけを分かりやすく表示する。

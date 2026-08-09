@@ -35,7 +35,11 @@ npm run dev
 npm run lint
 npm run test
 npm run build
+npx playwright install chromium
+npm run test:e2e
 ```
+
+`npm run test:e2e` はproduction buildを起動し、スマホ幅のChromiumでアカウント、レシート、手入力登録を確認します。Chromiumのインストールは開発端末ごとに初回だけ必要です。
 
 ## データ保存
 

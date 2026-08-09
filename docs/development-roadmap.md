@@ -31,7 +31,7 @@ Google Vision固定の撮影・アップロード・読み取り・確認導線�
 - Firestore RulesをEmulatorで検証し、Hostingと同じworkflowで配布する。
 - PWA更新通知から利用者が明示的に最新版へ切り替えられるようにする。
 
-GitHub Pages停止、デプロイ後smoke test、クラウド接続状態表示、安全なJSON置換復元まで完了。次は管理者・家族の別端末実機確認を行う。
+GitHub Pages停止、デプロイ後smoke test、クラウド接続状態表示、安全なJSON置換復元、Playwrightによる未ログイン・レシート・手入力のスマホbrowser smoke testまで完了。次は管理者・家族の別端末実機確認を行う。
 
 ## Phase 3: Firestore正本化
 
