@@ -5,6 +5,7 @@ Last Updated: 2026-08-09
 ## Implemented
 
 - Pull Request向けFrontend、Firestore Rules、Google Vision Proxy、Dependency Review CI
+- PlaywrightとChromiumによるスマホ向けBrowser Smoke CI。アカウント、Googleの文字読み取り固定、IndexedDB手入力登録、横overflowを検証
 - Dependabotによるnpm、GitHub Actions、Docker base imageの週次更新
 - GitHub Actionsのcommit SHA固定とNode.js 24への実行環境統一
 - GitHub OIDCとWorkload Identity Federationによる鍵なしproduction deploy
@@ -191,11 +192,12 @@ Last Updated: 2026-08-09
 - 店舗名の補正は限定的なヒューリスティックで、店舗網羅は未対応。
 - 自動カテゴライズは店舗名の正規化一致のみで、商品名や明細内容は考慮していない。
 - 複数レシートの一括登録は失敗画像だけ再試行できるが、Google Visionへの送信は逐次処理のため枚数が多い場合は待ち時間が長くなる。
+- Browser Smoke CIは未ログインのChromiumを対象とし、実Googleログイン、owner/member切り替え、外部OCR応答は実機・統合確認が必要。
 
 ## Next Recommended Priorities
 
 - staging環境とproduction承認ゲートを追加する
-- Playwrightによる主要動線のbrowser smoke testを追加する
+- Playwrightへ支出編集・削除とfixtureベースのOCR確認画面テストを追加する
 - Recharts 3移行とメインbundle分割を個別Pull Requestで検証する
 - 管理者と家族の別Googleアカウントを使い、招待、参加、支出共有、解除をスマホ実機で確認する
 - 別端末で店舗ルールの追加・変更・削除と、同じ支出の競合通知を実機確認する

@@ -24,6 +24,13 @@ npm run test
 npm run build
 ```
 
+UIまたは主要動線を変更した場合は、Playwright用Chromiumを初回だけ導入し、browser smoke testも実行する。
+
+```powershell
+npx playwright install chromium
+npm run test:e2e
+```
+
 実行できない検証がある場合は、理由と残るリスクを記録する。
 
 ProxyまたはFirestore Rulesを変更した場合は、追加で次を実行する。
@@ -38,7 +45,7 @@ git diff --check
 ## Pull Request
 
 - `main` へ直接pushせず、短期ブランチからPull Requestを作成する。
-- `Frontend CI`、`Firestore Rules CI`、`Proxy CI`、`Dependency Review`を通してからmergeする。
+- `Frontend CI`、`Browser Smoke CI`、`Firestore Rules CI`、`Proxy CI`、`Dependency Review`を通してからmergeする。
 - 1つのPull Requestには1つの目的だけを含める。
 - データ形式、Security Rules、Proxy APIを変える場合は、後方互換性とrollback方法を記載する。
 - merge後にFirebase HostingまたはCloud Runのworkflowとsmoke testが成功したことを確認する。

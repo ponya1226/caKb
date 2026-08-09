@@ -16,6 +16,7 @@ caKbは、短期ブランチ、Pull Request、必須CI、`main` へのmerge、�
 ## 必須CI
 
 - `Frontend CI`: 型検査、ユニットテスト、production build、production依存監査
+- `Browser Smoke CI`: Chromiumのスマホ設定でアカウント、レシート、IndexedDB手入力登録、横overflowを検証
 - `Firestore Rules CI`: Firebase Emulatorを使ったSecurity Rulesテスト
 - `Proxy CI`: Proxyのユニットテスト、TypeScript build、production依存監査
 - `Dependency Review`: Pull Requestで追加される重大度high以上の既知脆弱性を拒否
@@ -54,6 +55,6 @@ merge後は次を確認します。
 ## 次の改善
 
 1. staging環境とproduction承認ゲートを追加する。
-2. Playwrightでログイン前、ローカル登録、主要画面のbrowser smoke testを追加する。
+2. Playwrightへ支出編集・削除とfixtureを使ったOCR確認画面のbrowser smoke testを追加する。
 3. TypeScript型検査とは別にESLint、formatter、coverage基準を導入する。
 4. 主要画面と巨大モジュールを責務単位に分割する。

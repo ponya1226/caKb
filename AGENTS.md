@@ -47,6 +47,7 @@ npm run dev
 npm run lint
 npm run test
 npm run build
+npm run test:e2e
 ```
 
 ## Repository / GitHub
@@ -55,7 +56,7 @@ npm run build
 - Default remote name: `origin`
 - 初回公開時はこのURLを `origin` に設定してpushする。
 - push前に `git status -sb` で作業範囲を確認し、無関係な変更をstageしない。
-- commit前に可能な限り `npm run lint`、`npm run test`、`npm run build`、`git diff --check` を実行する。
+- commit前に可能な限り `npm run lint`、`npm run test`、`npm run build`、`git diff --check` を実行する。UI変更では `npm run test:e2e` も実行する。
 - commit messageは `feat:`、`fix:`、`docs:`、`test:`、`refactor:`、`chore:` を基本にする。
 - GitHubへのpushはユーザーから明示依頼がある場合に行う。
 
@@ -90,6 +91,7 @@ npm run build
 npm run lint
 npm run test
 npm run build
+npm run test:e2e
 ```
 
 UI変更では次を手動確認する。
