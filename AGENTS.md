@@ -59,6 +59,7 @@ npm run test:e2e
 - commit前に可能な限り `npm run lint`、`npm run test`、`npm run build`、`git diff --check` を実行する。UI変更では `npm run test:e2e` も実行する。
 - commit messageは `feat:`、`fix:`、`docs:`、`test:`、`refactor:`、`chore:` を基本にする。
 - GitHubへのpushはユーザーから明示依頼がある場合に行う。
+- `main` merge後のFirebase Hostingはstaging preview、browser smoke test、GitHub production承認、検証済みversionの本番昇格の順で行う。productionを直接上書きするworkflowへ戻さない。
 
 ## Development Principles
 

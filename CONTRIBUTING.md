@@ -48,7 +48,7 @@ git diff --check
 - `Frontend CI`、`Browser Smoke CI`、`Firestore Rules CI`、`Proxy CI`、`Dependency Review`を通してからmergeする。
 - 1つのPull Requestには1つの目的だけを含める。
 - データ形式、Security Rules、Proxy APIを変える場合は、後方互換性とrollback方法を記載する。
-- merge後にFirebase HostingまたはCloud Runのworkflowとsmoke testが成功したことを確認する。
+- merge後にFirebase Hostingのstaging smoke testを確認し、production environmentを承認して本番昇格まで確認する。Cloud Run変更時はCloud Run workflowも確認する。
 - 詳細な開発・リリース手順は `docs/sdlc.md` を参照する。
 
 ## Commit

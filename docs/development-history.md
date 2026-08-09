@@ -1,5 +1,35 @@
 # Development History
 
+## 2026-08-09 Staging And Production Deploy Gate
+
+目的: `main` merge後のFirebase Hosting配信物をproduction反映前に実URLで検証し、管理者承認なしに利用者へ配信されないリリース工程へ移行する。
+
+主な変更:
+
+- Firebase Hostingの固定preview channel `staging` へproduction buildを配布するworkflowへ変更
+- GitHubの `staging` と `production` environmentsをprotected branch限定で作成し、productionに管理者required reviewerを設定
+- Firebase CLIのJSON出力からpreview URLを安全に抽出するscriptと単体テストを追加
+- Playwrightを外部URLへ向けられるようにし、stagingでは未ログイン画面とIndexedDB支出CRUDの3件を実行
+- 匿名OCR確認fixtureはローカル専用testへ分離し、production appへtest用入口を追加しない構成を維持
+- GitHub `production` environmentのrequired reviewer承認後にFirestore Rulesを配布し、検証済みstaging Hosting versionをliveへclone
+- ADR 0013、README、SDLC、Firebase運用手順、Project Status、Roadmapを更新
+
+検証結果:
+
+- `npm run lint`: 成功
+- `npm run test`: 23ファイル、107件成功
+- `npm run test:deploy-scripts`: 3件成功
+- `npm run test:e2e`: local mobile Chromium 4件成功
+- `E2E_BASE_URL=https://cakb-dev.firebaseapp.com npm run test:e2e:deployed`: 配信URLに対する3件成功
+- `npm run build`: 成功。既存の大きいchunk警告のみ
+- `npm run test:rules`: ローカル環境にJavaがないため未実行。GitHub ActionsのJava 21環境で検証する
+
+残課題:
+
+- stagingはHosting previewのみで、Authentication、Firestore、Cloud Runはproductionと分離されていない
+- 実Googleログイン、owner/member共有、外部レシート読み取りは別アカウントの実機確認を継続する
+- 認証済み統合テストが必要になった場合は、別Firebase staging projectを検討する
+
 ## 2026-08-09 Browser Smoke Coverage Extension
 
 目的: 最初のスマホbrowser smoke testを、支出の更新・削除とOCR確認画面の入力・保存まで拡張する。

@@ -9,6 +9,8 @@ Last Updated: 2026-08-09
 - Dependabotによるnpm、GitHub Actions、Docker base imageの週次更新
 - GitHub Actionsのcommit SHA固定とNode.js 24への実行環境統一
 - GitHub OIDCとWorkload Identity Federationによる鍵なしproduction deploy
+- Firebase Hosting固定staging previewへの自動配布と、配信URLに対するPlaywright browser smoke test
+- GitHub production environmentのrequired reviewer承認後に、検証済みHosting versionを本番へ昇格するdeploy gate
 - Firebase Hosting/Firestore RulesとCloud Runのdeploy service account分離
 - Cloud Run source build専用service accountと `roles/run.builder` による既定Compute identityからの分離
 - 既定Compute service accountのEditor削除、Cloud Asset / Policy Simulator監査、IAM運用基準の文書化
@@ -72,7 +74,7 @@ Last Updated: 2026-08-09
 - クラウド家計簿確認失敗時の再試行導線
 - PWA更新検出時の最新版への更新バナー
 - Firestore Emulatorによるmember/非member/owner権限のRulesテスト
-- `main` push時のRulesテスト、Firestore Rules配布、Firebase Hostingデプロイ
+- `main` push時のRulesテスト、Firebase Hosting staging検証、承認後のFirestore Rules配布と本番昇格
 
 - Firestore cloud repositoryへの正本切替: ログイン済みかつクラウド家計簿が存在する場合、支出・カテゴリ・JSONインポート・データ初期化はFirestoreを保存先として使用
 - IndexedDB local repositoryは未ログイン時、Firebase未設定時、クラウド家計簿未作成時のフォールバックとして継続
@@ -159,7 +161,8 @@ Last Updated: 2026-08-09
 
 ## Technical Debt
 
-- staging環境、production承認ゲート、browser E2E、coverage基準は未導入。
+- stagingは同じFirebase project上のHosting previewであり、Authentication、Firestore、Cloud Runは分離されていない。認証済み共有動線の自動統合テストが必要になった場合は別projectを検討する。
+- browser E2Eは主要な未ログイン動線を対象としているが、coverage基準は未導入。
 - Recharts 2系は保守終了警告が出ている。3系への移行影響を確認してmajor updateする必要がある。
 - production buildのメインchunkは約988KB。Firebase importの静的・動的混在と共通chunk構成を見直す必要がある。
 - Google Visionの単語座標による行再構成は実装済み。強い傾き、湾曲、複数列レイアウトでは追加調整が必要になる可能性がある。
@@ -196,11 +199,10 @@ Last Updated: 2026-08-09
 
 ## Next Recommended Priorities
 
-- staging環境とproduction承認ゲートを追加する
-- staging配信物へPlaywright browser smoke testを実行する
 - Recharts 3移行とメインbundle分割を個別Pull Requestで検証する
 - 管理者と家族の別Googleアカウントを使い、招待、参加、支出共有、解除をスマホ実機で確認する
 - 別端末で店舗ルールの追加・変更・削除と、同じ支出の競合通知を実機確認する
+- staging失敗率、production承認待ち時間、rollback所要時間を確認し、運用手順を調整する
 
 - Firebase Hosting URLでのPC/スマホGoogleログイン継続確認
 - Cloud Run実行サービスアカウントのFirestore読み取り権限を確認し、家族アカウントでレシート読み取りを実機確認する
