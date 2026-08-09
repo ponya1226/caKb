@@ -1,25 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Play, Save, SkipForward, SlidersHorizontal, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, Play, SkipForward } from "lucide-react";
 import { CopyTextButton } from "./CopyTextButton";
 import { ExpenseEditor } from "./ExpenseEditor";
-import { OcrCropPreview } from "./OcrCropPreview";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
-import type { OcrCropRatios, OcrPreprocessMode } from "../lib/ocr";
-import { getOcrProviderLabel } from "../lib/ocrProviders";
 import { createLineItemsFromCandidates } from "../lib/lineItems";
-import {
-  FULL_OCR_CROP,
-  getOcrPresets,
-  getPairedCropSide,
-  MAX_COMBINED_CROP_PERCENT,
-  RECEIPT_BODY_CROP,
-  runOcrWithRangeMode,
-} from "../lib/ocrRange";
-import type { OcrMode, OcrPreset } from "../lib/ocrRange";
+import { runReceiptOcr } from "../lib/receiptOcr";
 import { parseReceiptText } from "../lib/receiptParser";
 import { toDateInputValue } from "../lib/date";
 import type {
-  AppSettings,
   Category,
   ExpenseFormValues,
   OcrProgress,
@@ -31,118 +19,44 @@ import type {
 type OcrConfirmScreenProps = {
   draft: ReceiptDraft;
   categories: Category[];
-  settings: AppSettings;
   queuePosition?: {
     current: number;
     total: number;
   };
   onBack: () => void;
   onSkip?: () => void;
-  savedOcrCrop?: OcrCropRatios;
-  onSaveOcrCrop: (crop: OcrCropRatios) => void;
   onUpdateDraft: (draft: ReceiptDraft) => void;
   suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
   getGoogleVisionIdToken: () => Promise<string | null>;
   onSave: (values: ExpenseFormValues, options?: ReceiptSaveOptions) => Promise<void>;
 };
 
-function normalizeOcrPreprocessMode(mode: string | undefined): OcrPreprocessMode {
-  if (mode === "binary" || mode === "bold" || mode === "contrast") {
-    return mode;
-  }
-
-  return "contrast";
-}
-
-function getDefaultOcrCrop(draft: ReceiptDraft, savedOcrCrop?: OcrCropRatios): OcrCropRatios {
-  return draft.ocrCrop ?? (draft.ocrProvider === "googleVision" ? FULL_OCR_CROP : savedOcrCrop ?? RECEIPT_BODY_CROP);
-}
-
-function getDefaultPresetLabel(draft: ReceiptDraft): string | null {
-  return draft.ocrPresetLabel ?? (draft.ocrProvider === "googleVision" ? "全体" : null);
-}
-
 export function OcrConfirmScreen({
   draft,
   categories,
-  settings,
   queuePosition,
   onBack,
   onSkip,
-  savedOcrCrop,
-  onSaveOcrCrop,
   onUpdateDraft,
   suggestCategoryForShop,
   getGoogleVisionIdToken,
   onSave,
 }: OcrConfirmScreenProps) {
-  const [ocrMode, setOcrMode] = useState<OcrMode>("auto");
-  const [ocrCrop, setOcrCrop] = useState<OcrCropRatios>(() => getDefaultOcrCrop(draft, savedOcrCrop));
-  const [selectedPresetLabel, setSelectedPresetLabel] = useState<string | null>(() => getDefaultPresetLabel(draft));
-  const [ocrPreprocess, setOcrPreprocess] = useState(draft.ocrPreprocess ?? false);
-  const [ocrPreprocessMode, setOcrPreprocessMode] = useState<OcrPreprocessMode>(normalizeOcrPreprocessMode(draft.ocrPreprocessMode));
   const [progress, setProgress] = useState<OcrProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [saveCategoryRule, setSaveCategoryRule] = useState(true);
-  const ocrPresets = useMemo(() => getOcrPresets(savedOcrCrop), [savedOcrCrop]);
-  const isDraftGoogleVision = draft.ocrProvider === "googleVision";
 
   const suggestedCategory = draft.categorySuggestion
     ? categories.find((category) => category.id === draft.categorySuggestion?.categoryId)
     : undefined;
 
   useEffect(() => {
-    setOcrMode("auto");
-    setOcrCrop(getDefaultOcrCrop(draft, savedOcrCrop));
-    setSelectedPresetLabel(getDefaultPresetLabel(draft));
-    setOcrPreprocess(draft.ocrPreprocess ?? false);
-    setOcrPreprocessMode(normalizeOcrPreprocessMode(draft.ocrPreprocessMode));
     setProgress(null);
     setError(null);
     setIsRunning(false);
     setSaveCategoryRule(true);
-  }, [draft.imagePreviewUrl, draft.ocrCrop, draft.ocrPresetLabel, draft.ocrPreprocess, draft.ocrPreprocessMode, draft.ocrProvider, savedOcrCrop]);
-
-  function applyManualCrop(nextCrop: OcrCropRatios) {
-    setOcrMode("manual");
-    setOcrPreprocess(true);
-    setOcrPreprocessMode("contrast");
-    setSelectedPresetLabel("手動補正");
-    setOcrCrop(nextCrop);
-  }
-
-  function handleCropChange(side: keyof OcrCropRatios, value: number) {
-    setOcrMode("manual");
-    setOcrPreprocess(true);
-    setOcrPreprocessMode("contrast");
-    setSelectedPresetLabel("手動補正");
-    setOcrCrop((currentCrop) => {
-      const pairedSide = getPairedCropSide(side);
-      const maxValue = Math.max(0, MAX_COMBINED_CROP_PERCENT - currentCrop[pairedSide]);
-      return {
-        ...currentCrop,
-        [side]: Math.min(value, maxValue),
-      };
-    });
-  }
-
-  function applyPreset(preset: OcrPreset) {
-    setOcrMode("manual");
-    setSelectedPresetLabel(preset.label);
-    setOcrPreprocess(Boolean(preset.preprocess));
-    setOcrPreprocessMode(preset.preprocessMode ?? "contrast");
-    setOcrCrop(preset.crop);
-  }
-
-  function applyAutoMode() {
-    const isGoogleVision = draft.ocrProvider === "googleVision";
-    setOcrMode("auto");
-    setSelectedPresetLabel(isGoogleVision ? "全体" : null);
-    setOcrPreprocess(false);
-    setOcrPreprocessMode("contrast");
-    setOcrCrop(isGoogleVision ? FULL_OCR_CROP : savedOcrCrop ?? RECEIPT_BODY_CROP);
-  }
+  }, [draft.imagePreviewUrl]);
 
   async function handleRerunOcr() {
     setIsRunning(true);
@@ -150,22 +64,13 @@ export function OcrConfirmScreen({
     setError(null);
 
     try {
-      const provider = draft.ocrProvider ?? "localTesseract";
-      const isGoogleVision = provider === "googleVision";
-      const googleVisionAuthToken = isGoogleVision ? await getGoogleVisionIdToken() : null;
-      if (isGoogleVision && !googleVisionAuthToken) {
-        throw new Error("オンラインで読み直すにはGoogleログインが必要です。");
+      const googleVisionAuthToken = await getGoogleVisionIdToken();
+      if (!googleVisionAuthToken) {
+        throw new Error("読み直すにはGoogleログインが必要です。アカウント画面でログインしてください。");
       }
 
-      const ocrResult = await runOcrWithRangeMode(draft.imageFile, {
-        provider,
-        mode: isGoogleVision ? "manual" : ocrMode,
-        crop: isGoogleVision ? FULL_OCR_CROP : ocrCrop,
-        presetLabel: isGoogleVision ? "全体" : selectedPresetLabel,
-        preprocess: isGoogleVision ? false : ocrPreprocess,
-        preprocessMode: ocrPreprocessMode,
-        savedOcrCrop,
-        googleVisionAuthToken,
+      const ocrResult = await runReceiptOcr(draft.imageFile, {
+        authToken: googleVisionAuthToken,
         onProgress: setProgress,
       });
       const parsed = parseReceiptText(ocrResult.text, ocrResult.blocks);
@@ -175,13 +80,7 @@ export function OcrConfirmScreen({
         ...draft,
         ocrText: ocrResult.text,
         parseResult: parsed,
-        ocrCrop: ocrResult.crop,
-        ocrPresetLabel: ocrResult.presetLabel,
-        ocrPreprocess: ocrResult.preprocess,
-        ocrPreprocessMode: ocrResult.preprocessMode,
-        ocrProvider: ocrResult.provider,
-        ...(ocrResult.blocks ? { ocrBlocks: ocrResult.blocks } : {}),
-        ...(ocrResult.ocrImagePreviewUrl ? { ocrImagePreviewUrl: ocrResult.ocrImagePreviewUrl } : {}),
+        ocrBlocks: ocrResult.blocks ?? [],
         initialValues: {
           ...draft.initialValues,
           date: parsed.dateCandidates[0]?.value ?? draft.initialValues.date ?? toDateInputValue(new Date()),
@@ -193,16 +92,6 @@ export function OcrConfirmScreen({
         categorySuggestion: categorySuggestion ?? undefined,
       };
 
-      setOcrCrop(ocrResult.crop);
-      setSelectedPresetLabel(ocrResult.presetLabel);
-      setOcrPreprocess(ocrResult.preprocess);
-      setOcrPreprocessMode(ocrResult.preprocessMode);
-      if (draft.ocrImagePreviewUrl && draft.ocrImagePreviewUrl !== ocrResult.ocrImagePreviewUrl) {
-        URL.revokeObjectURL(draft.ocrImagePreviewUrl);
-      }
-      if (provider !== "googleVision") {
-        onSaveOcrCrop(ocrResult.crop);
-      }
       onUpdateDraft(nextDraft);
     } catch (unknownError) {
       setError(unknownError instanceof Error ? unknownError.message : "レシートを読み取れませんでした");
@@ -227,21 +116,8 @@ export function OcrConfirmScreen({
         </button>
       </div>
 
-      <OcrCropPreview
-        imageSrc={draft.imagePreviewUrl}
-        imageAlt="確認中のレシート"
-        crop={ocrCrop}
-        compact
-        onCropChange={isDraftGoogleVision ? undefined : applyManualCrop}
-      />
-
-      <div className="save-mode">
-        <Save size={18} aria-hidden="true" />
-        <span>画像保存: {settings.saveReceiptImages ? "ON" : "OFF"}</span>
-      </div>
-
-      <div className="save-mode">
-        <span>読み取り方法: {getOcrProviderLabel(draft.ocrProvider)}</span>
+      <div className="receipt-preview compact">
+        <img src={draft.imagePreviewUrl} alt="確認中のレシート" />
       </div>
 
       {suggestedCategory && (
@@ -250,88 +126,20 @@ export function OcrConfirmScreen({
         </div>
       )}
 
-      <details className="ocr-crop-panel">
-        <summary>範囲の補助設定</summary>
-        <div className="section-title-row">
-          <h2>このレシートを読み直す</h2>
-          {!isDraftGoogleVision && (
-            <div className="preset-actions">
-              <button className={ocrMode === "auto" ? "button button-primary button-compact" : "button button-secondary button-compact"} type="button" onClick={applyAutoMode}>
-                <Sparkles size={16} aria-hidden="true" />
-                自動
-              </button>
-              {ocrPresets.map((preset) => (
-                <button
-                  className={
-                    ocrMode === "manual" && selectedPresetLabel === preset.label
-                      ? "button button-primary button-compact"
-                      : "button button-secondary button-compact"
-                  }
-                  key={preset.id}
-                  type="button"
-                  onClick={() => applyPreset(preset)}
-                >
-                  {preset.id === "body" && <SlidersHorizontal size={16} aria-hidden="true" />}
-                  {preset.label}
-                </button>
-              ))}
-              <button className="button button-secondary button-compact" type="button" onClick={() => onSaveOcrCrop(ocrCrop)}>
-                <Save size={16} aria-hidden="true" />
-                既定にする
-              </button>
-            </div>
-          )}
-        </div>
-        <p className="subtle-text">
-          {isDraftGoogleVision
-            ? "オンライン読み取りでは写真全体を送信して読み直します。範囲調整は端末内読み取り用の補助機能です。"
-            : ocrMode === "auto"
-            ? "確認中の1枚だけ、複数の範囲で読み直します。"
-            : `使用範囲: ${selectedPresetLabel ?? "手動補正"}`}
-        </p>
-        {!isDraftGoogleVision && (
-          <div className="crop-control-grid">
-            {[
-              ["上", "top"],
-              ["下", "bottom"],
-              ["左", "left"],
-              ["右", "right"],
-            ].map(([label, side]) => {
-              const cropSide = side as keyof OcrCropRatios;
-              const maxValue = Math.max(0, MAX_COMBINED_CROP_PERCENT - ocrCrop[getPairedCropSide(cropSide)]);
-              return (
-                <label className="range-field" key={side}>
-                  <span>
-                    {label} {ocrCrop[cropSide]}%
-                  </span>
-                  <input
-                    type="range"
-                    min="0"
-                    max={maxValue}
-                    step="1"
-                    value={ocrCrop[cropSide]}
-                    onChange={(event) => handleCropChange(cropSide, Number(event.target.value))}
-                  />
-                </label>
-              );
-            })}
-          </div>
-        )}
-      </details>
-
-      <button className="button button-primary full-width" type="button" onClick={handleRerunOcr} disabled={isRunning}>
+      <button className="button button-secondary full-width" type="button" onClick={handleRerunOcr} disabled={isRunning}>
         <Play size={18} aria-hidden="true" />
-        {isRunning ? "読み直し中" : isDraftGoogleVision ? "写真全体を読み直す" : "この範囲を読み直す"}
+        {isRunning ? "読み直し中" : "もう一度読み取る"}
       </button>
-        {progress && (
-          <div className="progress-box">
-            <div className="progress-track">
-              <span style={{ width: `${Math.max(4, Math.round(progress.progress * 100))}%` }} />
-            </div>
-            <small>{progress.status}</small>
+
+      {progress && (
+        <div className="progress-box">
+          <div className="progress-track">
+            <span style={{ width: `${Math.max(4, Math.round(progress.progress * 100))}%` }} />
           </div>
-        )}
-        {error && <p className="inline-error">{error}</p>}
+          <small>{progress.status}</small>
+        </div>
+      )}
+      {error && <p className="inline-error">{error}</p>}
 
       <label className="rule-toggle">
         <input
@@ -341,7 +149,7 @@ export function OcrConfirmScreen({
         />
         <span>
           <strong>この店舗のカテゴリを次回も使う</strong>
-          <small>保存した店舗名とカテゴリを端末内にルールとして保存します。</small>
+          <small>店舗名とカテゴリをこの家計簿に保存します。</small>
         </span>
       </label>
 
@@ -368,13 +176,6 @@ export function OcrConfirmScreen({
         </div>
         <pre className="ocr-text">{draft.ocrText}</pre>
       </section>
-
-      {draft.ocrImagePreviewUrl && (
-        <details className="content-section ocr-debug-panel">
-          <summary>読み取りに使用した画像を確認</summary>
-          <img src={draft.ocrImagePreviewUrl} alt="読み取り用に見やすくした画像" />
-        </details>
-      )}
     </section>
   );
 }

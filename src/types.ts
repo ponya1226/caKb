@@ -1,6 +1,6 @@
 export type ExpenseSource = "manual" | "receipt";
 
-export type OcrProvider = "localTesseract" | "googleVision";
+export type OcrProvider = "googleVision";
 
 export type OcrTextBlock = {
   text: string;
@@ -231,20 +231,9 @@ export type ReceiptSaveOptions = {
 export type ReceiptDraft = {
   imageFile: File;
   imagePreviewUrl: string;
-  ocrImagePreviewUrl?: string;
-  ocrProvider?: OcrProvider;
   ocrBlocks?: OcrTextBlock[];
   ocrText: string;
   parseResult: ReceiptParseResult;
   initialValues: ExpenseFormValues;
-  ocrCrop?: {
-    top: number;
-    right: number;
-    bottom: number;
-    left: number;
-  };
-  ocrPresetLabel?: string;
-  ocrPreprocess?: boolean;
-  ocrPreprocessMode?: string;
   categorySuggestion?: ReceiptCategorySuggestion;
 };

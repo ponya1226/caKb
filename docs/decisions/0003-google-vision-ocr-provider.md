@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded in part by ADR 0011
 
 ## Context
 
@@ -44,3 +44,5 @@ Google Vision利用時も、OCR結果は必ず確認画面でユーザーが修�
 ## Follow-up
 
 Google Visionの実機結果、費用、運用負荷を確認し、必要に応じてDocument AI Expense Parserとの比較を行う。Proxyには将来、レート制限、月間上限、追加の利用回数制限を追加できるようにする。
+
+利用者向けProvider選択とTesseract.jsフォールバックは、実機検証後にADR 0011でGoogle Vision固定へ変更し、ローカル実装と依存を削除した。

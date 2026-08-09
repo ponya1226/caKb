@@ -137,19 +137,18 @@ source buildには `cakb-cloud-run-builder` を明示指定し、`roles/run.buil
 
 GitHub Actionsの `Deploy Firebase Hosting` を手動実行するか、ローカルで `npm run deploy:hosting` を実行します。
 
-完了後、caKbのレシート登録画面で「高精度OCR」が選べることを確認します。
+完了後、caKbのレシート登録画面で「レシートを読み取る」が利用できることを確認します。
 
 ## 9. 疎通確認する
 
 スマホまたはPCで以下を確認します。
 
-- レシート登録画面で「高精度OCR」が有効になっている
-- 未ログイン状態では高精度OCRが使えない
-- 外部OCR利用の注意文が表示される
-- 画像選択後、Google Vision OCRを実行できる
-- OCR確認画面に「読み取り方式: Google Vision」が表示される
+- ログイン済みかつ家計簿参加済みの状態で「レシートを読み取る」が有効になっている
+- 未ログイン状態ではレシート読み取りが使えず、アカウント画面または手入力へ案内される
+- Googleの文字読み取りサービスへの画像送信と、caKbサーバーで画像を保存しない旨が表示される
+- 画像選択後、レシートを読み取れる
 - 結果を修正して保存できる
-- 失敗時にローカルOCRへ戻れる
+- 失敗時に再試行または手入力へ進める
 
 ## 10. 利用量制御を確認する
 
@@ -157,7 +156,7 @@ GitHub Actionsの `Deploy Firebase Hosting` を手動実行するか、ローカ
 - `OCR_RATE_LIMIT_WINDOW_SECONDS`: 短時間上限の集計秒数
 - `OCR_MONTHLY_LIMIT`: 全インスタンス共通のUTC月単位上限
 
-月次件数はFirestoreの `ocrUsage/{YYYY-MM}` に保存します。画像、OCR全文、UID、メールアドレスは保存しません。上限到達時はHTTP 429となり、アプリからローカルOCRへ切り替えられます。
+月次件数はFirestoreの `ocrUsage/{YYYY-MM}` に保存します。画像、OCR全文、UID、メールアドレスは保存しません。上限到達時はHTTP 429となり、アプリは手入力を案内します。
 
 ## 11. 疎通後に検討すること
 

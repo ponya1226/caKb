@@ -10,6 +10,7 @@ import type { CloudHouseholdState } from "../hooks/useCloudHousehold";
 import type { FirebaseAuthState } from "../hooks/useFirebaseAuth";
 import type { GoogleSheetsSyncState } from "../hooks/useGoogleSheetsSync";
 import { buildGoogleSpreadsheetUrl, GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL } from "../lib/googleSheetsSync";
+import { canManageBudgetSettings } from "../lib/settingsAccess";
 import type { AppSettings, BackupImportMode, Category, CloudConnectionState, Expense, ShopCategoryRule, StorageHealth } from "../types";
 
 type SettingsScreenProps = {
@@ -117,6 +118,9 @@ export function SettingsScreen({
   const [inviteCode, setInviteCode] = useState("");
   const [spreadsheetInput, setSpreadsheetInput] = useState("");
   const shopCategoryRules = settings.shopCategoryRules ?? [];
+  const householdRole = cloudHousehold.household?.member.role ?? null;
+  const isHouseholdOwner = householdRole === "owner";
+  const canManageSettings = canManageBudgetSettings(storageMode === "cloud", householdRole);
 
   useEffect(() => {
     if (!newRuleCategoryId && categories[0]) {
@@ -334,8 +338,8 @@ export function SettingsScreen({
     <section className="screen">
       <div className="screen-heading">
         <div>
-          <p className="eyebrow">データと共有</p>
-          <h1>設定</h1>
+          <p className="eyebrow">ログインと家計簿</p>
+          <h1>アカウント</h1>
         </div>
       </div>
 
@@ -392,7 +396,7 @@ export function SettingsScreen({
               ? "Googleログイン中ですが、現在の保存先はこの端末です。家族の家計簿を作成または参加するとクラウド保存に切り替わります。"
               : "未ログインです。現在のデータはこの端末に保存されています。"}
         </p>
-        {hasLocalShopCategoryRulesToMigrate && (
+        {hasLocalShopCategoryRulesToMigrate && canManageSettings && (
           <p className="inline-notice">
             この端末だけに保存された店舗設定があります。端末のデータをクラウドへコピーすると家族で共有できます。
           </p>
@@ -432,13 +436,15 @@ export function SettingsScreen({
                   <span>最終同期: {formatCloudDate(cloudConnection.lastSuccessfulSyncAt)}</span>
                 )}
               </div>
-              <button className="button button-secondary" type="button" onClick={handleMigrateLocalData} disabled={cloudHousehold.isWorking}>
-                <Upload size={18} aria-hidden="true" />
-                この端末のデータをコピー
-              </button>
+              {isHouseholdOwner && (
+                <button className="button button-secondary" type="button" onClick={handleMigrateLocalData} disabled={cloudHousehold.isWorking}>
+                  <Upload size={18} aria-hidden="true" />
+                  この端末のデータをコピー
+                </button>
+              )}
             </div>
 
-            {cloudHousehold.household.member.role === "owner" && (
+            {isHouseholdOwner && (
               <div className="family-invite-panel">
                 <div className="section-title-row compact-title-row">
                   <h3><UserPlus size={18} aria-hidden="true" />家族を招待</h3>
@@ -478,7 +484,7 @@ export function SettingsScreen({
                         <strong>{memberName}</strong>
                         <span>{member.role === "owner" ? "管理者" : "メンバー"}</span>
                       </div>
-                      {cloudHousehold.household?.member.role === "owner" && member.role !== "owner" && (
+                      {isHouseholdOwner && member.role !== "owner" && (
                         <button className="icon-button danger" type="button" onClick={() => void handleRemoveMember(member.uid, memberName)} aria-label={`${memberName}を解除`} disabled={cloudHousehold.isWorking}>
                           <UserMinus size={18} aria-hidden="true" />
                         </button>
@@ -526,7 +532,7 @@ export function SettingsScreen({
           </div>
         )}
 
-        {cloudHousehold.lastMigration && (
+        {cloudHousehold.lastMigration && isHouseholdOwner && (
           <div className="inline-status">
             クラウドへコピーしました: 支出{cloudHousehold.lastMigration.expenses}件、カテゴリ{cloudHousehold.lastMigration.categories}件、店舗設定{cloudHousehold.lastMigration.shopCategoryRules}件
             <p>最終コピー: {formatCloudDate(cloudHousehold.lastMigration.completedAt)}</p>
@@ -550,21 +556,29 @@ export function SettingsScreen({
         )}
 
         <p className="subtle-text storage-note">
-          コピー済みのデータは重複しません。家族の家計簿がある場合、新しい支出やカテゴリはクラウドに保存されます。
+          {cloudHousehold.household && !isHouseholdOwner
+            ? "登録した支出は家族へ共有されます。家計簿の設定は管理者が行います。"
+            : "コピー済みのデータは重複しません。家族の家計簿がある場合、新しい支出やカテゴリはクラウドに保存されます。"}
         </p>
       </section>
 
+      {canManageSettings && (
+        <details className="admin-settings-panel">
+          <summary>
+            <span>
+              <strong>{isHouseholdOwner ? "管理者メニュー" : "この端末のデータ管理"}</strong>
+              <small>{isHouseholdOwner ? "家族、カテゴリ、書き出しを管理" : "カテゴリ、バックアップ、保存を管理"}</small>
+            </span>
+          </summary>
+          <div className="admin-settings-content">
+      {isHouseholdOwner && (
       <section className="content-section">
         <div className="section-title-row">
           <h2>Googleスプレッドシート</h2>
           <FileSpreadsheet size={20} aria-hidden="true" />
         </div>
 
-        {storageMode !== "cloud" || !cloudHousehold.household ? (
-          <div className="empty-state">家族の家計簿を作成または参加すると利用できます</div>
-        ) : cloudHousehold.household.member.role !== "owner" ? (
-          <div className="empty-state">管理者のみ設定できます</div>
-        ) : !googleSheetsSync.isConfigured ? (
+        {!googleSheetsSync.isConfigured ? (
           <div className="empty-state">スプレッドシートへの書き出しは現在利用できません</div>
         ) : (
           <div className="sheet-sync-panel">
@@ -633,6 +647,7 @@ export function SettingsScreen({
           </div>
         )}
       </section>
+      )}
 
       <section className="content-section">
         <div className="section-title-row">
@@ -864,10 +879,6 @@ export function SettingsScreen({
           データ初期化
         </button>
 
-        <button className="setting-action" type="button" onClick={() => window.location.reload()}>
-          <RefreshCw size={20} aria-hidden="true" />
-          再読み込み
-        </button>
       </div>
 
       <input
@@ -878,6 +889,9 @@ export function SettingsScreen({
         aria-label="バックアップファイルを選択"
         onChange={(event) => handleImportFile(event.target.files?.[0])}
       />
+          </div>
+        </details>
+      )}
     </section>
   );
 }
