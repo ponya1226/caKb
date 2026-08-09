@@ -23,7 +23,8 @@ Google Vision固定の撮影・アップロード・読み取り・確認導線�
 ## Phase 2: 運用基盤の整理
 
 - 正規確認URLは Firebase Hosting の `https://cakb-dev.firebaseapp.com` とする。
-- `main` へのpushで Firebase Hosting へ自動デプロイする。
+- `main` へのpushで Firebase Hosting staging previewへ自動配布し、browser smoke test後にproduction承認を必須にする。
+- stagingで検証したHosting versionを再buildせずproductionへ昇格する。
 - GitHub Pages workflowは削除し、Firebase Hostingを唯一の公開先とする。
 - Google Vision ProxyはFirebase ID token検証とactive household membership認可を維持する。
 - UID単位の短時間レート制限とFirestore月間上限を適用する。共有トークンと監査ログ方針は必要性を継続判断する。
@@ -31,7 +32,7 @@ Google Vision固定の撮影・アップロード・読み取り・確認導線�
 - Firestore RulesをEmulatorで検証し、Hostingと同じworkflowで配布する。
 - PWA更新通知から利用者が明示的に最新版へ切り替えられるようにする。
 
-GitHub Pages停止、デプロイ後smoke test、クラウド接続状態表示、安全なJSON置換復元、Playwrightによる未ログイン・レシート・支出CRUD・匿名OCR確認fixtureのスマホbrowser smoke testまで完了。次はstaging環境と管理者・家族の別端末実機確認を進める。
+GitHub Pages停止、クラウド接続状態表示、安全なJSON置換復元、Playwrightによる未ログイン・レシート・支出CRUD・匿名OCR確認fixtureのスマホbrowser smoke testまで完了。Firebase Hosting staging previewへの自動配布、配信URLのbrowser smoke test、production承認ゲート、検証済みversionの本番昇格も導入した。次は管理者・家族の別端末実機確認とbundle改善を進める。
 
 ## Phase 3: Firestore正本化
 

@@ -11,23 +11,29 @@ permissions:
   id-token: write
 
 concurrency:
-  group: firebase-hosting-live
+  group: firebase-hosting-pipeline
   cancel-in-progress: false
 
+env:
+  GCP_PROJECT_ID: cakb-dev
+  GCP_WORKLOAD_IDENTITY_PROVIDER: projects/389919357434/locations/global/workloadIdentityPools/github-actions/providers/github
+  GCP_DEPLOY_SERVICE_ACCOUNT: github-firebase-hosting-deploy@cakb-dev.iam.gserviceaccount.com
+  VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+  VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+  VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+  VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+  VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+  VITE_GOOGLE_VISION_PROXY_URL: ${{ vars.VITE_GOOGLE_VISION_PROXY_URL }}
+  VITE_GOOGLE_SHEETS_PROXY_URL: ${{ vars.VITE_GOOGLE_SHEETS_PROXY_URL }}
+
 jobs:
-  deploy:
+  staging:
+    name: Deploy and verify staging
     runs-on: ubuntu-latest
-    env:
-      GCP_PROJECT_ID: cakb-dev
-      GCP_WORKLOAD_IDENTITY_PROVIDER: projects/389919357434/locations/global/workloadIdentityPools/github-actions/providers/github
-      GCP_DEPLOY_SERVICE_ACCOUNT: github-firebase-hosting-deploy@cakb-dev.iam.gserviceaccount.com
-      VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
-      VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
-      VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
-      VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
-      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-      VITE_GOOGLE_VISION_PROXY_URL: ${{ vars.VITE_GOOGLE_VISION_PROXY_URL }}
-      VITE_GOOGLE_SHEETS_PROXY_URL: ${{ vars.VITE_GOOGLE_SHEETS_PROXY_URL }}
+    timeout-minutes: 20
+    environment:
+      name: staging
+      url: ${{ steps.staging-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -51,7 +57,9 @@ jobs:
         run: |
           npm run lint
           npm run test
+          npm run test:deploy-scripts
           npm run test:rules
+          npm run lint:e2e
 
       - name: Build
         run: npm run build
@@ -63,14 +71,80 @@ jobs:
           workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ env.GCP_DEPLOY_SERVICE_ACCOUNT }}
 
-      - name: Deploy Firestore Rules and Firebase Hosting
+      - name: Deploy Firebase Hosting staging channel
+        run: |
+          npx --yes firebase-tools@14.16.0 hosting:channel:deploy staging \
+            --project "$GCP_PROJECT_ID" \
+            --expires 30d \
+            --non-interactive \
+            --json > firebase-staging.json
+
+      - name: Resolve staging URL
+        id: staging-url
+        run: |
+          STAGING_URL="$(node scripts/extractFirebasePreviewUrl.mjs firebase-staging.json staging)"
+          echo "url=$STAGING_URL" >> "$GITHUB_OUTPUT"
+          echo "Staging URL: $STAGING_URL"
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify staging application
+        env:
+          E2E_BASE_URL: ${{ steps.staging-url.outputs.url }}
+        run: npm run test:e2e:deployed
+
+      - name: Upload staging browser report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: staging-playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  production:
+    name: Approve and deploy production
+    needs: staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+      url: https://cakb-dev.firebaseapp.com/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Deploy Firestore Rules
         run: |
           npx --yes firebase-tools@14.16.0 deploy \
-            --only firestore:rules,hosting \
+            --only firestore:rules \
             --project "$GCP_PROJECT_ID" \
             --non-interactive
 
-      - name: Verify deployed application
+      - name: Promote staging Hosting version
+        run: |
+          npx --yes firebase-tools@14.16.0 hosting:clone \
+            "$GCP_PROJECT_ID:staging" \
+            "$GCP_PROJECT_ID:live" \
+            --project "$GCP_PROJECT_ID" \
+            --non-interactive
+
+      - name: Verify production application
         run: |
           curl --fail --silent --show-error --retry 5 --retry-delay 5 https://cakb-dev.firebaseapp.com/ \
             | grep '<div id="root"></div>'

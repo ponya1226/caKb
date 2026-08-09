@@ -42,4 +42,4 @@ Googleログインは外部ポップアップと実アカウントを必要と�
 
 - owner/memberの別アカウントで招待、参加、支出共有、解除を実機確認する。
 - クラウド認証済みの支出共有は、credentialを使わない安全なfixture方針が確立した場合に追加する。
-- staging環境を追加する場合は、デプロイ後の同じsmoke testを再利用する。
+- Firebase Hosting staging channelで同じ未ログインsmoke testを再利用する。配布工程はADR 0013で決定した。

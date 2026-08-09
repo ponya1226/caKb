@@ -1,6 +1,6 @@
 # Firebase Cloud Setup
 
-caKbを家族共有対応へ進めるためのFirebase初期設定メモです。この手順はまだ本番切替ではなく、認証UI、Firestore移行UI、Sheets同期を追加する前提準備です。
+caKbのFirebase Authentication、Cloud Firestore、Firebase Hostingを設定・運用するためのメモです。
 
 ## 前提
 
@@ -42,9 +42,22 @@ GitHub Actionsからdeployする場合:
 1. `github-actions` WIF pool/providerを構成する
 2. provider conditionで対象repository、`main` branch、Hosting workflowを固定する
 3. Hosting workflowの `workflow_ref` だけが `github-firebase-hosting-deploy` service accountを利用できるように `roles/iam.workloadIdentityUser` を付与する
-4. GitHub Actionsの `Deploy Firebase Hosting` workflowを実行する
+4. GitHubに `staging` と `production` environmentsを作成し、両方をprotected branch限定にする
+5. `production` environmentに管理者をrequired reviewerとして設定する
+6. GitHub Actionsの `Deploy Firebase Hosting` workflowを実行する
 
 GitHub ActionsはOIDCで短時間認証し、service account JSON、token、secretを保存しません。WIFの決定と失効手順は `docs/decisions/0010-github-actions-wif-deploy-auth.md` を参照してください。公開先はFirebase Hostingに統一し、GitHub Pages workflowは使用しません。
+
+`main` へのmerge後は次の順で配布します。
+
+1. production buildを固定preview channel `staging` へ30日間の有効期限で配布する
+2. staging URL上で未ログイン画面とIndexedDB支出CRUDのPlaywright smoke testを実行する
+3. GitHubの `production` environmentで管理者承認を待つ
+4. 承認後にFirestore Rulesを配布する
+5. stagingで検証したHosting versionを `live` へcloneする
+6. `https://cakb-dev.firebaseapp.com/` の応答を確認する
+
+stagingは同じ `cakb-dev` project上のHosting previewです。Authentication、Firestore、Cloud Runを分離した検証環境ではないため、CIでは実アカウント、実レシート、クラウド家計簿データを使いません。詳細は `docs/decisions/0013-staging-production-deploy-gate.md` を参照してください。
 
 ## Firestore Data Shape
 
@@ -85,9 +98,9 @@ IndexedDBからFirestoreへの移行は自動実行しません。ログイン�
 
 現時点の移行はコピーのみです。移行後も、アプリの支出登録、一覧、編集、削除はIndexedDBを正本として動作します。Firestoreを正本に切り替えるには、Firestore cloud repositoryと同期/競合方針の実装が必要です。
 
-## Next Implementation Steps
+## Operational Checks
 
-1. Google Vision Proxyを再デプロイし、ログイン済みのレシート読み取りを確認する
-2. Firestore cloud repositoryを追加する
-3. IndexedDBからFirestoreへの手動移行後にクラウド正本へ切り替えるUIを追加する
-4. 家族招待コードとmember権限UIを追加する
+1. staging smoke test成功後だけproductionを承認する
+2. Firebase Hosting本番URLで更新バナーと主要画面を確認する
+3. Rules変更時は既存アプリとの後方互換性を確認する
+4. Authentication、Firestore、家族共有に影響する変更はowner/memberの別アカウントで実機確認する

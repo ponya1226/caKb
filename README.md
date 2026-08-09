@@ -101,4 +101,4 @@ Firebase設定後は、設定画面のアカウント欄からGoogleログイン
 
 スマホのGoogleログイン安定化のため、正規の確認URLは Firebase Hosting の `https://cakb-dev.firebaseapp.com` です。Hosting移行の方針は `docs/decisions/0007-firebase-hosting-auth-migration.md` を参照してください。
 
-Firebase Hostingへのdeployは、`main` へmergeすると `Deploy Firebase Hosting` workflowが自動実行されます。GitHub OIDCとGoogle Cloud Workload Identity Federationで短時間認証するため、service account JSONやdeploy tokenはGitHubへ登録しません。構成は `docs/decisions/0010-github-actions-wif-deploy-auth.md` を参照してください。
+Firebase Hostingへのdeployは、`main` へmergeすると `Deploy Firebase Hosting` workflowがstaging previewへ配布し、公開URL上でbrowser smoke testを実行します。成功後はGitHubのproduction承認を待ち、承認された同じHosting versionを本番へ昇格します。GitHub OIDCとGoogle Cloud Workload Identity Federationで短時間認証するため、service account JSONやdeploy tokenはGitHubへ登録しません。構成は `docs/decisions/0010-github-actions-wif-deploy-auth.md` と `docs/decisions/0013-staging-production-deploy-gate.md` を参照してください。
