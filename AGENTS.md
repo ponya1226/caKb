@@ -1,6 +1,6 @@
 # Project Overview
 
-ローカル家計簿PWAは、個人利用向けの無料・ローカル保存型家計簿です。レシート画像をTesseract.jsでOCRし、ユーザーが必ず確認・修正してからIndexedDBに支出を保存します。
+caKbは、個人または家族で利用する家計簿PWAです。レシート画像を自前Proxy経由のGoogle Visionで読み取り、ユーザーが必ず確認・修正してからIndexedDBまたはFirestoreに支出を保存します。
 
 MVPではバックエンド、ログイン、クラウド同期、家族共有、有料API、AI分析を実装しません。
 
@@ -11,7 +11,7 @@ MVPではバックエンド、ログイン、クラウド同期、家族共有�
 - Frontend: Vite, React, TypeScript
 - Persistence: IndexedDB for expenses, categories, receipt images
 - Settings: localStorage
-- OCR: Tesseract.js in browser
+- OCR: Google Vision through the self-owned proxy
 - Charts: Recharts
 - PWA: web app manifest and service worker
 
@@ -65,7 +65,7 @@ npm run build
 - 1タスク1目的で、無関係なリファクタリングを混ぜない。
 - 既存の型、Repository、UIパターンに合わせる。
 - OCR精度を断定しない。保存前に必ず確認画面を挟む。
-- 支出データはブラウザ内保存を前提にし、外部DBへ送らない。
+- 保存先は利用状態に応じてIndexedDBまたはFirestoreとし、画面上で現在の保存先を明示する。
 - 主要な方針変更、保存形式変更、ライブラリ追加はADRを残す。
 - 大きな機能完了時は `docs/project-status.md` と `docs/development-history.md` を更新する。
 
@@ -76,7 +76,7 @@ npm run build
 - 日付は支出日を `YYYY-MM-DD`、作成・更新日時をISO 8601 UTC文字列で保存する。
 - 金額は日本円の整数として扱う。
 - ユーザー向け文言は短い日本語にする。
-- 利用画面では実装技術名より、利用者が行う操作と結果を優先して表現する。`OCR` は「レシート読み取り」、`Google Vision` は「オンライン読み取り」、`Tesseract.js` は「端末内読み取り」、`Firestore` は「クラウド」、`IndexedDB` は「この端末」、`JSON` は「バックアップファイル」を基本表現とする。
+- 利用画面では実装技術名より、利用者が行う操作と結果を優先して表現する。`OCR` と `Google Vision` は「レシート読み取り」、`Firestore` は「クラウド」、`IndexedDB` は「この端末」、`JSON` は「バックアップファイル」を基本表現とする。Tesseract.jsは通常画面に表示しない。
 - Proxy、環境変数名、内部エラーコード、認証基盤の設定名は通常画面へ表示しない。エラーは利用者が次に取れる操作を案内する。
 - 外部送信、データ置き換え、削除、共有範囲など、利用者の判断に必要な事実は技術用語を避けても省略しない。
 - コメントは「なぜ必要か」がある箇所に絞る。
@@ -121,7 +121,7 @@ UI変更では次を手動確認する。
 
 ## Google Vision OCR Exception
 
-Google Vision OCR is an explicitly allowed optional external OCR Provider for this project. It must be used only through a self-owned proxy such as `server/google-vision-proxy/`; the frontend must not call Google Vision directly.
+Google Vision OCR is the explicitly approved user-facing receipt OCR Provider for this project. It must be used only through a self-owned proxy such as `server/google-vision-proxy/`; the frontend must not call Google Vision directly.
 
 Firebase Hosting, Firebase Auth, Cloud Firestore, and Google Sheets one-way export are explicitly allowed only within the scope described in `docs/decisions/0005-family-cloud-ledger-direction.md`, `docs/decisions/0006-firebase-foundation.md`, `docs/decisions/0007-firebase-hosting-auth-migration.md`, and `docs/decisions/0009-google-sheets-one-way-export.md`.
 
@@ -129,7 +129,7 @@ Firebase Hosting, Firebase Auth, Cloud Firestore, and Google Sheets one-way expo
 - Do not commit `.env`; `.env.example` is allowed.
 - Do not log receipt images, image base64, OCR full text, or expense data in the proxy.
 - Do not persist uploaded receipt images on the proxy.
-- Keep Tesseract.js available as `localTesseract` fallback.
+- Keep the user-facing receipt flow fixed to Google Vision. Do not reintroduce Tesseract.js, Provider selection, crop controls, or local fallback without a new ADR and explicit approval.
 - External OCR use must be visible to the user before sending an image.
 - Google Vision Proxy must verify Firebase ID tokens when `REQUIRE_FIREBASE_AUTH=true`; keep this enabled for hosted environments.
 - Hosted Google Vision Proxy deployments must require active household membership with `REQUIRE_HOUSEHOLD_MEMBERSHIP=true`. `ALLOWED_AUTH_EMAILS` is an optional additional restriction only; do not hard-code real user email addresses in the repository or expose them via GitHub variables.

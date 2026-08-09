@@ -312,12 +312,6 @@ h3 {
   gap: 10px;
 }
 
-.provider-selector {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
 .privacy-note {
   display: grid;
   gap: 6px;
@@ -911,171 +905,69 @@ textarea {
   background: #e2e8f0;
 }
 
-.crop-preview img {
-  opacity: 0.78;
-  user-select: none;
-}
-
-.ocr-crop-frame {
-  position: absolute;
-  border: 2px solid #ffffff;
-  border-radius: 8px;
-  box-shadow:
-    0 0 0 999px rgba(15, 23, 42, 0.34),
-    0 0 0 1px rgba(15, 23, 42, 0.38);
-  pointer-events: auto;
-  touch-action: none;
-}
-
-.ocr-crop-move-area,
-.ocr-crop-handle {
-  position: absolute;
-  border: 0;
-  background: transparent;
-  touch-action: none;
-}
-
-.ocr-crop-move-area {
-  inset: 16px;
-  cursor: move;
-  z-index: 1;
-}
-
-.ocr-crop-handle {
-  width: 30px;
-  height: 30px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  z-index: 2;
-}
-
-.ocr-crop-handle::after {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 14px;
-  height: 14px;
-  border: 2px solid #ffffff;
-  border-radius: 999px;
-  background: #0f766e;
-  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.48), 0 3px 8px rgba(15, 23, 42, 0.24);
-  content: "";
-  transform: translate(-50%, -50%);
-}
-
-.ocr-crop-handle.top,
-.ocr-crop-handle.bottom {
-  left: 50%;
-  transform: translateX(-50%);
-  cursor: ns-resize;
-}
-
-.ocr-crop-handle.top {
-  top: -15px;
-}
-
-.ocr-crop-handle.bottom {
-  bottom: -15px;
-}
-
-.ocr-crop-handle.left,
-.ocr-crop-handle.right {
-  top: 50%;
-  transform: translateY(-50%);
-  cursor: ew-resize;
-}
-
-.ocr-crop-handle.left {
-  left: -15px;
-}
-
-.ocr-crop-handle.right {
-  right: -15px;
-}
-
-.ocr-crop-panel {
-  display: grid;
-  gap: 12px;
-  padding: 12px;
+.admin-settings-panel {
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
 }
 
-.ocr-crop-panel summary {
+.admin-settings-panel > summary {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  min-height: 42px;
-  color: #334155;
-  font-size: 0.92rem;
-  font-weight: 900;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px 14px;
   cursor: pointer;
   list-style: none;
 }
 
-.ocr-crop-panel summary::-webkit-details-marker {
+.admin-settings-panel > summary::-webkit-details-marker {
   display: none;
 }
 
-.ocr-crop-panel summary::after {
-  color: #64748b;
-  content: "開く";
-  font-size: 0.78rem;
+.admin-settings-panel > summary > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
 }
 
-.ocr-crop-panel[open] summary {
-  margin-bottom: 4px;
+.admin-settings-panel > summary strong,
+.admin-settings-panel > summary small {
+  overflow-wrap: anywhere;
 }
 
-.ocr-crop-panel[open] summary::after {
-  content: "閉じる";
+.admin-settings-panel > summary small {
+  color: var(--text-muted);
 }
 
-.ocr-debug-panel summary {
-  color: #334155;
-  font-weight: 900;
-  cursor: pointer;
+.admin-settings-panel > summary::after {
+  margin-left: auto;
+  color: var(--primary);
+  content: "+";
+  font-size: 1.45rem;
+  font-weight: 700;
 }
 
-.ocr-debug-panel img {
-  display: block;
-  width: 100%;
-  max-height: 420px;
-  object-fit: contain;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+.admin-settings-panel[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-settings-panel[open] > summary::after {
+  content: "−";
+}
+
+.admin-settings-content {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  background: var(--surface-muted);
+}
+
+.admin-settings-content > .content-section,
+.admin-settings-content > .settings-list {
+  margin: 0;
   background: #ffffff;
-}
-
-.preset-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.crop-control-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.range-field {
-  display: grid;
-  gap: 6px;
-}
-
-.range-field span {
-  color: #334155;
-  font-size: 0.84rem;
-  font-weight: 800;
-}
-
-.range-field input {
-  min-height: 36px;
-  padding: 0;
 }
 
 .file-size-panel {
@@ -1595,7 +1487,6 @@ textarea {
   .metrics-grid,
   .expense-item,
   .picked-summary,
-  .provider-selector,
   .rule-row,
   .status-grid {
     grid-template-columns: 1fr;

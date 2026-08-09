@@ -1,5 +1,32 @@
 # Development History
 
+## 2026-08-09 User UI and Google Vision Flow Simplification
+
+目的: 一般利用者の画面から管理操作と旧OCR調整を外し、日常的なレシート登録とアカウント確認に必要な操作だけを分かりやすく表示する。
+
+主な変更:
+
+- 下部ナビゲーションの「設定」を「アカウント」へ変更
+- クラウド家計簿のmemberにはログイン、接続状態、参加メンバーだけを表示し、owner向け管理機能を折りたたみの管理者メニューへ集約
+- 利用者向けレシート読み取りをGoogle Visionと画像全体に固定
+- Provider選択、範囲調整、画像補正、Tesseract.jsフォールバックを利用画面から削除
+- 未参照の範囲調整コンポーネント、旧OCR範囲比較・画像前処理、Tesseract.js依存を削除し、単一の `receiptOcr` APIへ整理
+- 失敗時の案内をログイン、再試行、手入力へ統一
+- ADR 0011、README、Architecture、UI文言規約、Roadmap、Project Statusを更新
+
+検証結果:
+
+- `npm run lint`: 成功
+- `npm run test`: 23ファイル、107件成功
+- `npm run build`: 成功。既存の大きいchunk警告のみ
+- 390 x 844のスマホ幅でレシート画面とアカウント画面を確認し、横スクロールとconsole errorがないことを確認
+- memberの管理機能非表示とlocal/ownerの管理可否を単体テストで確認
+
+残課題:
+
+- owner/memberの別Googleアカウントによるスマホ実機確認
+- owner/memberの権限別表示を自動確認するcomponent testまたはbrowser E2Eは未導入
+
 ## 2026-08-09 Default Compute Editor Removal
 
 目的: Cloud Run source buildの専用identity移行後に残っていた既定Compute service accountのEditor権限を、安全に監査して削除する。

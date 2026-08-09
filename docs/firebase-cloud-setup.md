@@ -87,7 +87,7 @@ IndexedDBからFirestoreへの移行は自動実行しません。ログイン�
 
 ## Next Implementation Steps
 
-1. Google Vision Proxyを再デプロイし、ログイン済み高精度OCRを確認する
+1. Google Vision Proxyを再デプロイし、ログイン済みのレシート読み取りを確認する
 2. Firestore cloud repositoryを追加する
 3. IndexedDBからFirestoreへの手動移行後にクラウド正本へ切り替えるUIを追加する
 4. 家族招待コードとmember権限UIを追加する

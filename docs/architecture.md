@@ -85,30 +85,28 @@ Cloud RunはApplication Default CredentialsでSheets APIを呼びます。対象
 
 Firebase client configは `VITE_FIREBASE_*` 環境変数から読み取り、未設定の場合はFirebaseを初期化しません。Firestoreの初期パスは `households/{householdId}` 配下に支出、カテゴリ、店舗別カテゴリルール、同期設定を置きます。Security Rules雛形は `firestore.rules` にあります。
 
-設定画面ではログイン後にhouseholdを作成し、IndexedDB内の支出、カテゴリ、localStorage内の店舗別カテゴリルールをFirestoreへコピーできます。コピー後はFirestore cloud repositoryが正本です。
+アカウント画面ではログイン後にhouseholdを作成し、IndexedDB内の支出、カテゴリ、localStorage内の店舗別カテゴリルールをFirestoreへコピーできます。コピー後はFirestore cloud repositoryが正本です。クラウド家計簿のmemberにはアカウント、接続状態、参加メンバーだけを表示し、招待、移行、カテゴリ、店舗ルール、バックアップ、Sheets出力などはowner専用の管理者メニューへ集約します。
 
-## OCR Provider
+## レシート読み取り
 
-OCRはProvider抽象を通して実行します。
+レシート読み取りは `receiptOcr.ts` を通して実行し、Google Visionと画像全体に固定します。
 
-- `localTesseract`: ブラウザ内でTesseract.jsを実行する既存Provider
-- `googleVision`: 自前Proxy経由でGoogle Cloud Vision OCRを利用する任意Provider
+- `receiptOcr.ts`: 利用画面向けの単一入口、進捗表示、設定有無の判定
+- `googleVisionOcr.ts`: 自前Proxyへの画像送信、レスポンス検証、安全なエラー変換
 
-どのProviderでも、OCR全文を取得した後は既存の `receiptParser.ts` で日付、店舗名、金額候補を抽出し、OCR確認画面でユーザーが修正してから保存します。Google VisionではProxyが単語と座標を返し、`receiptParser.ts` が同じ高さの単語を左から右へ並べ直して品目名と金額を対応付けます。単語座標がない場合はOCR全文による従来解析へ戻ります。支出データの保存schemaは変更しません。
+OCR全文を取得した後は既存の `receiptParser.ts` で日付、店舗名、金額候補を抽出し、確認画面でユーザーが修正してから保存します。Proxyが返す単語と座標を使い、`receiptParser.ts` が同じ高さの単語を左から右へ並べ直して品目名と金額を対応付けます。単語座標がない場合はOCR全文による解析へ戻ります。支出データの保存schemaは変更しません。
 
 Google Vision利用時はレシート画像を外部サービスへ送信しますが、フロントエンドにGoogle Cloud認証情報は置かず、Proxy側でも画像やOCR全文を永続保存しません。Hosting環境ではFirebase ID tokenをProxyで検証し、未ログイン状態ではGoogle Vision OCRを利用できないようにします。
 
 Proxyは認証済みUID単位の短時間レート制限と、Firestore `ocrUsage/{YYYY-MM}` のプロジェクト月間カウンタを適用します。カウンタは全Cloud Runインスタンスで共有し、画像、OCR全文、UID、メールアドレスは保存しません。
 
-## OCR
+## レシート候補抽出
 
-OCRはTesseract.jsでブラウザ内実行します。候補抽出では「合計」「税込」「現計」「お買上計」などの周辺にある金額を優先し、保存前に確認画面でユーザー修正を必須にします。
-
-OCR範囲は、複数プリセットを順番に試し、日付、店舗名、金額候補が最も揃う結果を自動採用できます。ユーザーが手動調整した範囲や自動採用された範囲はlocalStorageへ任意保存し、次回の初期範囲として利用します。
+候補抽出では「合計」「税込」「現計」「お買上計」などの周辺にある金額を優先し、保存前に確認画面でユーザー修正を必須にします。Provider選択、範囲調整、画像補正は通常画面へ表示しません。
 
 レシートのカテゴリ初期値は、店舗別カテゴリルールを最優先し、次に保存済み支出の店舗名とOCR候補の店舗名を正規化して照合した直近カテゴリを使います。店舗別カテゴリルールはクラウド利用時はFirestore、ローカル利用時はlocalStorageに保存し、IndexedDB schemaは変更しません。
 
-複数レシート登録は、選択された画像をブラウザ内で順番にOCRし、確認画面で1枚ずつ修正・保存します。確認中の1枚だけ範囲を変えて再OCRできます。途中で未保存の確認キューを破棄しても、保存済み支出は残ります。
+複数レシート登録は、選択された画像を順番にGoogle Visionへ送り、確認画面で1枚ずつ修正・保存します。失敗した画像だけ再試行でき、途中で未保存の確認キューを破棄しても保存済み支出は残ります。
 
 ## PWA
 

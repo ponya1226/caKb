@@ -1,4 +1,4 @@
-# ローカル家計簿PWA MVP
+# caKb 家族の家計簿
 
 レシート画像を撮影またはアップロードし、OCR結果を確認・修正して支出を記録する家計簿PWAです。未ログイン時はIndexedDB、ログイン済みでクラウド家計簿へ参加している場合はFirestoreを支出データの正本として利用します。
 
@@ -6,7 +6,7 @@
 
 - 支出の手入力登録、編集、削除
 - レシート画像アップロードまたはカメラ撮影
-- Tesseract.jsによるOCRテキスト抽出
+- Google Visionによるレシート文字読み取り
 - OCR結果からの日付、店舗名、金額候補抽出
 - OCR確認画面での修正後保存
 - 店舗別カテゴリルールによるカテゴリ初期値反映
@@ -44,7 +44,7 @@ npm run build
 - 設定はlocalStorageに保存します。
 - 店舗別カテゴリルールもlocalStorageに保存し、JSONバックアップ/復元の対象に含めます。
 - レシート画像保存は設定画面でON/OFFできます。初期値はOFFです。
-- ローカルOCRはTesseract.jsを利用します。任意のGoogle Vision OCR利用時だけ、利用者への明示後に画像を自前Proxyへ送信します。
+- レシート読み取りでは、利用者への明示後に画像を自前Proxy経由でGoogle Visionへ送信します。caKbのサーバーには画像を保存しません。
 
 ## 開発ドキュメント
 
@@ -58,9 +58,9 @@ npm run build
 - `docs/development-history.md`: 作業履歴
 - `docs/decisions/`: ADR
 
-## Google Vision OCR任意利用
+## レシート読み取り
 
-標準では従来どおりローカルOCRを利用できます。Google Vision OCRを使う場合は、フロントエンドからGoogle Cloudへ直接接続せず、自前Proxyを経由します。
+利用者向けのレシート読み取りはGoogle Visionに固定しています。フロントエンドからGoogle Cloudへ直接接続せず、自前Proxyを経由します。Proxy URLが未設定の場合、レシート読み取りは無効になり、手入力は引き続き利用できます。
 
 ```env
 VITE_GOOGLE_VISION_PROXY_URL=
@@ -70,7 +70,7 @@ Proxyサンプルは `server/google-vision-proxy/` にあります。Google Clou
 
 Cloud Runへの疎通確認手順は `docs/google-vision-proxy-deploy.md` を参照してください。Firebase Hosting / GitHub Actionsでは `VITE_GOOGLE_VISION_PROXY_URL` をRepository variableとして設定し、ビルド時に埋め込みます。Google Vision ProxyはFirebase ID tokenとactive household membershipを確認します。正規公開URLはFirebase Hostingのみです。
 
-Google Vision ProxyはFirebase ID tokenとhousehold membershipを検証するため、高精度OCRは家計簿へ参加済みのGoogleログイン利用者が利用します。未ログイン時は従来どおりローカルOCRを利用できます。
+Google Vision ProxyはFirebase ID tokenとhousehold membershipを検証するため、レシート読み取りは家計簿へ参加済みのGoogleログイン利用者が利用します。未ログイン時や通信障害時は手入力を利用します。Tesseract.jsと端末内読み取りは採用していません。
 
 ## Google Sheets一方向出力
 

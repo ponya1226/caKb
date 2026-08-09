@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { CalendarDays, Camera, Cloud, CloudOff, Home, List, Plus, ReceiptText, RefreshCw, Settings } from "lucide-react";
+import { CalendarDays, Camera, CircleUserRound, Cloud, CloudOff, Home, List, Plus, ReceiptText, RefreshCw } from "lucide-react";
 import { ExpenseEditor } from "./components/ExpenseEditor";
 import { useBudgetData } from "./hooks/useBudgetData";
 import { useCloudHousehold } from "./hooks/useCloudHousehold";
@@ -36,7 +36,7 @@ const navItems: Array<{ view: View; label: string; icon: typeof Home }> = [
   { view: "expenses", label: "一覧", icon: List },
   { view: "yearly", label: "年間", icon: CalendarDays },
   { view: "receipt", label: "レシート", icon: Camera },
-  { view: "settings", label: "設定", icon: Settings },
+  { view: "settings", label: "アカウント", icon: CircleUserRound },
 ];
 
 export default function App() {
@@ -95,9 +95,6 @@ export default function App() {
   function revokeReceiptDraftUrls(drafts: ReceiptDraft[]) {
     drafts.forEach((draft) => {
       URL.revokeObjectURL(draft.imagePreviewUrl);
-      if (draft.ocrImagePreviewUrl) {
-        URL.revokeObjectURL(draft.ocrImagePreviewUrl);
-      }
     });
   }
 
@@ -141,9 +138,6 @@ export default function App() {
       await budgetData.upsertShopCategoryRule(values.shopName, values.categoryId);
     }
     URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
-    if (receiptDraft.ocrImagePreviewUrl) {
-      URL.revokeObjectURL(receiptDraft.ocrImagePreviewUrl);
-    }
     setReceiptDrafts(remainingDrafts);
 
     if (remainingDrafts.length > 0) {
@@ -190,9 +184,6 @@ export default function App() {
 
     const remainingDrafts = receiptDrafts.slice(1);
     URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
-    if (receiptDraft.ocrImagePreviewUrl) {
-      URL.revokeObjectURL(receiptDraft.ocrImagePreviewUrl);
-    }
     setReceiptDrafts(remainingDrafts);
 
     if (remainingDrafts.length === 0) {
@@ -326,8 +317,6 @@ export default function App() {
             <ReceiptCaptureScreen
               onConfirm={handleReceiveDrafts}
               suggestCategoryForShop={budgetData.suggestCategoryForShop}
-              savedOcrCrop={budgetData.settings.lastOcrCrop}
-              onSaveOcrCrop={(crop) => budgetData.updateSettings({ ...budgetData.settings, lastOcrCrop: crop })}
               isGoogleVisionAuthenticated={Boolean(firebaseAuth.user)}
               getGoogleVisionIdToken={firebaseAuth.getIdToken}
             />
@@ -345,10 +334,7 @@ export default function App() {
             <OcrConfirmScreen
               draft={receiptDraft}
               categories={budgetData.categories}
-              settings={budgetData.settings}
               queuePosition={receiptQueuePosition ?? undefined}
-              savedOcrCrop={budgetData.settings.lastOcrCrop}
-              onSaveOcrCrop={(crop) => budgetData.updateSettings({ ...budgetData.settings, lastOcrCrop: crop })}
               onUpdateDraft={handleUpdateCurrentReceiptDraft}
               suggestCategoryForShop={budgetData.suggestCategoryForShop}
               getGoogleVisionIdToken={firebaseAuth.getIdToken}

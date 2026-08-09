@@ -144,11 +144,11 @@ export async function runGoogleVisionOcr(image: File | Blob, options: GoogleVisi
     if (response.status === 429) {
       const errorBody = await response.json().catch(() => null) as GoogleVisionProxyErrorResponse | null;
       if (errorBody?.code === "monthly_limit") {
-        throw new Error("今月のオンライン読み取り回数が上限に達しました。端末内読み取りまたは手入力を利用してください");
+        throw new Error("今月のレシート読み取り回数が上限に達しました。手入力で登録してください");
       }
-      throw new Error("オンライン読み取りを続けて実行しています。少し待ってからやり直すか、端末内読み取りを利用してください");
+      throw new Error("レシート読み取りを続けて実行しています。少し待ってからもう一度お試しください");
     }
-    throw new Error("オンラインでレシートを読み取れませんでした。端末内読み取りまたは手入力を利用してください");
+    throw new Error("オンラインでレシートを読み取れませんでした。通信状況を確認して、もう一度お試しください");
   }
 
   const responseBody = await response.json() as GoogleVisionProxyResponse;
