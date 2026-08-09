@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Play, SkipForward } from "lucide-react";
+import { ArrowLeft, CircleAlert, Play, SkipForward } from "lucide-react";
 import { CopyTextButton } from "./CopyTextButton";
 import { ExpenseEditor } from "./ExpenseEditor";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
+import { assessReceiptConfidence } from "../lib/receiptConfidence";
 import { createLineItemsFromCandidates } from "../lib/lineItems";
 import { runReceiptOcr } from "../lib/receiptOcr";
 import { parseReceiptText } from "../lib/receiptParser";
@@ -90,6 +91,11 @@ export function OcrConfirmScreen({
           lineItems: createLineItemsFromCandidates(parsed.lineItemCandidates),
         },
         categorySuggestion: categorySuggestion ?? undefined,
+        confidenceAssessment: assessReceiptConfidence({
+          ocrText: ocrResult.text,
+          parseResult: parsed,
+          categorySuggestion: categorySuggestion ?? undefined,
+        }),
       };
 
       onUpdateDraft(nextDraft);
@@ -106,8 +112,8 @@ export function OcrConfirmScreen({
         <div>
           <p className="eyebrow">
             {queuePosition && queuePosition.total > 1
-              ? `保存前確認 ${queuePosition.current}/${queuePosition.total}`
-              : "保存前確認"}
+              ? `要確認 ${queuePosition.current}/${queuePosition.total}`
+              : "要確認"}
           </p>
           <h1>読み取り結果の確認</h1>
         </div>
@@ -115,6 +121,20 @@ export function OcrConfirmScreen({
           <ArrowLeft size={22} aria-hidden="true" />
         </button>
       </div>
+
+      {draft.confidenceAssessment?.decision === "needsReview" && (
+        <div className="review-required-notice" role="status">
+          <CircleAlert size={20} aria-hidden="true" />
+          <div>
+            <strong>確認が必要なレシートです</strong>
+            <ul>
+              {draft.confidenceAssessment.reasons.map((reason) => (
+                <li key={reason.code}>{reason.message}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
 
       <div className="receipt-preview compact">
         <img src={draft.imagePreviewUrl} alt="確認中のレシート" />

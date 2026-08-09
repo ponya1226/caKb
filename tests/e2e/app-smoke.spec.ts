@@ -9,6 +9,8 @@ test.beforeEach(async ({ page }) => {
 test("一般利用者向けのアカウント画面を表示する", async ({ page }) => {
   const navigation = page.getByRole("navigation", { name: "主要画面" });
 
+  await expect(page.getByRole("heading", { name: "今月の家計", level: 1 })).toBeVisible();
+  await expect(page.getByRole("button", { name: "レシートを撮る", exact: true })).toBeVisible();
   await expect(navigation.getByRole("button", { name: "ホーム" })).toBeVisible();
   await expect(navigation.getByRole("button", { name: "一覧" })).toBeVisible();
   await expect(navigation.getByRole("button", { name: "年間" })).toBeVisible();

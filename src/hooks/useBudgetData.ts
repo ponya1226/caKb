@@ -43,7 +43,7 @@ type UseBudgetDataResult = {
   error: string | null;
   categoryMap: Map<string, Category>;
   addManualExpense: (values: ExpenseFormValues) => Promise<void>;
-  addReceiptExpense: (values: ExpenseFormValues, receipt?: Pick<ReceiptImage, "imageBlob" | "ocrText">) => Promise<void>;
+  addReceiptExpense: (values: ExpenseFormValues, receipt?: Pick<ReceiptImage, "imageBlob" | "ocrText">) => Promise<Expense>;
   updateExpense: (expense: Expense, values: ExpenseFormValues) => Promise<void>;
   removeExpense: (expense: Expense) => Promise<void>;
   updateSettings: (settings: AppSettings) => void;
@@ -318,8 +318,17 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
         });
       }
 
-      await repository.saveExpense(createExpenseRecord(values, "receipt", receiptImageId));
-      await refreshAfterMutation();
+      const expense = createExpenseRecord(values, "receipt", receiptImageId);
+      try {
+        await repository.saveExpense(expense);
+        await refreshAfterMutation();
+        return expense;
+      } catch (unknownError) {
+        if (receiptImageId) {
+          await repository.deleteReceiptImage(receiptImageId).catch(() => undefined);
+        }
+        throw unknownError;
+      }
     },
     [assertWritable, refreshAfterMutation, repository, settings.saveReceiptImages, storageMode],
   );
@@ -348,6 +357,9 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
   const removeExpense = useCallback(
     async (expense: Expense) => {
       assertWritable();
+      if (expense.receiptImageId) {
+        await repository.deleteReceiptImage(expense.receiptImageId);
+      }
       await repository.deleteExpense(expense.id, { expectedUpdatedAt: expense.updatedAt });
       await refreshAfterMutation();
     },
@@ -445,9 +457,11 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
   );
 
   const suggestCategoryForShop = useCallback(
-    (shopName: string) =>
-      findCategoryRuleForShop(shopCategoryRules, shopName) ?? findRecentCategoryForShop(expenses, shopName),
-    [expenses, shopCategoryRules],
+    (shopName: string) => {
+      const suggestion = findCategoryRuleForShop(shopCategoryRules, shopName) ?? findRecentCategoryForShop(expenses, shopName);
+      return suggestion && categoryMap.has(suggestion.categoryId) ? suggestion : null;
+    },
+    [categoryMap, expenses, shopCategoryRules],
   );
 
   const upsertShopCategoryRule = useCallback(

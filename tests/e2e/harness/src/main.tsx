@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { OcrConfirmScreen } from "../../../../src/components/OcrConfirmScreen";
+import { ReceiptAutoSaveNotice } from "../../../../src/components/ReceiptAutoSaveNotice";
+import { ReceiptCaptureScreen } from "../../../../src/components/ReceiptCaptureScreen";
 import "../../../../src/styles.css";
-import type { ExpenseFormValues, ReceiptDraft, ReceiptSaveOptions } from "../../../../src/types";
+import type { Expense, ExpenseFormValues, ReceiptDraft, ReceiptSaveOptions } from "../../../../src/types";
 
 const categories = [
   { id: "food", name: "食費", color: "#16a34a", sortOrder: 1 },
@@ -25,6 +27,7 @@ const initialDraft: ReceiptDraft = {
     shopNameCandidates: [],
     amountCandidates: [],
     lineItemCandidates: [],
+    riskSignals: { balanceAmounts: [] },
   },
   initialValues: {
     date: "2026-08-09",
@@ -70,4 +73,89 @@ function OcrConfirmHarness() {
   );
 }
 
-createRoot(document.getElementById("root")!).render(<OcrConfirmHarness />);
+function createFixtureExpense(draft: ReceiptDraft): Expense {
+  return {
+    id: "fixture-auto-expense",
+    ...draft.initialValues,
+    source: "receipt",
+    createdAt: "2026-08-09T00:00:00.000Z",
+    updatedAt: "2026-08-09T00:00:00.000Z",
+  };
+}
+
+function ReceiptCaptureHarness({ needsReview }: { needsReview: boolean }) {
+  const [reviewDraft, setReviewDraft] = useState<ReceiptDraft | null>(null);
+  const [savedExpense, setSavedExpense] = useState<Expense | null>(null);
+  const [wasUndone, setWasUndone] = useState(false);
+
+  if (reviewDraft) {
+    return (
+      <div className="app-shell">
+        <main className="app-main">
+          <OcrConfirmScreen
+            draft={reviewDraft}
+            categories={categories}
+            onBack={() => setReviewDraft(null)}
+            onUpdateDraft={setReviewDraft}
+            suggestCategoryForShop={() => null}
+            getGoogleVisionIdToken={async () => "fixture-token"}
+            onSave={async () => undefined}
+          />
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app-shell">
+      {savedExpense && (
+        <ReceiptAutoSaveNotice
+          expense={savedExpense}
+          isUndoing={false}
+          onUndo={() => {
+            setSavedExpense(null);
+            setWasUndone(true);
+          }}
+        />
+      )}
+      <main className="app-main">
+        <ReceiptCaptureScreen
+          onConfirm={(drafts) => setReviewDraft(drafts[0] ?? null)}
+          onAutoSave={async (draft) => createFixtureExpense(draft)}
+          onAutoSaveComplete={setSavedExpense}
+          suggestCategoryForShop={() => needsReview ? null : {
+            categoryId: "food",
+            matchedShopName: "サンプルストア",
+            source: "rule",
+            ruleId: "fixture-rule",
+          }}
+          isGoogleVisionAuthenticated
+          getGoogleVisionIdToken={async () => "fixture-token"}
+          isOcrAvailable
+          ocrRunner={async (_image, options) => {
+            options?.onProgress?.({ status: "読み取り完了", progress: 1 });
+            return {
+              provider: "googleVision",
+              text: [
+                "サンプルストア",
+                "2026年08月09日",
+                "サンプル商品 ¥500",
+                "合計 ¥500",
+              ].join("\n"),
+            };
+          }}
+        />
+        {wasUndone && <output data-testid="undo-result">取り消しました</output>}
+      </main>
+    </div>
+  );
+}
+
+const screen = new URLSearchParams(window.location.search).get("screen");
+createRoot(document.getElementById("root")!).render(
+  screen === "capture-high"
+    ? <ReceiptCaptureHarness needsReview={false} />
+    : screen === "capture-low"
+      ? <ReceiptCaptureHarness needsReview />
+      : <OcrConfirmHarness />,
+);

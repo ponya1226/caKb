@@ -211,6 +211,7 @@ export function createFirestoreBudgetRepository(
       });
     },
     saveReceiptImage: async (_receiptImage: ReceiptImage) => undefined,
+    deleteReceiptImage: async (_id: string) => undefined,
     saveCategory,
     deleteCategory: async (id) => {
       await deleteDoc(doc(firestore, categoriesPath, id));

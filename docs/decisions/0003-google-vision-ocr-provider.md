@@ -2,7 +2,7 @@
 
 ## Status
 
-Superseded in part by ADR 0011
+Superseded in part by ADR 0011 and ADR 0014
 
 ## Context
 
@@ -22,7 +22,7 @@ OCR Provider
   -> IndexedDB保存
 ```
 
-Google Vision利用時も、OCR結果は必ず確認画面でユーザーが修正してから保存する。
+Google Vision利用時の保存判断はADR 0014のConfidence-based Exception Handlingに従う。High confidenceは自動保存し、Lowまたはuncertainだけを確認画面へ送る。
 
 ## Consequences
 

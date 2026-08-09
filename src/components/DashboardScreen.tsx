@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Plus } from "lucide-react";
+import { Camera } from "lucide-react";
 import { currentMonthKey, formatMonthLabel } from "../lib/date";
 import { buildDashboardStats, buildMonthOptions } from "../lib/dashboardStats";
 import { formatCurrency, formatPercent } from "../lib/format";
@@ -9,10 +9,19 @@ import type { Category, Expense } from "../types";
 type DashboardScreenProps = {
   expenses: Expense[];
   categories: Category[];
-  onAddExpense: () => void;
+  canCaptureReceipt: boolean;
+  onCaptureReceipt: (files: File[]) => void;
+  onCaptureUnavailable: () => void;
 };
 
-export function DashboardScreen({ expenses, categories, onAddExpense }: DashboardScreenProps) {
+export function DashboardScreen({
+  expenses,
+  categories,
+  canCaptureReceipt,
+  onCaptureReceipt,
+  onCaptureUnavailable,
+}: DashboardScreenProps) {
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const monthOptions = useMemo(() => buildMonthOptions(expenses), [expenses]);
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey());
   const stats = useMemo(
@@ -26,17 +35,44 @@ export function DashboardScreen({ expenses, categories, onAddExpense }: Dashboar
     }
   }, [monthOptions, selectedMonth]);
 
+  function handleCaptureChange(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length > 0) {
+      onCaptureReceipt(files);
+    }
+    event.target.value = "";
+  }
+
+  function handleCaptureClick() {
+    if (!canCaptureReceipt) {
+      onCaptureUnavailable();
+      return;
+    }
+    cameraInputRef.current?.click();
+  }
+
   return (
     <section className="screen">
       <div className="screen-heading">
         <div>
           <p className="eyebrow">{formatMonthLabel(selectedMonth)}</p>
-          <h1>ダッシュボード</h1>
+          <h1>今月の家計</h1>
         </div>
-        <button className="icon-button" type="button" onClick={onAddExpense} aria-label="支出を追加">
-          <Plus size={22} aria-hidden="true" />
-        </button>
       </div>
+
+      <input
+        ref={cameraInputRef}
+        className="visually-hidden"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        aria-label="登録するレシートを撮影"
+        onChange={handleCaptureChange}
+      />
+      <button className="button button-primary dashboard-capture-button" type="button" onClick={handleCaptureClick}>
+        <Camera size={22} aria-hidden="true" />
+        レシートを撮る
+      </button>
 
       <div className="toolbar">
         <label className="field compact-field">

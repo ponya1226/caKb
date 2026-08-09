@@ -199,6 +199,11 @@ export type ReceiptParseResult = {
   shopNameCandidates: Array<ReceiptCandidate<string>>;
   amountCandidates: Array<ReceiptCandidate<number>>;
   lineItemCandidates: ReceiptLineItemCandidate[];
+  riskSignals: ReceiptParseRiskSignals;
+};
+
+export type ReceiptParseRiskSignals = {
+  balanceAmounts: number[];
 };
 
 export type ReceiptLineItemCandidate = {
@@ -213,6 +218,47 @@ export type ReceiptCategorySuggestion = {
   matchedShopName: string;
   source?: "rule" | "history";
   ruleId?: string;
+};
+
+export type ReceiptLineItemConsistency = "consistent" | "unknown" | "inconsistent";
+
+export type ReceiptConfidenceSignals = {
+  ocrSucceeded: boolean;
+  totalResolved: boolean;
+  dateResolved: boolean;
+  merchantResolved: boolean;
+  categoryResolved: boolean;
+  conflictingAmounts: boolean;
+  conflictingMerchants: boolean;
+  suspiciousBalanceCandidate: boolean;
+  lineItemConsistency: ReceiptLineItemConsistency;
+};
+
+export type ReceiptConfidenceReasonCode =
+  | "ocr_failed"
+  | "total_missing"
+  | "total_uncertain"
+  | "total_conflict"
+  | "total_unrealistic"
+  | "balance_detected"
+  | "date_missing"
+  | "date_out_of_range"
+  | "merchant_missing"
+  | "merchant_uncertain"
+  | "merchant_conflict"
+  | "category_unresolved"
+  | "line_items_inconsistent";
+
+export type ReceiptConfidenceReason = {
+  code: ReceiptConfidenceReasonCode;
+  message: string;
+  severity: "blocking" | "warning";
+};
+
+export type ReceiptConfidenceAssessment = {
+  decision: "autoSave" | "needsReview";
+  signals: ReceiptConfidenceSignals;
+  reasons: ReceiptConfidenceReason[];
 };
 
 export type ExpenseFormValues = {
@@ -236,4 +282,5 @@ export type ReceiptDraft = {
   parseResult: ReceiptParseResult;
   initialValues: ExpenseFormValues;
   categorySuggestion?: ReceiptCategorySuggestion;
+  confidenceAssessment?: ReceiptConfidenceAssessment;
 };
