@@ -30,6 +30,7 @@ GitHub Actionsはcommit SHAで固定します。Dependabotでnpm、GitHub Action
 - production deployはGitHub OIDCとWorkload Identity Federationで短時間認証し、FirebaseとCloud Runでdeploy用service accountを分離する。
 - WIF provider conditionでrepository ID、owner ID、`main` branchを固定し、service accountのIAM bindingを `workflow_ref` で限定する。
 - Cloud Run source buildは専用service accountを明示し、deploy、build、runtimeのidentityを分離する。
+- Google Cloud IAMは `docs/gcp-iam-baseline.md` を基準に定期監査し、既定Compute service accountへOwnerまたはEditorを付与しない。
 - Proxyの間接依存に残るmoderate advisoryは、上流の安全な更新を監視する。破壊的な旧版への強制変更は行わない。
 
 ## リリース確認
