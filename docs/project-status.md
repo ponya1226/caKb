@@ -1,6 +1,6 @@
 # Project Status
 
-Last Updated: 2026-08-09
+Last Updated: 2026-08-10
 
 ## Implemented
 
@@ -10,6 +10,8 @@ Last Updated: 2026-08-09
 - Lowまたはuncertainな単体レシートの理由付き要確認画面へのフォールバック
 - ホームの最優先「レシートを撮る」からネイティブカメラを開き、撮影後に単体レシートを自動読取
 - 残高、競合金額、日付・店舗欠落、OCR部分失敗を含む匿名Confidence fixtureとPlaywright回帰テスト
+- 要確認レシートを撮影端末へ最大7日一時保存するInbox、再読み込み復元、ホーム件数表示、保存・破棄・期限切れ削除
+- IndexedDB version 1から2への非破壊upgradeとhousehold scope付き `pendingReceiptReviews` store。Firestore、バックアップ、CSV、Sheetsのschema変更なし
 
 - Pull Request向けFrontend、Firestore Rules、Google Vision Proxy、Dependency Review CI
 - PlaywrightとChromiumによるスマホ向けBrowser Smoke CI。アカウント、Googleの文字読み取り固定、IndexedDB支出CRUD、匿名fixtureのOCR確認、横overflowを検証
@@ -168,7 +170,7 @@ Last Updated: 2026-08-09
 
 ## Technical Debt
 
-- 要確認ドラフトは初期の縦切りでは画面状態だけに保持する。アプリ終了後も残る要確認Inboxと件数表示には、保存先・削除・画像保持期間を含む設計が必要。
+- 要確認Inboxは撮影したブラウザprofileだけに保存され、家族の別端末には同期されない。端末間共有が必要になった場合はクラウド画像保存、暗号化、認可、削除期間を別ADRで決める必要がある。
 - Confidence初期閾値は安全側で、カテゴリは店舗ルールまたは同一・類似店舗履歴がない場合に要確認となる。自動保存率、Undo率、総額修正率を評価してから緩和する。
 - 単体レシートだけがConfidence自動保存対象。複数枚は現行の全件確認キューを維持している。
 
@@ -211,7 +213,7 @@ Last Updated: 2026-08-09
 ## Next Recommended Priorities
 
 - 管理者・家族の実レシートで、High自動保存、Low要確認、10秒Undoをスマホ実機確認する
-- 要確認ドラフトを再起動後も保持する最小Inboxと、ホームの要確認件数表示を設計する
+- 端末内要確認Inboxの7日保持、保存、破棄を管理者・家族のスマホ実機で確認する
 - 個人情報を送らずに自動保存率、要確認理由、Undo率、総額修正率を評価する方法を決める
 - 匿名fixtureを蓄積し、誤った総額がHighにならないことを確認してからConfidence閾値を調整する
 - 単体の安全性確認後、複数枚を画像単位のHigh自動保存とLow確認キューへ拡張する

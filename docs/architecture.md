@@ -14,6 +14,8 @@ React screens/components
     -> BudgetRepository
       -> IndexedDB repository
       -> Firestore repository
+  -> usePendingReceiptReviews hook
+    -> IndexedDB pending review store
   -> OCR runner
   -> receipt parser
   -> receipt confidence assessment
@@ -40,18 +42,19 @@ type Expense = {
 };
 ```
 
-`Category` と `ReceiptImage` も要件通りに保持します。カテゴリは設定画面で追加、名称変更、色変更、未使用カテゴリの削除ができます。レシート画像保存OFFの場合、OCR後に支出だけを保存し、`ReceiptImage` は作成しません。
+`Category` と `ReceiptImage` も要件通りに保持します。カテゴリは設定画面で追加、名称変更、色変更、未使用カテゴリの削除ができます。レシート画像保存OFFの場合、支出確定後の `ReceiptImage` は作成しません。Lowまたはuncertainの画像はADR 0015に従い、確認用として最大7日だけ `PendingReceiptReview` に保持します。
 
 ## IndexedDB
 
 - DB name: `local-kakeibo-pwa`
-- version: `1`
+- version: `2`
 - stores:
   - `expenses`
   - `categories`
   - `receiptImages`
+  - `pendingReceiptReviews`
 
-カテゴリが空の場合は初期カテゴリをseedします。
+version 1から2へのupgradeは `pendingReceiptReviews` とhousehold scope・作成・期限indexだけを追加し、既存storeとレコードを維持します。カテゴリが空の場合は初期カテゴリをseedします。
 
 ## 保存状態とバックアップ
 
@@ -59,7 +62,7 @@ type Expense = {
 
 アプリは起動時と設定画面で保存状態を診断し、IndexedDB利用可否、永続保存許可、概算使用量、支出件数、保存期間を表示します。対応ブラウザではStorage Persistence APIで永続保存をリクエストします。
 
-CSVエクスポートは表計算用、JSONバックアップは復元用として扱います。JSONバックアップには支出、カテゴリ、設定を含めますが、容量が大きくなりやすいレシート画像Blobは含めません。
+CSVエクスポートは表計算用、JSONバックアップは復元用として扱います。JSONバックアップには支出、カテゴリ、設定を含めますが、容量が大きくなりやすいレシート画像Blobと要確認Inboxは含めません。バックアップ置換はInboxを暗黙削除せず、データ初期化では削除します。
 
 プライベートブラウズ、サイトデータ削除、端末容量不足など、ブラウザ側の判断による保存データ削除はアプリだけでは完全に防げません。
 
@@ -97,7 +100,7 @@ Firebase client configは `VITE_FIREBASE_*` 環境変数から読み取り、未
 - `receiptOcr.ts`: 利用画面向けの単一入口、進捗表示、設定有無の判定
 - `googleVisionOcr.ts`: 自前Proxyへの画像送信、レスポンス検証、安全なエラー変換
 
-OCR全文を取得した後は `receiptParser.ts` で日付、店舗名、金額候補と残高リスクを抽出し、`receiptConfidence.ts` が説明可能な信号から自動保存可否を決めます。High confidenceの単体レシートは `useBudgetData` 経由で自動保存し、Lowまたはuncertainだけを既存確認画面へ送ります。Proxyが返す単語と座標を使い、`receiptParser.ts` が同じ高さの単語を左から右へ並べ直して品目名と金額を対応付けます。単語座標がない場合はOCR全文による解析へ戻ります。Confidenceと理由は画面状態で扱い、支出データの保存schemaは変更しません。
+OCR全文を取得した後は `receiptParser.ts` で日付、店舗名、金額候補と残高リスクを抽出し、`receiptConfidence.ts` が説明可能な信号から自動保存可否を決めます。High confidenceの単体レシートは `useBudgetData` 経由で自動保存し、Lowまたはuncertainだけを既存確認画面へ送ります。Lowまたはuncertainは `usePendingReceiptReviews` を通して撮影端末のInboxへ最大7日一時保存し、ホームから復元します。Proxyが返す単語と座標を使い、`receiptParser.ts` が同じ高さの単語を左から右へ並べ直して品目名と金額を対応付けます。単語座標がない場合はOCR全文による解析へ戻ります。Confidenceと理由は一時Inboxで保持し、支出・Firestoreの保存schemaは変更しません。
 
 Google Vision利用時はレシート画像を外部サービスへ送信しますが、フロントエンドにGoogle Cloud認証情報は置かず、Proxy側でも画像やOCR全文を永続保存しません。Hosting環境ではFirebase ID tokenをProxyで検証し、未ログイン状態ではGoogle Vision OCRを利用できないようにします。
 

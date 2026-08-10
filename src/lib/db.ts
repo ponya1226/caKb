@@ -1,10 +1,10 @@
 import { DEFAULT_CATEGORIES } from "../constants/categories";
-import type { BackupImportMode, Category, Expense, ReceiptImage } from "../types";
+import type { BackupImportMode, Category, Expense, PendingReceiptReview, ReceiptImage } from "../types";
 
 const DB_NAME = "local-kakeibo-pwa";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
-type StoreName = "expenses" | "categories" | "receiptImages";
+type StoreName = "expenses" | "categories" | "receiptImages" | "pendingReceiptReviews";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -48,9 +48,22 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains("receiptImages")) {
         db.createObjectStore("receiptImages", { keyPath: "id" });
       }
+
+      if (!db.objectStoreNames.contains("pendingReceiptReviews")) {
+        const store = db.createObjectStore("pendingReceiptReviews", { keyPath: "id" });
+        store.createIndex("scopeKey", "scopeKey", { unique: false });
+        store.createIndex("createdAt", "createdAt", { unique: false });
+        store.createIndex("expiresAt", "expiresAt", { unique: false });
+      }
     };
 
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      request.result.onversionchange = () => {
+        request.result.close();
+        dbPromise = null;
+      };
+      resolve(request.result);
+    };
     request.onerror = () => reject(request.error);
   });
 
@@ -153,6 +166,76 @@ export async function deleteReceiptImage(id: string): Promise<void> {
   await deleteRecord("receiptImages", id);
 }
 
+export async function getPendingReceiptReviews(scopeKey: string): Promise<PendingReceiptReview[]> {
+  const db = await openDatabase();
+  const transaction = db.transaction("pendingReceiptReviews", "readonly");
+  const done = transactionDone(transaction);
+  const reviews = await requestToPromise<PendingReceiptReview[]>(
+    transaction.objectStore("pendingReceiptReviews").index("scopeKey").getAll(scopeKey),
+  );
+  await done;
+  return reviews.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export async function savePendingReceiptReviews(reviews: PendingReceiptReview[]): Promise<void> {
+  if (reviews.length === 0) {
+    return;
+  }
+
+  const db = await openDatabase();
+  const transaction = db.transaction("pendingReceiptReviews", "readwrite");
+  const done = transactionDone(transaction);
+  const store = transaction.objectStore("pendingReceiptReviews");
+  reviews.forEach((review) => store.put(review));
+  await done;
+}
+
+export async function deletePendingReceiptReviews(ids: string[]): Promise<void> {
+  if (ids.length === 0) {
+    return;
+  }
+
+  const db = await openDatabase();
+  const transaction = db.transaction("pendingReceiptReviews", "readwrite");
+  const done = transactionDone(transaction);
+  const store = transaction.objectStore("pendingReceiptReviews");
+  ids.forEach((id) => store.delete(id));
+  await done;
+}
+
+export async function clearPendingReceiptReviews(scopeKey: string): Promise<void> {
+  const db = await openDatabase();
+  const transaction = db.transaction("pendingReceiptReviews", "readwrite");
+  const done = transactionDone(transaction);
+  const request = transaction.objectStore("pendingReceiptReviews").index("scopeKey").openCursor(IDBKeyRange.only(scopeKey));
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) {
+      return;
+    }
+    cursor.delete();
+    cursor.continue();
+  };
+  await done;
+}
+
+export async function deleteExpiredPendingReceiptReviews(now = new Date().toISOString()): Promise<void> {
+  const db = await openDatabase();
+  const transaction = db.transaction("pendingReceiptReviews", "readwrite");
+  const done = transactionDone(transaction);
+  const index = transaction.objectStore("pendingReceiptReviews").index("expiresAt");
+  const request = index.openCursor(IDBKeyRange.upperBound(now));
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) {
+      return;
+    }
+    cursor.delete();
+    cursor.continue();
+  };
+  await done;
+}
+
 export async function importApplicationData(
   expenses: Expense[],
   categories: Category[],
@@ -181,6 +264,7 @@ export async function importApplicationData(
 export async function clearApplicationData(): Promise<void> {
   await clearStore("expenses");
   await clearStore("receiptImages");
+  await clearStore("pendingReceiptReviews");
   await clearStore("categories");
   await seedCategories();
 }

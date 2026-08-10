@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { OcrConfirmScreen } from "../../../../src/components/OcrConfirmScreen";
+import { DashboardScreen } from "../../../../src/components/DashboardScreen";
 import { ReceiptAutoSaveNotice } from "../../../../src/components/ReceiptAutoSaveNotice";
 import { ReceiptCaptureScreen } from "../../../../src/components/ReceiptCaptureScreen";
+import { usePendingReceiptReviews } from "../../../../src/hooks/usePendingReceiptReviews";
 import "../../../../src/styles.css";
 import type { Expense, ExpenseFormValues, ReceiptDraft, ReceiptSaveOptions } from "../../../../src/types";
 
@@ -120,7 +122,7 @@ function ReceiptCaptureHarness({ needsReview }: { needsReview: boolean }) {
       )}
       <main className="app-main">
         <ReceiptCaptureScreen
-          onConfirm={(drafts) => setReviewDraft(drafts[0] ?? null)}
+          onConfirm={async (drafts) => setReviewDraft(drafts[0] ?? null)}
           onAutoSave={async (draft) => createFixtureExpense(draft)}
           onAutoSaveComplete={setSavedExpense}
           suggestCategoryForShop={() => needsReview ? null : {
@@ -151,11 +153,89 @@ function ReceiptCaptureHarness({ needsReview }: { needsReview: boolean }) {
   );
 }
 
+function PendingReviewHarness() {
+  const scopeKey = new URLSearchParams(window.location.search).get("scope") ?? "household:e2e";
+  const pendingReviews = usePendingReceiptReviews(scopeKey);
+  const [reviewDraft, setReviewDraft] = useState<ReceiptDraft | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+
+  async function openReviews() {
+    setReviewDraft(pendingReviews.restoreDrafts()[0] ?? null);
+  }
+
+  async function removeCurrentReview(message: string) {
+    if (!reviewDraft?.pendingReviewId) {
+      return;
+    }
+    await pendingReviews.removeReviews([reviewDraft.pendingReviewId]);
+    URL.revokeObjectURL(reviewDraft.imagePreviewUrl);
+    setReviewDraft(null);
+    setResult(message);
+  }
+
+  if (reviewDraft) {
+    return (
+      <div className="app-shell">
+        <main className="app-main">
+          <OcrConfirmScreen
+            draft={reviewDraft}
+            categories={categories}
+            onBack={() => {
+              URL.revokeObjectURL(reviewDraft.imagePreviewUrl);
+              setReviewDraft(null);
+            }}
+            onDiscard={async () => {
+              if (window.confirm("この要確認レシートを削除しますか？")) {
+                await removeCurrentReview("確認を破棄しました");
+              }
+            }}
+            onUpdateDraft={async (draft) => {
+              const [savedDraft] = await pendingReviews.persistDrafts([draft]);
+              setReviewDraft(savedDraft);
+            }}
+            suggestCategoryForShop={() => null}
+            getGoogleVisionIdToken={async () => "fixture-token"}
+            onSave={async () => removeCurrentReview("確認を保存しました")}
+          />
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app-shell">
+      <main className="app-main">
+        <DashboardScreen
+          expenses={[]}
+          categories={categories}
+          canCaptureReceipt
+          pendingReviewCount={pendingReviews.count}
+          pendingReviewError={pendingReviews.error}
+          onCaptureReceipt={() => undefined}
+          onCaptureUnavailable={() => undefined}
+          onReviewPending={() => void openReviews()}
+        />
+        <button
+          data-testid="create-pending-review"
+          type="button"
+          disabled={pendingReviews.isLoading}
+          onClick={() => void pendingReviews.persistDrafts([{ ...initialDraft, pendingReviewId: undefined }])}
+        >
+          要確認fixtureを追加
+        </button>
+        {result && <output data-testid="pending-result">{result}</output>}
+      </main>
+    </div>
+  );
+}
+
 const screen = new URLSearchParams(window.location.search).get("screen");
 createRoot(document.getElementById("root")!).render(
   screen === "capture-high"
     ? <ReceiptCaptureHarness needsReview={false} />
     : screen === "capture-low"
       ? <ReceiptCaptureHarness needsReview />
+      : screen === "pending-inbox"
+        ? <PendingReviewHarness />
       : <OcrConfirmHarness />,
 );

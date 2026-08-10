@@ -703,7 +703,7 @@ export function SettingsScreen({
         <article className="setting-row">
           <div>
             <strong>レシート画像保存</strong>
-            <span>レシート画像をこの端末に保存</span>
+            <span>確定後も画像をこの端末に保存。要確認中の画像は設定にかかわらず最大7日間だけ一時保存されます。</span>
           </div>
           <button
             className="icon-button"

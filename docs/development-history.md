@@ -1,5 +1,32 @@
 # Development History
 
+## 2026-08-10 Device-local Pending Receipt Inbox
+
+目的: Lowまたはuncertainのレシートをその場で確認しなくても失わず、後から例外だけ確認できるようにする。
+
+主な変更:
+
+- ADR 0015を追加し、要確認画像とOCR全文を撮影端末だけに最大7日一時保存する方針を決定
+- IndexedDBをversion 2へ上げ、既存storeを維持したまま `pendingReceiptReviews` を追加
+- active householdで要確認データをscopeし、同じブラウザでも別家計簿の内容と件数を分離
+- ホームに要確認件数を表示し、再読み込み後も既存確認画面へ復元
+- 支出保存、明示破棄、データ初期化、期限切れで要確認画像とOCR全文を削除
+- 確定後の画像保存OFFでも要確認中だけ一時保持する限定例外を設定画面と開発規約へ明記
+- 要確認InboxをFirestore、バックアップ、CSV、Google Sheets、運用ログの対象外として維持
+
+検証結果:
+
+- `npm run lint`: 成功
+- `npm run test`: 25ファイル、119件成功
+- `npm run build`: 成功。既存の大きいchunk警告のみ
+- `npm run test:e2e`: mobile Chromium 7件成功
+
+残課題:
+
+- Inboxは端末単位で、家族の別端末には同期されない
+- 自動保存率、要確認理由、Undo率、総額修正率のプライバシーを保った評価方法は未実装
+- 複数枚は引き続き全件確認で、画像単位のConfidence自動保存は未実装
+
 ## 2026-08-09 Capture-first Confidence Auto Save
 
 目的: 中心コンセプトを「家計簿をつけなくていい家計簿」へ変更し、全件確認からHigh confidence自動保存・例外確認へ移行する最初の縦切りを作る。

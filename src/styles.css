@@ -299,6 +299,11 @@ h3 {
   background: var(--surface-muted);
 }
 
+.button-danger {
+  color: #ffffff;
+  background: var(--danger);
+}
+
 .button-compact {
   min-height: 38px;
   padding: 0 12px;
@@ -316,6 +321,32 @@ h3 {
   width: 100%;
   min-height: 58px;
   font-size: 1.02rem;
+}
+
+.pending-review-button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  color: #92400e;
+  background: #fffbeb;
+  text-align: left;
+}
+
+.pending-review-button span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pending-review-button small {
+  color: #a16207;
+  font-size: 0.78rem;
 }
 
 .privacy-note {

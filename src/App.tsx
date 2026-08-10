@@ -6,6 +6,7 @@ import { useBudgetData } from "./hooks/useBudgetData";
 import { useCloudHousehold } from "./hooks/useCloudHousehold";
 import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { useGoogleSheetsSync } from "./hooks/useGoogleSheetsSync";
+import { usePendingReceiptReviews } from "./hooks/usePendingReceiptReviews";
 import { normalizeShopNameForCategory } from "./lib/categorySuggestion";
 import { getFirebaseClientServices } from "./lib/firebaseConfig";
 import { isReceiptOcrConfigured } from "./lib/receiptOcr";
@@ -61,6 +62,7 @@ export default function App() {
   const firebaseAuth = useFirebaseAuth();
   const cloudHousehold = useCloudHousehold(firebaseAuth.user);
   const googleSheetsSync = useGoogleSheetsSync(cloudHousehold.household, firebaseAuth.getIdToken);
+  const pendingReceiptReviews = usePendingReceiptReviews(cloudHousehold.household?.household.id ?? null);
   const cloudBudgetRepository = useMemo(() => {
     const householdId = cloudHousehold.household?.household.id;
     if (!firebaseAuth.user || !householdId) {
@@ -156,17 +158,35 @@ export default function App() {
     }
 
     const remainingDrafts = applySavedCategoryToQueue(receiptDrafts.slice(1), values);
-    await budgetData.addReceiptExpense(values, {
-      imageBlob: receiptDraft.imageFile,
-      ocrText: receiptDraft.ocrText,
-    });
     if (options?.saveCategoryRule) {
       await budgetData.upsertShopCategoryRule(values.shopName, values.categoryId);
     }
+    if (receiptDraft.pendingReviewId) {
+      await pendingReceiptReviews.removeReviews([receiptDraft.pendingReviewId]);
+    }
+    try {
+      await budgetData.addReceiptExpense(values, {
+        imageBlob: receiptDraft.imageFile,
+        ocrText: receiptDraft.ocrText,
+      });
+    } catch (unknownError) {
+      if (receiptDraft.pendingReviewId) {
+        await pendingReceiptReviews.persistDrafts([receiptDraft]).catch(() => undefined);
+      }
+      throw unknownError;
+    }
+    let nextRemainingDrafts = remainingDrafts;
+    if (remainingDrafts.some((draft) => draft.pendingReviewId)) {
+      try {
+        nextRemainingDrafts = await pendingReceiptReviews.persistDrafts(remainingDrafts);
+      } catch {
+        // The saved expense is complete; keep the remaining in-memory queue usable.
+      }
+    }
     URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
-    setReceiptDrafts(remainingDrafts);
+    setReceiptDrafts(nextRemainingDrafts);
 
-    if (remainingDrafts.length > 0) {
+    if (nextRemainingDrafts.length > 0) {
       setView("confirm");
       return;
     }
@@ -210,7 +230,25 @@ export default function App() {
     setView("receipt");
   }
 
-  function handleReceiveDrafts(drafts: ReceiptDraft[]) {
+  async function handleReceiveDrafts(drafts: ReceiptDraft[]) {
+    if (drafts.length === 0) {
+      return;
+    }
+
+    let nextDrafts = drafts;
+    try {
+      nextDrafts = await pendingReceiptReviews.persistDrafts(drafts);
+    } catch {
+      // Keep the current review usable even when this device cannot persist it.
+    }
+    revokeReceiptDraftUrls(receiptDrafts);
+    setReceiptDrafts(nextDrafts);
+    setReceiptBatchTotal(nextDrafts.length);
+    setView("confirm");
+  }
+
+  function handleOpenPendingReviews() {
+    const drafts = pendingReceiptReviews.restoreDrafts();
     if (drafts.length === 0) {
       return;
     }
@@ -239,7 +277,7 @@ export default function App() {
     revokeReceiptDraftUrls(receiptDrafts);
     setReceiptDrafts([]);
     setReceiptBatchTotal(0);
-    setView("receipt");
+    setView("dashboard");
   }
 
   function handleSkipReceiptDraft() {
@@ -253,17 +291,39 @@ export default function App() {
 
     if (remainingDrafts.length === 0) {
       setReceiptBatchTotal(0);
-      setView("receipt");
+      setView("dashboard");
     }
   }
 
-  function handleUpdateCurrentReceiptDraft(nextDraft: ReceiptDraft) {
+  async function handleDiscardReceiptDraft() {
+    if (!receiptDraft || !window.confirm("この要確認レシートを削除しますか？")) {
+      return;
+    }
+
+    if (receiptDraft.pendingReviewId) {
+      await pendingReceiptReviews.removeReviews([receiptDraft.pendingReviewId]);
+    }
+    const remainingDrafts = receiptDrafts.slice(1);
+    URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
+    setReceiptDrafts(remainingDrafts);
+
+    if (remainingDrafts.length === 0) {
+      setReceiptBatchTotal(0);
+      setView("dashboard");
+    }
+  }
+
+  async function handleUpdateCurrentReceiptDraft(nextDraft: ReceiptDraft) {
+    let persistedDraft = nextDraft;
+    if (nextDraft.pendingReviewId) {
+      [persistedDraft] = await pendingReceiptReviews.persistDrafts([nextDraft]);
+    }
     setReceiptDrafts((currentDrafts) => {
       if (currentDrafts.length === 0) {
         return currentDrafts;
       }
 
-      return [nextDraft, ...currentDrafts.slice(1)];
+      return [persistedDraft, ...currentDrafts.slice(1)];
     });
   }
 
@@ -372,8 +432,11 @@ export default function App() {
               expenses={budgetData.expenses}
               categories={budgetData.categories}
               canCaptureReceipt={canUseReceiptOcr}
+              pendingReviewCount={pendingReceiptReviews.count}
+              pendingReviewError={pendingReceiptReviews.error}
               onCaptureReceipt={handleDashboardReceiptCapture}
               onCaptureUnavailable={() => setView("settings")}
+              onReviewPending={handleOpenPendingReviews}
             />
           )}
 
@@ -420,6 +483,7 @@ export default function App() {
               getGoogleVisionIdToken={firebaseAuth.getIdToken}
               onBack={handleCancelReceiptConfirm}
               onSkip={receiptDrafts.length > 1 ? handleSkipReceiptDraft : undefined}
+              onDiscard={handleDiscardReceiptDraft}
               onSave={handleSaveReceiptExpense}
             />
           )}
@@ -434,7 +498,10 @@ export default function App() {
               onImportBackup={budgetData.importBackup}
               onRequestPersistentStorage={budgetData.requestPersistentStorage}
               onRefreshStorageHealth={budgetData.refreshStorageHealth}
-              onResetData={budgetData.resetData}
+              onResetData={async () => {
+                await budgetData.resetData();
+                await pendingReceiptReviews.clearReviews();
+              }}
               onRefreshData={budgetData.refresh}
               onAddCategory={budgetData.addCategory}
               onUpdateCategory={budgetData.updateCategory}

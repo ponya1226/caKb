@@ -283,4 +283,22 @@ export type ReceiptDraft = {
   initialValues: ExpenseFormValues;
   categorySuggestion?: ReceiptCategorySuggestion;
   confidenceAssessment?: ReceiptConfidenceAssessment;
+  pendingReviewId?: string;
+};
+
+export type PendingReceiptReview = {
+  id: string;
+  scopeKey: string;
+  imageBlob: Blob;
+  imageName: string;
+  imageType: string;
+  ocrBlocks?: OcrTextBlock[];
+  ocrText: string;
+  parseResult: ReceiptParseResult;
+  initialValues: ExpenseFormValues;
+  categorySuggestion?: ReceiptCategorySuggestion;
+  confidenceAssessment?: ReceiptConfidenceAssessment;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
 };
