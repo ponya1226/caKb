@@ -9,7 +9,7 @@ MVPではバックエンド、ログイン、クラウド同期、家族共有�
 ## Architecture
 
 - Frontend: Vite, React, TypeScript
-- Persistence: IndexedDB for expenses, categories, receipt images
+- Persistence: IndexedDB for expenses, categories, receipt images, device-local pending receipt reviews
 - Settings: localStorage
 - OCR: Google Vision through the self-owned proxy
 - Charts: Recharts
@@ -70,6 +70,7 @@ npm run test:e2e
 - OCR精度を断定しない。High confidenceだけを自動保存し、Lowまたはuncertainは必ず確認画面へ送る。無条件自動保存は禁止する。
 - Confidenceは不透明な数値だけにせず、総額、日付、店舗、カテゴリ、競合金額、残高、品目整合性などの根拠を型で説明可能にする。
 - 品目明細は付加情報とし、品目欠落だけを理由に必ず要確認へ落とさない。
+- 要確認レシートはADR 0015に従い、この端末だけに最大7日一時保存する。Firestore、バックアップ、ログへ含めない。
 - 保存先は利用状態に応じてIndexedDBまたはFirestoreとし、画面上で現在の保存先を明示する。
 - 主要な方針変更、保存形式変更、ライブラリ追加はADRを残す。
 - 大きな機能完了時は `docs/project-status.md` と `docs/development-history.md` を更新する。
@@ -111,7 +112,7 @@ UI変更では次を手動確認する。
 
 - APIキー、token、password、secretを追加しない。
 - 支出データ、レシート画像、OCR全文を未承認の外部サービスやログへ送らない。Google Vision OCRとGoogle Sheets一方向出力は各ADRの範囲だけを例外とする。
-- レシート画像保存OFFでは画像BlobをIndexedDBへ保存しない。
+- レシート画像保存OFFでは、ADR 0015の要確認中最大7日一時保存を除き、画像BlobをIndexedDBへ保存しない。
 - データ初期化は確認ダイアログを挟む。
 - ユーザーが作成した既存変更を無断で削除、revertしない。
 
@@ -151,5 +152,5 @@ Firebase Hosting, Firebase Auth, Cloud Firestore, and Google Sheets one-way expo
 - 明示承認とADRなしに新しい有料APIや外部サービスを導入する。
 - 銀行・カード連携、外部LLM、新OCR Providerなど当面対象外の機能を混ぜる。
 - Confidence判定なしでOCR結果を自動保存する、またはLow/uncertainを自動保存する。
-- レシート画像保存OFFでも画像Blobを保存する。
+- ADR 0015の期限付き要確認Inboxを除き、レシート画像保存OFFでも画像Blobを保存する。
 - `git reset --hard` や破壊的なcheckoutを無断で実行する。

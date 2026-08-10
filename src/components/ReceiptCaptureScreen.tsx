@@ -25,7 +25,7 @@ type ReceiptSelection = {
 };
 
 type ReceiptCaptureScreenProps = {
-  onConfirm: (drafts: ReceiptDraft[]) => void;
+  onConfirm: (drafts: ReceiptDraft[]) => Promise<void>;
   onAutoSave: (draft: ReceiptDraft) => Promise<Expense>;
   onAutoSaveComplete: (expense: Expense) => void;
   suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
@@ -224,7 +224,7 @@ export function ReceiptCaptureScreen({
       }
 
       markPreviewUrlsTransferred([selection]);
-      onConfirm([draft]);
+      await onConfirm([draft]);
     } catch (unknownError) {
       setError(unknownError instanceof Error ? unknownError.message : "レシートを読み取れませんでした");
     } finally {
@@ -232,7 +232,7 @@ export function ReceiptCaptureScreen({
     }
   }
 
-  function confirmBatchDrafts(draftsByPreviewUrl: Record<string, ReceiptDraft>) {
+  async function confirmBatchDrafts(draftsByPreviewUrl: Record<string, ReceiptDraft>) {
     const drafts = orderReceiptBatchValues(
       receiptSelections.map((selection) => selection.previewUrl),
       draftsByPreviewUrl,
@@ -245,7 +245,7 @@ export function ReceiptCaptureScreen({
     markPreviewUrlsTransferred(
       receiptSelections.filter((selection) => Boolean(draftsByPreviewUrl[selection.previewUrl])),
     );
-    onConfirm(drafts);
+    await onConfirm(drafts);
   }
 
   async function handleRunOcr(failedOnly = false) {
@@ -322,7 +322,7 @@ export function ReceiptCaptureScreen({
       batchDraftsRef.current = nextDrafts;
       setBatchDrafts(nextDrafts);
       if (failedCount === 0) {
-        confirmBatchDrafts(nextDrafts);
+        await confirmBatchDrafts(nextDrafts);
       } else {
         setError(`${failedCount}枚を読み取れませんでした。失敗した画像だけやり直せます。`);
       }
@@ -461,7 +461,7 @@ export function ReceiptCaptureScreen({
                 失敗分だけ再試行
               </button>
               {completedBatchCount > 0 && (
-                <button className="button button-secondary" type="button" disabled={isRunning} onClick={() => confirmBatchDrafts(batchDrafts)}>
+                <button className="button button-secondary" type="button" disabled={isRunning} onClick={() => void confirmBatchDrafts(batchDrafts)}>
                   成功分を確認
                 </button>
               )}

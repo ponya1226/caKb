@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, CircleAlert, Play, SkipForward } from "lucide-react";
+import { ArrowLeft, CircleAlert, Play, SkipForward, Trash2 } from "lucide-react";
 import { CopyTextButton } from "./CopyTextButton";
 import { ExpenseEditor } from "./ExpenseEditor";
 import { DEFAULT_CATEGORY_ID } from "../constants/categories";
@@ -26,7 +26,8 @@ type OcrConfirmScreenProps = {
   };
   onBack: () => void;
   onSkip?: () => void;
-  onUpdateDraft: (draft: ReceiptDraft) => void;
+  onDiscard?: () => Promise<void> | void;
+  onUpdateDraft: (draft: ReceiptDraft) => Promise<void> | void;
   suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
   getGoogleVisionIdToken: () => Promise<string | null>;
   onSave: (values: ExpenseFormValues, options?: ReceiptSaveOptions) => Promise<void>;
@@ -38,6 +39,7 @@ export function OcrConfirmScreen({
   queuePosition,
   onBack,
   onSkip,
+  onDiscard,
   onUpdateDraft,
   suggestCategoryForShop,
   getGoogleVisionIdToken,
@@ -98,7 +100,7 @@ export function OcrConfirmScreen({
         }),
       };
 
-      onUpdateDraft(nextDraft);
+      await onUpdateDraft(nextDraft);
     } catch (unknownError) {
       setError(unknownError instanceof Error ? unknownError.message : "レシートを読み取れませんでした");
     } finally {
@@ -181,6 +183,13 @@ export function OcrConfirmScreen({
         onCancel={onBack}
         onSubmit={(values) => onSave(values, { saveCategoryRule })}
       />
+
+      {onDiscard && (
+        <button className="button button-danger full-width" type="button" onClick={() => void onDiscard()}>
+          <Trash2 size={18} aria-hidden="true" />
+          この読み取りを削除
+        </button>
+      )}
 
       {onSkip && (
         <button className="button button-secondary full-width" type="button" onClick={onSkip}>

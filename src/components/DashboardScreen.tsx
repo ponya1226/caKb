@@ -1,6 +1,6 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Camera } from "lucide-react";
+import { Camera, ChevronRight, CircleAlert } from "lucide-react";
 import { currentMonthKey, formatMonthLabel } from "../lib/date";
 import { buildDashboardStats, buildMonthOptions } from "../lib/dashboardStats";
 import { formatCurrency, formatPercent } from "../lib/format";
@@ -10,16 +10,22 @@ type DashboardScreenProps = {
   expenses: Expense[];
   categories: Category[];
   canCaptureReceipt: boolean;
+  pendingReviewCount: number;
+  pendingReviewError?: string | null;
   onCaptureReceipt: (files: File[]) => void;
   onCaptureUnavailable: () => void;
+  onReviewPending: () => void;
 };
 
 export function DashboardScreen({
   expenses,
   categories,
   canCaptureReceipt,
+  pendingReviewCount,
+  pendingReviewError,
   onCaptureReceipt,
   onCaptureUnavailable,
+  onReviewPending,
 }: DashboardScreenProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const monthOptions = useMemo(() => buildMonthOptions(expenses), [expenses]);
@@ -73,6 +79,18 @@ export function DashboardScreen({
         <Camera size={22} aria-hidden="true" />
         レシートを撮る
       </button>
+
+      {pendingReviewCount > 0 && (
+        <button className="pending-review-button" type="button" onClick={onReviewPending}>
+          <CircleAlert size={21} aria-hidden="true" />
+          <span>
+            <strong>確認が必要 {pendingReviewCount}件</strong>
+            <small>この端末に一時保存されています</small>
+          </span>
+          <ChevronRight size={20} aria-hidden="true" />
+        </button>
+      )}
+      {pendingReviewError && <p className="inline-error">{pendingReviewError}</p>}
 
       <div className="toolbar">
         <label className="field compact-field">
