@@ -1,7 +1,7 @@
 {
-  "name": "ローカル家計簿",
-  "short_name": "家計簿",
-  "description": "レシートOCRで支出を記録するローカル保存型家計簿PWA",
+  "name": "caKb 家族の家計簿",
+  "short_name": "caKb",
+  "description": "レシートを撮るだけで家族の支出をクラウドに記録する家計簿PWA",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

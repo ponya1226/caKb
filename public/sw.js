@@ -1,4 +1,4 @@
-const CACHE_NAME = "local-kakeibo-pwa-v5";
+const CACHE_NAME = "cakb-pwa-v6";
 const APP_BASE = new URL(self.registration.scope).pathname;
 const appUrl = (path) => `${APP_BASE}${path}`;
 const APP_SHELL = [appUrl(""), appUrl("manifest.webmanifest"), appUrl("icons/icon.svg")];

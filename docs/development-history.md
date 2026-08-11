@@ -11,6 +11,7 @@
 - `useBudgetData` に明示的な停止状態を追加し、アクセスゲートがReadyでない間はlocal repositoryにもFirestore repositoryにも接続しない構成へ変更
 - アカウント切替時に前利用者のhousehold状態を即時クリアし、household確認エラー時は古い状態を使わず再試行またはログアウトへ誘導
 - 通常ヘッダーを家計簿名とクラウド同期済み表示へ統一し、端末容量、永続化、確定後画像保存などローカル正本向け設定を利用画面から削除
+- ブラウザタイトル、PWA名、説明、アイコン代替名を `caKb 家族の家計簿` とクラウド利用の説明へ更新し、service worker cacheを更新
 - household作成・招待参加をアクセスゲートへ移し、ownerの旧ローカルデータ移行は救済機能として維持
 - 製品アプリのクラウド必須ゲートとオフライン遮断をPlaywrightで検証し、local repositoryの支出CRUDは専用test harnessへ分離
 - README、AGENTS、Architecture、Roadmap、Project Statusと旧ADRの後続注記を現在方針へ更新
