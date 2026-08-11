@@ -23,12 +23,12 @@
 - `npm run test:deploy-scripts`: 3件成功
 - `npm --prefix server/google-vision-proxy run test`: 6ファイル、27件成功
 - `npm --prefix server/google-vision-proxy run build`: 成功
-- `npm run test:rules`: テストは追加済み。ローカル環境にJavaがないためEmulatorを起動できず、Java 21を設定するGitHub Actionsで検証予定
+- `npm run test:rules`: ローカル環境にJavaがないためEmulatorを起動できなかったが、Java 21を設定したGitHub ActionsのFirestore Rules CIで成功
 - `git diff --check`: 成功
 
 残課題:
 
-- merge後にFirestore Rules CIの成功とproduction Rules配布を確認する
+- merge後にproduction Rules配布を確認する
 - 未所属、owner、招待memberの別Googleアカウントで実機確認する
 - 新規環境を再構築する場合だけ、owner authorizationの事前登録と作成後無効化を運用する
 
