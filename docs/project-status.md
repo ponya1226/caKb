@@ -4,6 +4,12 @@ Last Updated: 2026-08-11
 
 ## Implemented
 
+- ADR 0018により、通常利用をオンライン接続、Firebase設定、Googleログイン、active householdが揃ったクラウド家計簿へ一本化
+- 未認証、household未確定、オフライン、再接続中のIndexedDB家計簿フォールバックを廃止し、必要な復旧操作だけを表示するアクセスゲートを追加
+- Firestore接続が `online` 以外の間は支出一覧、撮影、手入力、設定を含む家計操作全体を遮断し、ローカル代替保存とオフラインキューを不採用
+- 通常ヘッダーを家計簿名、同期状態、クラウド表示へ統一し、端末容量、永続化、確定後画像保存などクラウド正本では不要な設定を削除
+- IndexedDB支出・カテゴリはownerの旧データ移行元とtest harnessに限定し、要確認Inboxと匿名品質集計の端末内保持を継続
+
 - 中心コンセプトを「家計簿をつけなくていい家計簿」へ変更し、ADR 0014で全件確認からConfidence-based Exception Handlingへ移行
 - OCR成功、総額、日付、店舗、カテゴリ、競合金額、残高、品目整合性を説明可能な信号として返す決定論的Confidence判定
 - High confidenceな単体レシートの確認画面なし自動保存と、登録直後10秒間のUndo
@@ -14,11 +20,11 @@ Last Updated: 2026-08-11
 - IndexedDB version 1から2への非破壊upgradeとhousehold scope付き `pendingReceiptReviews` store。Firestore、バックアップ、CSV、Sheetsのschema変更なし
 - 管理者・家族のスマホ実機でHigh自動保存、Low要確認、10秒Undo、Inboxの復元・保存・破棄を確認
 - 自動保存率、要確認理由、Undo率、要確認時の総額修正率を、レシート内容なしでhousehold別・月別・Confidence判定ルール別に最大12か月保持する端末内集計
-- アカウント画面の折りたたみ領域で、memberを含む利用者が過去月を閲覧して匿名集計をコピーでき、ownerまたはローカル管理者だけが消去できる権限制御
+- アカウント画面の折りたたみ領域で、memberを含む利用者が過去月を閲覧して匿名集計をコピーでき、household ownerだけが消去できる権限制御
 - 旧v1集計を `legacy` 判定ルールとして読み、次回記録時にv2へ非破壊移行する互換処理
 
 - Pull Request向けFrontend、Firestore Rules、Google Vision Proxy、Dependency Review CI
-- PlaywrightとChromiumによるスマホ向けBrowser Smoke CI。アカウント、Googleの文字読み取り固定、IndexedDB支出CRUD、匿名fixtureのOCR確認、横overflowを検証
+- PlaywrightとChromiumによるスマホ向けBrowser Smoke CI。クラウド必須ゲート、オフライン遮断、Googleの文字読み取り固定、専用test harnessの支出CRUD、匿名fixtureの例外確認、横overflowを検証
 - Dependabotによるnpm、GitHub Actions、Docker base imageの週次更新
 - GitHub Actionsのcommit SHA固定とNode.js 24への実行環境統一
 - GitHub OIDCとWorkload Identity Federationによる鍵なしproduction deploy
@@ -65,9 +71,9 @@ Last Updated: 2026-08-11
 - Google Vision ProxyのUID単位短時間レート制限と、Firestoreを使った全インスタンス共通の月間上限
 - レシート読み取り制限時の理由別メッセージと再試行・手入力導線
 - OCR月間カウンタをクライアントから拒否するFirestore Rules回帰テスト
-- ヘッダーのローカル／クラウド表示切替。クラウド時は家計簿名、Firestore保存、クラウドバッジを表示
-- 設定画面でGoogleログイン状態と実際の保存先を分けて表示
-- 店舗別カテゴリルールのFirestore正本化と家族間リアルタイム共有。未ログイン時はlocalStorageを継続利用
+- ヘッダーをクラウド表示へ固定し、家計簿名、同期済み状態、クラウドバッジを表示
+- Googleログイン、household、Firestore接続が成立するまで通常画面を表示しないアクセス状態分離
+- 店舗別カテゴリルールのFirestore正本化と家族間リアルタイム共有。旧localStorageルールは明示的な移行元としてのみ継続
 - 既存localStorage店舗ルールの明示的クラウド移行案内とJSONバックアップ互換
 - 支出更新・削除時の `updatedAt` による楽観的競合検知と、上書き防止メッセージ
 - Firestore Rulesで店舗別カテゴリルールをhousehold memberだけに許可する回帰テスト
@@ -90,7 +96,7 @@ Last Updated: 2026-08-11
 - `main` push時のRulesテスト、Firebase Hosting staging検証、承認後のFirestore Rules配布と本番昇格
 
 - Firestore cloud repositoryへの正本切替: ログイン済みかつクラウド家計簿が存在する場合、支出・カテゴリ・JSONインポート・データ初期化はFirestoreを保存先として使用
-- IndexedDB local repositoryは未ログイン時、Firebase未設定時、クラウド家計簿未作成時のフォールバックとして継続
+- IndexedDB local repositoryは旧データ移行と自動テスト専用として継続し、利用者向けフォールバックには使用しない
 - レシート画像BlobはFirestoreへ保存せず、クラウド保存時もOCR確認後の支出データだけを保存
 - クラウド移行UIはIndexedDB内データをFirestoreへコピーする入口として継続
 
@@ -125,7 +131,7 @@ Last Updated: 2026-08-11
 - Google Vision ProxyのFirebase ID token検証
 - Google Vision Proxyのactive household membership制限
 - フロントエンドからGoogle Vision ProxyへのFirebase ID token送信
-- 未ログイン時のレシート読み取り制限とアカウント・手入力導線
+- 未ログイン時の家計操作全体の制限とGoogleログイン導線
 - Google Vision ProxyのCloud Run疎通確認手順
 - レシート登録画面の外部送信注意表示
 - Google Vision OCR結果向けの店舗候補抽出調整: ブランド行と支店行の結合候補
@@ -135,8 +141,7 @@ Last Updated: 2026-08-11
 - React ErrorBoundaryによる白画面停止時の再読み込み導線
 
 - ダッシュボードの対象月選択と過去月集計表示
-- IndexedDB保存状態、永続保存許可、概算使用量、支出件数、保存期間の設定画面表示
-- Storage Persistence APIによる永続保存リクエスト
+- 旧ローカル家計簿向けIndexedDB保存状態とStorage Persistence設定はADR 0018によるクラウド一本化で利用画面から削除
 - JSONバックアップとJSON復元
 
 - 通貨記号付き金額とOCR崩れした1,000円表記の候補抽出改善
@@ -152,7 +157,7 @@ Last Updated: 2026-08-11
 - ダッシュボードの月次合計、前月比、カテゴリ別支出、日別推移
 - CSVエクスポート
 - データ初期化
-- レシート画像保存ON/OFF
+- 旧ローカル家計簿向けの確定後レシート画像保存ON/OFFはADR 0018によるクラウド一本化で利用画面から削除
 - 画面単位の遅延読み込み
 - 支出一覧の店舗名、メモ、カテゴリ名検索
 - 支出一覧のカテゴリフィルタ
@@ -180,13 +185,13 @@ Last Updated: 2026-08-11
 - 単体レシートだけがConfidence自動保存対象。複数枚は現行の全件確認キューを維持している。
 
 - stagingは同じFirebase project上のHosting previewであり、Authentication、Firestore、Cloud Runは分離されていない。認証済み共有動線の自動統合テストが必要になった場合は別projectを検討する。
-- browser E2Eは主要な未ログイン動線を対象としているが、coverage基準は未導入。
+- browser E2EはFirebase設定不足、未ログイン、オフライン遮断を対象としているが、実認証済みowner/memberの自動統合テストとcoverage基準は未導入。
 - Recharts 2系は保守終了警告が出ている。3系への移行影響を確認してmajor updateする必要がある。
-- production buildのメインchunkは約988KB。Firebase importの静的・動的混在と共通chunk構成を見直す必要がある。
+- production buildのメインchunkは約1,015KB。Firebase importの静的・動的混在と共通chunk構成を見直す必要がある。
 - Google Visionの単語座標による行再構成は実装済み。強い傾き、湾曲、複数列レイアウトでは追加調整が必要になる可能性がある。
 - 品目明細は支出の付加情報として保存しており、品目別カテゴリ集計、品目別自動カテゴライズ、数量/単価、商品マスタ、Google Sheets品目別出力は未対応
 - OCR品目候補は最大50件。50品目を超える非常に長いレシートは確認画面で追加入力が必要
-- ログイン済みかつクラウド家計簿がある場合の支出データ正本はFirestore。未ログイン時やクラウド家計簿未作成時はIndexedDBへフォールバックするため、保存先表示と移行手順の継続的な分かりやすさ改善が必要。
+- 支出データ正本はFirestoreへ一本化した。旧IndexedDBデータ移行をいつ廃止できるかは、実利用者の移行完了状況と告知期間を確認して別途判断する必要がある。
 - Firebase HostingとCloud Runのdeploy workflowはWIF provider conditionのworkflow pathと結合している。workflow名や配置を変更する場合はGoogle Cloud側のcondition更新が必要。
 - `cakb-dev` は組織・フォルダ配下ではないため、既定service accountへのOwner/Editor付与を禁止する管理制約をenforceできない。既定Compute service accountのbindingは0件で、Cloud Asset Inventoryによる定期監査を継続する。組織配下へ移す場合は管理制約を有効化する。
 - Firestore Rulesの基本的なmember/非member/owner権限はEmulatorテスト済み。招待機能追加時は招待コードとmember作成条件のテスト拡充が必要。
@@ -203,7 +208,7 @@ Last Updated: 2026-08-11
 - PWAの新しい配信は更新バナーで通知する。未保存入力を失わないため自動再読み込みは行わず、利用者が更新を実行する必要がある。
 - Tesseract.js、端末内OCR、範囲比較、画像前処理、範囲調整コンポーネントはGoogle Vision固定化に伴い削除済み。旧バックアップの `lastOcrCrop` は互換読み込みのみ残る。
 
-- ブラウザのプライベートモード、サイトデータ削除、端末容量不足によるIndexedDB削除はアプリだけでは完全に防げない。
+- ブラウザのプライベートモード、サイトデータ削除、端末容量不足により、要確認Inbox、匿名品質集計、未移行の旧ローカルデータが削除される可能性は残る。確定済み支出の正本はFirestoreにある。
 - JSONバックアップは支出、カテゴリ、設定のみ対象。レシート画像Blobは容量が大きくなるため対象外。
 
 - レシート候補抽出はヒューリスティックで、店舗ごとの精密な解析は未対応。
@@ -217,6 +222,9 @@ Last Updated: 2026-08-11
 
 ## Next Recommended Priorities
 
+- 実アカウントで未ログイン、household未作成、オフライン、再接続、権限解除からの復旧をPC・スマホで確認する
+- ownerの旧IndexedDBデータ移行がクラウド保存成功前にローカルデータを失わないことを実機確認する
+- 認証済みowner/memberを含むブラウザ統合テストの方式を検討し、クラウド必須ゲートの回帰範囲を広げる
 - 管理者・家族の各端末で1か月分の判定ルール別自動登録率、要確認理由、Undo率、要確認時の総額修正率を確認する
 - 匿名fixtureを蓄積し、誤った総額がHighにならないことを確認してからConfidence閾値を調整する
 - 単体の安全性確認後、複数枚を画像単位のHigh自動保存とLow確認キューへ拡張する

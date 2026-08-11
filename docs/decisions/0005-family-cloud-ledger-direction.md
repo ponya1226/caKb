@@ -6,6 +6,8 @@ Date: 2026-07-05
 
 Accepted
 
+2026-08-11のADR 0018により、未ログイン時のローカル利用と将来のオフラインキャッシュ方針は廃止した。IndexedDBは要確認Inbox、匿名品質集計、旧データ移行、自動テストに限定する。
+
 ## Context
 
 caKbは個人利用向けのローカル保存PWAとして開始した。Google Vision OCRの導入により外部OCR Providerは任意利用できるようになったが、支出データの正本は引き続きブラウザ内IndexedDBにある。

@@ -36,10 +36,18 @@ caKbの中心コンセプトは「家計簿をつけなくていい家計簿」�
 - ホームの要確認件数表示と既存確認画面への復元まで完了。
 - 管理者・家族のスマホ実機でHigh自動保存、Low要確認、Undo、Inbox復元・保存・破棄を確認済み。
 - 個人情報やOCR全文を送らず、自動保存率、要確認理由、Undo率、要確認時の総額修正率を端末内で月別集計する仕組みまで完了。
-- 最新12か月の過去月選択、匿名集計コピー、memberの読み取り専用表示、ownerまたはローカル管理者による消去まで完了。
+- 最新12か月の過去月選択、匿名集計コピー、memberの読み取り専用表示、household ownerによる消去まで完了。
 - Confidence判定ルールversionごとに結果を分離し、旧v1集計を `legacy` として非破壊移行する仕組みまで完了。
 - 匿名fixtureで誤判定がないことを確認してから閾値を調整する。
 - 店舗ルール、履歴に続く決定論的なデフォルトカテゴリ推定が安全か検証する。
+
+### A2.1: クラウド正本への一本化
+
+- ADR 0018に従い、オンライン接続、Firebase設定、Googleログイン、active householdを通常利用の必須条件にした。
+- 未認証、household未確定、オフライン、再接続中のIndexedDB家計簿フォールバックを廃止した。
+- 接続できない場合は家計操作全体を遮断し、再試行、ログイン、household作成・参加、ログアウトの必要な操作だけを表示する。
+- 既存ローカルデータはownerの明示的なクラウド移行元として保持し、移行成功前に削除しない。
+- 端末内保存は要確認Inbox、匿名品質集計、旧データ移行、テストharness、端末固有設定に限定する。
 
 ### A3: 一括撮影への拡張
 
@@ -67,7 +75,7 @@ Step Aの安全性と利用実績を確認した後に着手する。
 - Firebase Hosting、Firebase Auth、Cloud Firestoreによる家族のクラウド家計簿
 - owner/memberの導線分離、招待、member解除、Firestore Rulesによるhousehold分離
 - Google Vision自前Proxy、Firebase ID token、active household membership、利用量制限
-- IndexedDB local repositoryとFirestore cloud repositoryの `BudgetRepository` 境界
+- Firestoreを通常利用の唯一の正本とする `BudgetRepository` 境界。IndexedDB repositoryは旧データ移行とtest harnessに限定
 - 店舗別カテゴリルールと同一・類似店舗履歴
 - 品目明細、月次・年次集計、検索・フィルタ、バックアップ、CSV、Google Sheets一方向出力
 - Pull Request CI、Playwright、WIF/OIDC、staging preview、production承認ゲート
@@ -83,5 +91,6 @@ Step Aの安全性と利用実績を確認した後に着手する。
 - 商品マスタ、バーコード、厳密な単価・数量管理
 - Google Sheets双方向同期
 - 品目別カテゴリ集計と品目別自動カテゴライズ
+- オフライン支出登録、オフライン書き込みキュー、ローカル家計簿モード
 
 対象外機能を追加する場合は、利用者操作を本当に減らすかを再評価し、必要なADRと明示承認を得る。

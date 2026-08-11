@@ -50,6 +50,68 @@ button {
   place-items: center;
 }
 
+.access-shell {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding-bottom: 14px;
+}
+
+.cloud-access-panel {
+  display: grid;
+  width: min(100%, 440px);
+  gap: 20px;
+  padding: 24px 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.cloud-access-mark {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 8px;
+  color: #ffffff;
+  background: #2563eb;
+}
+
+.cloud-access-mark.offline {
+  background: #475569;
+}
+
+.cloud-access-copy,
+.cloud-access-actions,
+.cloud-access-form {
+  display: grid;
+  gap: 12px;
+}
+
+.cloud-access-copy > p:last-child,
+.cloud-access-note {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
+.cloud-access-divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.cloud-access-divider::before,
+.cloud-access-divider::after {
+  height: 1px;
+  background: var(--line);
+  content: "";
+}
+
 .app-header {
   position: sticky;
   top: 0;

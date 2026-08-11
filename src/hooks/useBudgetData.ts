@@ -30,6 +30,7 @@ export type BudgetStorageMode = "local" | "cloud";
 type UseBudgetDataOptions = {
   repository?: BudgetRepository;
   storageMode?: BudgetStorageMode;
+  enabled?: boolean;
 };
 
 type UseBudgetDataResult = {
@@ -113,20 +114,24 @@ function createExpenseRecord(values: ExpenseFormValues, source: Expense["source"
 export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetDataResult {
   const repository = options.repository ?? localBudgetRepository;
   const storageMode = options.storageMode ?? "local";
+  const enabled = options.enabled ?? true;
   const [categories, setCategories] = useState<Category[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [localShopCategoryRules] = useState<ShopCategoryRule[]>(() => loadSettings().shopCategoryRules ?? []);
   const [shopCategoryRules, setShopCategoryRules] = useState<ShopCategoryRule[]>([]);
   const [storageHealth, setStorageHealth] = useState<StorageHealth | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
   const [subscriptionRevision, setSubscriptionRevision] = useState(0);
   const [cloudConnection, setCloudConnection] = useState<CloudConnectionState | null>(
-    storageMode === "cloud" ? { status: "reconnecting" } : null,
+    enabled && storageMode === "cloud" ? { status: "reconnecting" } : null,
   );
 
   const refresh = useCallback(async () => {
+    if (!enabled) {
+      return;
+    }
     setError(null);
     if (storageMode === "cloud") {
       setCloudConnection((current) => ({
@@ -145,7 +150,7 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
         lastSuccessfulSyncAt: new Date().toISOString(),
       });
     }
-  }, [repository, storageMode]);
+  }, [enabled, repository, storageMode]);
 
   const refreshAfterMutation = useCallback(async () => {
     if (!repository.subscribe) {
@@ -156,6 +161,17 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
   useEffect(() => {
     let isActive = true;
     let unsubscribe: (() => void) | undefined;
+
+    if (!enabled) {
+      setCategories([]);
+      setExpenses([]);
+      setShopCategoryRules([]);
+      setStorageHealth(null);
+      setIsLoading(false);
+      setError(null);
+      setCloudConnection(null);
+      return undefined;
+    }
 
     setIsLoading(true);
     setError(null);
@@ -235,10 +251,10 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
       isActive = false;
       unsubscribe?.();
     };
-  }, [refresh, repository, storageMode, subscriptionRevision]);
+  }, [enabled, refresh, repository, storageMode, subscriptionRevision]);
 
   useEffect(() => {
-    if (storageMode !== "cloud") {
+    if (!enabled || storageMode !== "cloud") {
       setCloudConnection(null);
       return undefined;
     }
@@ -267,21 +283,27 @@ export function useBudgetData(options: UseBudgetDataOptions = {}): UseBudgetData
       window.removeEventListener("offline", handleOffline);
       window.removeEventListener("online", handleOnline);
     };
-  }, [storageMode]);
+  }, [enabled, storageMode]);
 
   const assertWritable = useCallback(() => {
+    if (!enabled) {
+      throw new Error("クラウド家計簿へ接続してから操作してください。");
+    }
     if (storageMode === "cloud" && cloudConnection?.status !== "online") {
       throw new Error("クラウドへ接続できていません。再接続してから保存してください。");
     }
-  }, [cloudConnection?.status, storageMode]);
+  }, [cloudConnection?.status, enabled, storageMode]);
 
   const retryCloudConnection = useCallback(() => {
+    if (!enabled) {
+      return;
+    }
     setCloudConnection((current) => ({
       status: "reconnecting",
       ...(current?.lastSuccessfulSyncAt ? { lastSuccessfulSyncAt: current.lastSuccessfulSyncAt } : {}),
     }));
     setSubscriptionRevision((current) => current + 1);
-  }, []);
+  }, [enabled]);
 
   const categoryMap = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
   const effectiveSettings = useMemo<AppSettings>(() => {

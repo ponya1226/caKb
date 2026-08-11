@@ -2,10 +2,12 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { OcrConfirmScreen } from "../../../../src/components/OcrConfirmScreen";
 import { DashboardScreen } from "../../../../src/components/DashboardScreen";
+import { ExpenseListScreen } from "../../../../src/components/ExpenseListScreen";
 import { ReceiptAutoSaveNotice } from "../../../../src/components/ReceiptAutoSaveNotice";
 import { ReceiptCaptureScreen } from "../../../../src/components/ReceiptCaptureScreen";
 import { ReceiptQualityMetricsPanel } from "../../../../src/components/ReceiptQualityMetricsPanel";
 import { usePendingReceiptReviews } from "../../../../src/hooks/usePendingReceiptReviews";
+import { useBudgetData } from "../../../../src/hooks/useBudgetData";
 import { useReceiptQualityMetrics } from "../../../../src/hooks/useReceiptQualityMetrics";
 import { RECEIPT_CONFIDENCE_POLICY_VERSION } from "../../../../src/lib/receiptConfidence";
 import "../../../../src/styles.css";
@@ -320,6 +322,30 @@ function ReceiptQualityMetricsHarness() {
   );
 }
 
+function BudgetCrudHarness() {
+  const budgetData = useBudgetData();
+
+  if (budgetData.isLoading) {
+    return <div className="loading-panel">読み込み中</div>;
+  }
+
+  return (
+    <div className="app-shell">
+      <main className="app-main">
+        <ExpenseListScreen
+          expenses={budgetData.expenses}
+          categories={budgetData.categories}
+          categoryMap={budgetData.categoryMap}
+          memberNameMap={new Map()}
+          onAddExpense={budgetData.addManualExpense}
+          onUpdateExpense={budgetData.updateExpense}
+          onDeleteExpense={budgetData.removeExpense}
+        />
+      </main>
+    </div>
+  );
+}
+
 const screen = new URLSearchParams(window.location.search).get("screen");
 createRoot(document.getElementById("root")!).render(
   screen === "capture-high"
@@ -330,5 +356,7 @@ createRoot(document.getElementById("root")!).render(
         ? <PendingReviewHarness />
         : screen === "quality-metrics"
           ? <ReceiptQualityMetricsHarness />
+          : screen === "budget-crud"
+            ? <BudgetCrudHarness />
           : <OcrConfirmHarness />,
 );

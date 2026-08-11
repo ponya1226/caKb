@@ -70,13 +70,15 @@ function formatCloudMigrationError(unknownError: unknown): string {
   return "この端末のデータをクラウドへコピーできませんでした。通信状態を確認して、もう一度お試しください。";
 }
 
-export function useCloudHousehold(user: AuthenticatedUser | null): CloudHouseholdState {
+export function useCloudHousehold(user: AuthenticatedUser | null, enabled = true): CloudHouseholdState {
   const servicesRef = useRef<FirebaseClientServices | null>(null);
+  const activeUserUidRef = useRef<string | null>(user?.uid ?? null);
   const [household, setHousehold] = useState<CloudHouseholdSummary | null>(null);
   const [lastMigration, setLastMigration] = useState<CloudMigrationSummary | null>(null);
   const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [invite, setInvite] = useState<HouseholdInvite | null>(null);
-  const [isLoading, setIsLoading] = useState(Boolean(user));
+  const [isLoading, setIsLoading] = useState(Boolean(user && enabled));
+  const [resolvedUserUid, setResolvedUserUid] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,6 +97,7 @@ export function useCloudHousehold(user: AuthenticatedUser | null): CloudHousehol
       setMembers([]);
       setInvite(null);
       setIsLoading(false);
+      setResolvedUserUid(null);
       return;
     }
 
@@ -119,12 +122,37 @@ export function useCloudHousehold(user: AuthenticatedUser | null): CloudHousehol
       setError("クラウド家計簿の確認に失敗しました。");
     } finally {
       setIsLoading(false);
+      setResolvedUserUid(user.uid);
     }
   }, [getServices, user]);
 
   useEffect(() => {
+    if (!user) {
+      activeUserUidRef.current = null;
+      setHousehold(null);
+      setLastMigration(null);
+      setMembers([]);
+      setInvite(null);
+      setIsLoading(false);
+      setResolvedUserUid(null);
+      setError(null);
+      return;
+    }
+    if (activeUserUidRef.current !== user.uid) {
+      activeUserUidRef.current = user.uid;
+      setHousehold(null);
+      setLastMigration(null);
+      setMembers([]);
+      setInvite(null);
+      setResolvedUserUid(null);
+      setError(null);
+    }
+    if (!enabled) {
+      setIsLoading(false);
+      return;
+    }
     void refresh();
-  }, [refresh]);
+  }, [enabled, refresh, user]);
 
   const createHousehold = useCallback(
     async (name: string) => {
@@ -271,7 +299,7 @@ export function useCloudHousehold(user: AuthenticatedUser | null): CloudHousehol
   );
 
   return {
-    isLoading,
+    isLoading: isLoading || Boolean(user && enabled && resolvedUserUid !== user.uid),
     isWorking,
     household,
     lastMigration,

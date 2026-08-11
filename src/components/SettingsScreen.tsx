@@ -1,29 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import { Cloud, Copy, Database, Download, ExternalLink, FileJson, FileSpreadsheet, KeyRound, LogIn, LogOut, Plus, RefreshCw, Save, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Upload, UserMinus, UserPlus, Users } from "lucide-react";
+import { Cloud, Copy, Download, ExternalLink, FileJson, FileSpreadsheet, KeyRound, LogOut, Plus, RefreshCw, Save, Trash2, Upload, UserMinus, UserPlus, Users } from "lucide-react";
 import { buildBackupJson, downloadJson, parseBackupJson } from "../lib/backup";
 import { buildExpensesCsv, downloadCsv } from "../lib/csv";
-import { currentMonthKey, formatMonthLabel } from "../lib/date";
-import { formatFileSize } from "../lib/format";
+import { currentMonthKey } from "../lib/date";
 import { copyTextToClipboard } from "../lib/clipboard";
-import type { BudgetStorageMode } from "../hooks/useBudgetData";
 import type { CloudHouseholdState } from "../hooks/useCloudHousehold";
 import type { FirebaseAuthState } from "../hooks/useFirebaseAuth";
 import type { GoogleSheetsSyncState } from "../hooks/useGoogleSheetsSync";
 import type { ReceiptQualityMetricsState } from "../hooks/useReceiptQualityMetrics";
 import { buildGoogleSpreadsheetUrl, GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL } from "../lib/googleSheetsSync";
-import { canManageBudgetSettings } from "../lib/settingsAccess";
-import type { AppSettings, BackupImportMode, Category, CloudConnectionState, Expense, ShopCategoryRule, StorageHealth } from "../types";
+import type { AppSettings, BackupImportMode, Category, CloudConnectionState, Expense, ShopCategoryRule } from "../types";
 import { ReceiptQualityMetricsPanel } from "./ReceiptQualityMetricsPanel";
 
 type SettingsScreenProps = {
   expenses: Expense[];
   categories: Category[];
   settings: AppSettings;
-  storageHealth: StorageHealth | null;
-  onUpdateSettings: (settings: AppSettings) => void;
   onImportBackup: (backup: ReturnType<typeof parseBackupJson>, mode: BackupImportMode) => Promise<void>;
-  onRequestPersistentStorage: () => Promise<boolean>;
-  onRefreshStorageHealth: () => Promise<void>;
   onResetData: () => Promise<void>;
   onRefreshData: () => Promise<void>;
   onAddCategory: (values: Pick<Category, "name" | "color">) => Promise<void>;
@@ -36,48 +29,11 @@ type SettingsScreenProps = {
   firebaseAuth: FirebaseAuthState;
   cloudHousehold: CloudHouseholdState;
   googleSheetsSync: GoogleSheetsSyncState;
-  storageMode: BudgetStorageMode;
   cloudConnection: CloudConnectionState | null;
   receiptQualityMetrics: ReceiptQualityMetricsState;
 };
 
 type CategoryDraft = Pick<Category, "name" | "color">;
-
-function formatOptionalFileSize(bytes: number | undefined): string {
-  return typeof bytes === "number" ? formatFileSize(bytes) : "不明";
-}
-
-function formatMonthRange(storageHealth: StorageHealth | null): string {
-  if (!storageHealth || storageHealth.monthCount === 0) {
-    return "データなし";
-  }
-
-  if (storageHealth.oldestMonth === storageHealth.latestMonth && storageHealth.oldestMonth) {
-    return formatMonthLabel(storageHealth.oldestMonth);
-  }
-
-  return `${storageHealth.oldestMonth ? formatMonthLabel(storageHealth.oldestMonth) : "不明"} - ${storageHealth.latestMonth ? formatMonthLabel(storageHealth.latestMonth) : "不明"}`;
-}
-
-function formatIndexedDbStatus(storageHealth: StorageHealth | null): string {
-  if (!storageHealth) {
-    return "未確認";
-  }
-
-  return storageHealth.indexedDbAvailable ? "利用可" : "利用不可";
-}
-
-function formatPersistentStorageStatus(storageHealth: StorageHealth | null): string {
-  if (!storageHealth) {
-    return "未確認";
-  }
-
-  if (!storageHealth.persistentStorageSupported) {
-    return "非対応";
-  }
-
-  return storageHealth.persistentStorageGranted ? "有効" : "未許可";
-}
 
 function formatCloudDate(value: string): string {
   return new Intl.DateTimeFormat("ja-JP", {
@@ -90,11 +46,7 @@ export function SettingsScreen({
   expenses,
   categories,
   settings,
-  storageHealth,
-  onUpdateSettings,
   onImportBackup,
-  onRequestPersistentStorage,
-  onRefreshStorageHealth,
   onResetData,
   onRefreshData,
   onAddCategory,
@@ -107,7 +59,6 @@ export function SettingsScreen({
   firebaseAuth,
   cloudHousehold,
   googleSheetsSync,
-  storageMode,
   cloudConnection,
   receiptQualityMetrics,
 }: SettingsScreenProps) {
@@ -118,13 +69,11 @@ export function SettingsScreen({
   const [newRuleCategoryId, setNewRuleCategoryId] = useState(categories[0]?.id ?? "");
   const [newCategory, setNewCategory] = useState<CategoryDraft>({ name: "", color: "#0f766e" });
   const [categoryDrafts, setCategoryDrafts] = useState<Record<string, CategoryDraft>>({});
-  const [newHouseholdName, setNewHouseholdName] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
   const [spreadsheetInput, setSpreadsheetInput] = useState("");
   const shopCategoryRules = settings.shopCategoryRules ?? [];
   const householdRole = cloudHousehold.household?.member.role ?? null;
   const isHouseholdOwner = householdRole === "owner";
-  const canManageSettings = canManageBudgetSettings(storageMode === "cloud", householdRole);
+  const canManageSettings = isHouseholdOwner;
 
   useEffect(() => {
     if (!newRuleCategoryId && categories[0]) {
@@ -137,12 +86,6 @@ export function SettingsScreen({
       Object.fromEntries(categories.map((category) => [category.id, { name: category.name, color: category.color }])),
     );
   }, [categories]);
-
-  useEffect(() => {
-    if (!newHouseholdName && firebaseAuth.user) {
-      setNewHouseholdName(`${firebaseAuth.user.displayName}の家計簿`);
-    }
-  }, [firebaseAuth.user, newHouseholdName]);
 
   useEffect(() => {
     if (googleSheetsSync.settings?.spreadsheetId) {
@@ -268,11 +211,6 @@ export function SettingsScreen({
     }
   }
 
-  async function handleRequestPersistentStorage() {
-    const granted = await onRequestPersistentStorage();
-    setStatusMessage(granted ? "端末内データを消去されにくくしました" : "設定を変更できませんでした。ブラウザ設定を確認してください");
-  }
-
   async function handleReset() {
     if (!window.confirm("すべての支出データを初期化しますか？")) {
       return;
@@ -282,12 +220,8 @@ export function SettingsScreen({
     setStatusMessage("データを初期化しました");
   }
 
-  async function handleCreateHousehold() {
-    await cloudHousehold.createHousehold(newHouseholdName);
-  }
-
   async function handleMigrateLocalData() {
-    if (!window.confirm("この端末の支出、カテゴリ、店舗ごとのカテゴリ設定をクラウドへコピーします。実行しますか？")) {
+    if (!window.confirm("以前この端末に保存した支出、カテゴリ、店舗設定をクラウドへ移行します。実行しますか？")) {
       return;
     }
 
@@ -308,11 +242,6 @@ export function SettingsScreen({
         ? "招待コードをコピーしました"
         : "招待コードをコピーできませんでした",
     );
-  }
-
-  async function handleJoinHousehold() {
-    await cloudHousehold.joinHousehold(inviteCode);
-    setInviteCode("");
   }
 
   async function handleRemoveMember(uid: string, displayName: string) {
@@ -357,31 +286,13 @@ export function SettingsScreen({
 
         <div className="account-panel">
           <div>
-            <strong>{firebaseAuth.user ? firebaseAuth.user.displayName : firebaseAuth.isConfigured ? "未ログイン" : "ログイン機能を利用できません"}</strong>
-            <span>
-              {firebaseAuth.user
-                ? firebaseAuth.user.email || "メールアドレス未設定"
-                : firebaseAuth.isConfigured
-                  ? "Googleでログインすると家族と共有できます"
-                  : "現在のアプリではGoogleログインを利用できません"}
-            </span>
+            <strong>{firebaseAuth.user?.displayName ?? "ログイン情報を確認中"}</strong>
+            <span>{firebaseAuth.user?.email || "メールアドレス未設定"}</span>
           </div>
-          {firebaseAuth.user ? (
-            <button className="button button-secondary" type="button" onClick={() => void firebaseAuth.signOut()} disabled={firebaseAuth.isWorking}>
-              <LogOut size={18} aria-hidden="true" />
-              ログアウト
-            </button>
-          ) : (
-            <button
-              className="button button-secondary"
-              type="button"
-              onClick={() => void firebaseAuth.signInWithGoogle()}
-              disabled={!firebaseAuth.isConfigured || firebaseAuth.isLoading || firebaseAuth.isWorking}
-            >
-              <LogIn size={18} aria-hidden="true" />
-              Googleでログイン
-            </button>
-          )}
+          <button className="button button-secondary" type="button" onClick={() => void firebaseAuth.signOut()} disabled={firebaseAuth.isWorking}>
+            <LogOut size={18} aria-hidden="true" />
+            ログアウト
+          </button>
         </div>
 
         {firebaseAuth.error && (
@@ -394,11 +305,7 @@ export function SettingsScreen({
         )}
 
         <p className="subtle-text storage-note">
-          {storageMode === "cloud"
-            ? `利用中: ${cloudHousehold.household?.household.name ?? "家族の家計簿"} / 保存先: クラウド。支出、カテゴリ、読み込んだバックアップは家族で共有されます。`
-            : firebaseAuth.user
-              ? "Googleログイン中ですが、現在の保存先はこの端末です。家族の家計簿を作成または参加するとクラウド保存に切り替わります。"
-              : "未ログインです。現在のデータはこの端末に保存されています。"}
+          利用中: {cloudHousehold.household?.household.name ?? "家族の家計簿"} / 支出、カテゴリ、読み込んだバックアップはクラウドで家族に共有されます。
         </p>
         {hasLocalShopCategoryRulesToMigrate && canManageSettings && (
           <p className="inline-notice">
@@ -412,13 +319,7 @@ export function SettingsScreen({
           <h2>家族の家計簿</h2>
         </div>
 
-        {!firebaseAuth.isConfigured ? (
-          <div className="empty-state">クラウド機能は現在利用できません</div>
-        ) : !firebaseAuth.user ? (
-          <div className="empty-state">Googleログイン後に作成できます</div>
-        ) : cloudHousehold.isLoading ? (
-          <div className="empty-state">家族の家計簿を確認中</div>
-        ) : cloudHousehold.household ? (
+        {cloudHousehold.household ? (
           <>
             <div className="cloud-panel">
               <div>
@@ -443,7 +344,7 @@ export function SettingsScreen({
               {isHouseholdOwner && (
                 <button className="button button-secondary" type="button" onClick={handleMigrateLocalData} disabled={cloudHousehold.isWorking}>
                   <Upload size={18} aria-hidden="true" />
-                  この端末のデータをコピー
+                  以前の端末データを移行
                 </button>
               )}
             </div>
@@ -499,42 +400,7 @@ export function SettingsScreen({
               </div>
             </div>
           </>
-        ) : (
-          <div className="cloud-onboarding">
-            <div className="cloud-form">
-              <label className="field">
-                <span>新しい家計簿を作成</span>
-                <input
-                  type="text"
-                  value={newHouseholdName}
-                  placeholder="例: わが家の家計簿"
-                  onChange={(event) => setNewHouseholdName(event.target.value)}
-                />
-              </label>
-              <button className="button button-secondary" type="button" onClick={handleCreateHousehold} disabled={cloudHousehold.isWorking}>
-                <Plus size={18} aria-hidden="true" />
-                作成
-              </button>
-            </div>
-            <div className="cloud-join-form">
-              <label className="field">
-                <span>家族の家計簿へ参加</span>
-                <input
-                  type="text"
-                  value={inviteCode}
-                  maxLength={10}
-                  autoCapitalize="characters"
-                  placeholder="招待コード"
-                  onChange={(event) => setInviteCode(event.target.value.toUpperCase())}
-                />
-              </label>
-              <button className="button button-secondary" type="button" onClick={handleJoinHousehold} disabled={cloudHousehold.isWorking || !inviteCode.trim()}>
-                <UserPlus size={18} aria-hidden="true" />
-                参加
-              </button>
-            </div>
-          </div>
-        )}
+        ) : <div className="empty-state">家計簿へ再接続してください</div>}
 
         {cloudHousehold.lastMigration && isHouseholdOwner && (
           <div className="inline-status">
@@ -562,7 +428,7 @@ export function SettingsScreen({
         <p className="subtle-text storage-note">
           {cloudHousehold.household && !isHouseholdOwner
             ? "登録した支出は家族へ共有されます。家計簿の設定は管理者が行います。"
-            : "コピー済みのデータは重複しません。家族の家計簿がある場合、新しい支出やカテゴリはクラウドに保存されます。"}
+            : "以前の端末データは明示的に移行できます。移行が成功する前に端末側のデータは削除しません。"}
         </p>
       </section>
 
@@ -590,8 +456,8 @@ export function SettingsScreen({
         <details className="admin-settings-panel">
           <summary>
             <span>
-              <strong>{isHouseholdOwner ? "管理者メニュー" : "この端末のデータ管理"}</strong>
-              <small>{isHouseholdOwner ? "家族、カテゴリ、書き出しを管理" : "カテゴリ、バックアップ、保存を管理"}</small>
+              <strong>管理者メニュー</strong>
+              <small>家族、カテゴリ、書き出しを管理</small>
             </span>
           </summary>
           <div className="admin-settings-content">
@@ -672,73 +538,6 @@ export function SettingsScreen({
         )}
       </section>
       )}
-
-      <section className="content-section">
-        <div className="section-title-row">
-          <h2>保存状態</h2>
-          <button className="icon-button small" type="button" onClick={onRefreshStorageHealth} aria-label="保存状態を更新">
-            <RefreshCw size={18} aria-hidden="true" />
-          </button>
-        </div>
-
-        <div className="status-grid">
-          <div className="status-card">
-            {storageMode === "cloud" ? <Cloud size={20} aria-hidden="true" /> : <Database size={20} aria-hidden="true" />}
-            <span>現在の保存先</span>
-            <strong>{storageMode === "cloud" ? "クラウド" : `この端末（${formatIndexedDbStatus(storageHealth)}）`}</strong>
-          </div>
-          <div className="status-card">
-            <ShieldCheck size={20} aria-hidden="true" />
-            <span>端末内データの保護</span>
-            <strong>{formatPersistentStorageStatus(storageHealth)}</strong>
-          </div>
-          <div className="status-card">
-            <span>支出件数</span>
-            <strong>{storageHealth?.expenseCount ?? expenses.length}件</strong>
-          </div>
-          <div className="status-card">
-            <span>保存期間</span>
-            <strong>{formatMonthRange(storageHealth)}</strong>
-          </div>
-          <div className="status-card">
-            <span>使用量</span>
-            <strong>{formatOptionalFileSize(storageHealth?.usageBytes)}</strong>
-          </div>
-          <div className="status-card">
-            <span>保存できる目安</span>
-            <strong>{formatOptionalFileSize(storageHealth?.quotaBytes)}</strong>
-          </div>
-        </div>
-
-        <p className="subtle-text storage-note">
-          {storageMode === "cloud"
-            ? "支出とカテゴリはクラウドに保存され、同じ家計簿に参加している家族へ反映されます。"
-            : "この端末のブラウザに保存されます。プライベートブラウズ、サイトデータ削除、端末容量不足では消える場合があります。"}
-        </p>
-
-        {!storageHealth?.persistentStorageGranted && storageHealth?.persistentStorageSupported && (
-          <button className="button button-secondary full-width" type="button" onClick={handleRequestPersistentStorage}>
-            端末内データを消去されにくくする
-          </button>
-        )}
-      </section>
-
-      <div className="settings-list">
-        <article className="setting-row">
-          <div>
-            <strong>レシート画像保存</strong>
-            <span>確定後も画像をこの端末に保存。要確認中の画像は設定にかかわらず最大7日間だけ一時保存されます。</span>
-          </div>
-          <button
-            className="icon-button"
-            type="button"
-            onClick={() => onUpdateSettings({ ...settings, saveReceiptImages: !settings.saveReceiptImages })}
-            aria-label="レシート画像保存を切り替え"
-          >
-            {settings.saveReceiptImages ? <ToggleRight size={28} aria-hidden="true" /> : <ToggleLeft size={28} aria-hidden="true" />}
-          </button>
-        </article>
-      </div>
 
       <section className="content-section">
         <div className="section-title-row">
