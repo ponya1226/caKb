@@ -6,7 +6,17 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { Timestamp, collection, deleteDoc, doc, getDoc, getDocs, runTransaction, setDoc } from "firebase/firestore";
+import {
+  Timestamp,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  runTransaction,
+  setDoc,
+  writeBatch,
+} from "firebase/firestore";
 
 let testEnvironment: RulesTestEnvironment;
 
@@ -51,6 +61,79 @@ async function seedHousehold(): Promise<void> {
 }
 
 describe("Firestore household rules", () => {
+  it("allows only a pre-authorized owner to create the designated family household", async () => {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), "familyOwnerAuthorizations/owner-2"), {
+        uid: "owner-2",
+        householdId: "family-household",
+        active: true,
+      });
+    });
+
+    const authorizedFirestore = testEnvironment.authenticatedContext("owner-2").firestore();
+    const authorizedBatch = writeBatch(authorizedFirestore);
+    authorizedBatch.set(doc(authorizedFirestore, "households/family-household"), {
+      id: "family-household",
+      name: "Family household",
+      ownerUid: "owner-2",
+    });
+    authorizedBatch.set(doc(authorizedFirestore, "households/family-household/members/owner-2"), {
+      householdId: "family-household",
+      uid: "owner-2",
+      role: "owner",
+    });
+    authorizedBatch.set(doc(authorizedFirestore, "users/owner-2"), {
+      uid: "owner-2",
+      displayName: "Family owner",
+      email: "owner@example.invalid",
+      activeHouseholdId: "family-household",
+    });
+    await assertSucceeds(authorizedBatch.commit());
+
+    const unauthorizedFirestore = testEnvironment.authenticatedContext("outsider-1").firestore();
+    await assertFails(
+      setDoc(doc(unauthorizedFirestore, "households/outsider-household"), {
+        id: "outsider-household",
+        name: "Outsider household",
+        ownerUid: "outsider-1",
+      }),
+    );
+    await assertFails(
+      setDoc(doc(authorizedFirestore, "households/another-household"), {
+        id: "another-household",
+        name: "Another household",
+        ownerUid: "owner-2",
+      }),
+    );
+  });
+
+  it("keeps family owner authorizations server-managed", async () => {
+    const firestore = testEnvironment.authenticatedContext("user-1").firestore();
+    const authorizationRef = doc(firestore, "familyOwnerAuthorizations/user-1");
+
+    await assertSucceeds(getDoc(authorizationRef));
+    await assertFails(
+      setDoc(authorizationRef, {
+        uid: "user-1",
+        householdId: "family-household",
+        active: true,
+      }),
+    );
+    await assertFails(getDocs(collection(firestore, "familyOwnerAuthorizations")));
+  });
+
+  it("does not persist a Firestore profile before family access is established", async () => {
+    const firestore = testEnvironment.authenticatedContext("outsider-1").firestore();
+
+    await assertFails(
+      setDoc(doc(firestore, "users/outsider-1"), {
+        uid: "outsider-1",
+        displayName: "Outsider",
+        email: "outsider@example.invalid",
+      }),
+    );
+  });
+
   it("allows household members to read and write expenses", async () => {
     await seedHousehold();
     const firestore = testEnvironment.authenticatedContext("member-1").firestore();
@@ -163,6 +246,12 @@ describe("Firestore household rules", () => {
           role: "member",
           joinedAt: "2026-07-11T00:00:00.000Z",
           inviteCode: "ABCDEFGH",
+        });
+        transaction.set(doc(firestore, "users/new-member-1"), {
+          uid: "new-member-1",
+          displayName: "New member",
+          email: "member@example.invalid",
+          activeHouseholdId: "household-1",
         });
         transaction.update(inviteRef, {
           status: "used",

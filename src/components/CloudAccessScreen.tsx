@@ -135,31 +135,37 @@ export function CloudAccessScreen({ state, firebaseAuth, cloudHousehold }: Cloud
 
   return (
     <AccessShell
-      title="家族の家計簿を設定"
-      description="新しく作成するか、家族から受け取った招待コードで参加してください。"
+      title="家族の家計簿へ参加"
+      description={cloudHousehold.isHouseholdCreationAuthorized
+        ? "初期設定として家計簿を作成するか、家族から受け取った招待コードで参加してください。"
+        : "管理者から受け取った招待コードを入力してください。"}
     >
-      <div className="cloud-access-form">
-        <label className="field">
-          <span>新しい家計簿の名前</span>
-          <input
-            type="text"
-            value={householdName}
-            placeholder="例: わが家の家計簿"
-            onChange={(event) => setHouseholdName(event.target.value)}
-          />
-        </label>
-        <button
-          className="button button-primary full-width"
-          type="button"
-          disabled={cloudHousehold.isWorking || !householdName.trim()}
-          onClick={() => void cloudHousehold.createHousehold(householdName)}
-        >
-          <Plus size={18} aria-hidden="true" />
-          家計簿を作成
-        </button>
-      </div>
+      {cloudHousehold.isHouseholdCreationAuthorized && (
+        <>
+          <div className="cloud-access-form">
+            <label className="field">
+              <span>新しい家計簿の名前</span>
+              <input
+                type="text"
+                value={householdName}
+                placeholder="例: わが家の家計簿"
+                onChange={(event) => setHouseholdName(event.target.value)}
+              />
+            </label>
+            <button
+              className="button button-primary full-width"
+              type="button"
+              disabled={cloudHousehold.isWorking || !householdName.trim()}
+              onClick={() => void cloudHousehold.createHousehold(householdName)}
+            >
+              <Plus size={18} aria-hidden="true" />
+              家計簿を作成
+            </button>
+          </div>
 
-      <div className="cloud-access-divider"><span>または</span></div>
+          <div className="cloud-access-divider"><span>または</span></div>
+        </>
+      )}
 
       <div className="cloud-access-form">
         <label className="field">

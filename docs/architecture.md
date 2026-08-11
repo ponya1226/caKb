@@ -2,9 +2,9 @@
 
 ## 方針
 
-caKbは「家計簿をつけなくていい家計簿」を中心に、撮影後のConfidence判定で通常レシートを自動保存し、例外だけを確認する構成です。利用者向けアプリはオンライン接続、Firebase設定、Googleログイン、active householdを必須とし、支出、カテゴリ、店舗別カテゴリルールはCloud Firestoreだけを正本にします。
+caKbは「家計簿をつけなくていい家計簿」を中心に、撮影後のConfidence判定で通常レシートを自動保存し、例外だけを確認する構成です。対象は管理者が招待した特定の家族だけです。利用者向けアプリはオンライン接続、Firebase設定、Googleログイン、active householdを必須とし、支出、カテゴリ、店舗別カテゴリルールはCloud Firestoreだけを正本にします。
 
-Firebase Hosting、Firebase Auth、Cloud Firestoreによる家族共有基盤と、ローカル家計簿へフォールバックしないアクセス制御を採用しています。詳細は `docs/decisions/0005-family-cloud-ledger-direction.md`、`docs/decisions/0007-firebase-hosting-auth-migration.md`、`docs/decisions/0018-cloud-only-authenticated-ledger.md` に従います。
+Firebase Hosting、Firebase Auth、Cloud Firestoreによる家族共有基盤と、ローカル家計簿へフォールバックしないアクセス制御を採用しています。未所属利用者は招待参加だけを基本とし、household初期作成はサーバー管理authorizationで許可されたownerに限定します。詳細は `docs/decisions/0005-family-cloud-ledger-direction.md`、`docs/decisions/0007-firebase-hosting-auth-migration.md`、`docs/decisions/0018-cloud-only-authenticated-ledger.md`、`docs/decisions/0019-family-only-product-scope.md` に従います。
 
 ## レイヤー
 
@@ -94,7 +94,7 @@ Cloud RunはApplication Default CredentialsでSheets APIを呼びます。対象
 
 Firebase client configは `VITE_FIREBASE_*` 環境変数から読み取ります。未設定の場合はローカル家計簿へ切り替えず、設定不足画面を表示します。Firestoreのパスは `households/{householdId}` 配下に支出、カテゴリ、店舗別カテゴリルール、同期設定を置きます。Security Rulesは `firestore.rules` にあります。
 
-アクセスゲートではGoogleログイン後にhouseholdを作成または招待コードで参加できます。アカウント画面ではownerだけが、IndexedDB内の旧支出・カテゴリとlocalStorage内の旧店舗別カテゴリルールをFirestoreへ明示的に移行できます。移行成功前にローカルデータは削除しません。memberにはアカウント、接続状態、参加メンバーと、この端末の匿名自動登録集計だけを表示します。招待、移行、カテゴリ、店舗ルール、バックアップ、Sheets出力、集計消去などはowner専用の管理者メニューまたは権限制御された操作へ集約します。
+アクセスゲートでは、既存memberをactive householdへ接続し、未所属の通常利用者には招待コード参加だけを表示します。初期household作成は `familyOwnerAuthorizations/{uid}` に固定household IDを事前登録されたownerだけに表示し、Rulesでも同じ条件を検証します。GoogleログインだけではFirestore利用者プロフィールを作成せず、初期作成または招待参加が成立した時点で保存します。アカウント画面ではownerだけが、IndexedDB内の旧支出・カテゴリとlocalStorage内の旧店舗別カテゴリルールをFirestoreへ明示的に移行できます。移行成功前にローカルデータは削除しません。memberにはアカウント、接続状態、参加メンバーと、この端末の匿名自動登録集計だけを表示します。招待、移行、カテゴリ、店舗ルール、バックアップ、Sheets出力、集計消去などはowner専用の管理者メニューまたは権限制御された操作へ集約します。
 
 ## レシート読み取り
 

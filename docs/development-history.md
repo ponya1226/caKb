@@ -1,5 +1,37 @@
 # Development History
 
+## 2026-08-11 Family-only Product Scope
+
+目的: 商用リリースと不特定世帯への提供を目標から外し、caKbを管理者が招待した特定家族だけに閉じた運用へ変更する。
+
+主な変更:
+
+- ADR 0019を追加し、家族限定の対象範囲、対象外機能、アクセスモデル、再検討条件を決定
+- README、AGENTS、Architecture、Roadmap、Project Status、Firebase setupを家族限定方針へ更新
+- 未所属の通常利用者には招待コード参加だけを表示し、初期household作成はサーバー管理authorizationで事前許可されたownerだけに限定
+- `familyOwnerAuthorizations/{uid}` をクライアントから変更できないRulesとし、許可された固定household ID以外の作成を拒否
+- household、owner member、利用者プロフィールの初期作成をatomic batchへ変更
+- GoogleログインだけではFirestoreへプロフィールを保存せず、初期作成または有効な招待参加が成立した時点で保存
+- 未許可作成、authorization書き換え、参加前プロフィール保存を拒否するRulesテストと、スマホ幅の招待専用UI E2Eを追加
+
+検証結果:
+
+- `npm run lint`: 成功
+- `npm run test`: 27ファイル、126件成功
+- `npm run build`: 成功。Firebase import構成と約1,017KBのmain chunkに関する既知警告のみ
+- `npm run test:e2e`: mobile Chromium 11件成功
+- `npm run test:deploy-scripts`: 3件成功
+- `npm --prefix server/google-vision-proxy run test`: 6ファイル、27件成功
+- `npm --prefix server/google-vision-proxy run build`: 成功
+- `npm run test:rules`: テストは追加済み。ローカル環境にJavaがないためEmulatorを起動できず、Java 21を設定するGitHub Actionsで検証予定
+- `git diff --check`: 成功
+
+残課題:
+
+- merge後にFirestore Rules CIの成功とproduction Rules配布を確認する
+- 未所属、owner、招待memberの別Googleアカウントで実機確認する
+- 新規環境を再構築する場合だけ、owner authorizationの事前登録と作成後無効化を運用する
+
 ## 2026-08-11 Cloud-only Authenticated Ledger
 
 目的: 利用価値がなくなったローカル家計簿への暗黙フォールバックを廃止し、家族全員が同じFirestore正本だけを扱うオンライン認証必須の動作へ一本化する。

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  familyOwnerAuthorizationPath,
   householdInvitePath,
   householdCategoriesPath,
   householdExpensesPath,
@@ -16,6 +17,7 @@ describe("firestorePaths", () => {
   });
   it("builds stable document and collection paths for household scoped data", () => {
     expect(userProfilePath("user-1")).toBe("users/user-1");
+    expect(familyOwnerAuthorizationPath("user-1")).toBe("familyOwnerAuthorizations/user-1");
     expect(householdPath("household-1")).toBe("households/household-1");
     expect(householdMemberPath("household-1", "user-1")).toBe("households/household-1/members/user-1");
     expect(householdExpensesPath("household-1")).toBe("households/household-1/expenses");

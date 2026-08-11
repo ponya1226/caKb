@@ -1,8 +1,10 @@
 # Project Overview
 
-caKbは、家族で利用する「家計簿をつけなくていい家計簿」PWAです。レシート画像を自前Proxy経由のGoogle Visionで読み取り、説明可能なConfidence判定がHighならFirestoreへ自動保存し、Lowまたはuncertainの場合だけ確認・修正します。通常利用にはオンライン接続、Googleログイン、active householdを必須とします。
+caKbは、管理者が招待した特定の家族だけで利用する「家計簿をつけなくていい家計簿」PWAです。レシート画像を自前Proxy経由のGoogle Visionで読み取り、説明可能なConfidence判定がHighならFirestoreへ自動保存し、Lowまたはuncertainの場合だけ確認・修正します。通常利用にはオンライン接続、Googleログイン、active householdを必須とします。
 
 家族共有、Firebase Auth、Firestoreクラウド正本化、Google Vision、Google Sheets一方向出力は各ADRで明示承認済みです。対象外機能を追加する場合は、ADRとユーザー承認を必須にします。
+
+ADR 0019により、商用リリース、一般利用者獲得、不特定世帯のセルフサービス登録は停止しています。未所属利用者は招待参加だけを基本とし、household初期作成はサーバー側で事前許可されたownerに限定します。商用化を再検討する場合は新しいADRと明示承認を必須にします。
 
 ## Architecture
 
@@ -64,6 +66,8 @@ npm run test:e2e
 ## Development Principles
 
 - 最重要判断基準は、家計簿のために利用者が行う操作を減らせるかとする。
+- 不特定利用者向けの汎用化より、実際に利用する家族の安全性、操作負担、復旧性を優先する。
+- 家族限定を理由に認証、Rules、household membership、Proxy認可、deploy gateを緩和しない。
 - 1タスク1目的で、無関係なリファクタリングを混ぜない。
 - 既存の型、Repository、UIパターンに合わせる。
 - OCR精度を断定しない。High confidenceだけを自動保存し、Lowまたはuncertainは必ず確認画面へ送る。無条件自動保存は禁止する。
@@ -158,6 +162,8 @@ Firebase Hosting, Firebase Auth, Cloud Firestore, and Google Sheets one-way expo
 - 銀行・カード連携、外部LLM、新OCR Providerなど当面対象外の機能を混ぜる。
 - Confidence判定なしでOCR結果を自動保存する、またはLow/uncertainを自動保存する。
 - 未認証、household未確定、オフライン時にlocal repositoryへ支出を保存するfallbackを追加する。
+- 公開サインアップ、任意のhousehold作成、課金、料金プラン、広告、SEO、一般公開向け管理機能を新ADRと明示承認なしに追加する。
+- 実メールアドレスやUIDをソースコード、公開GitHub Variables、クライアントだけのアクセス判定へ追加する。
 - ADR 0016・0017の集計を自動で外部送信する、またはレシート・支出・household・利用者を特定できる値を追加する。
 - ADR 0015の期限付き要確認Inboxを除き、レシート画像Blobを保存する。
 - `git reset --hard` や破壊的なcheckoutを無断で実行する。

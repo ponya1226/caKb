@@ -4,6 +4,7 @@ import type { FirebaseClientServices } from "../lib/firebaseConfig";
 import {
   createHouseholdForUser,
   findFirstHouseholdForUser,
+  getHouseholdCreationAuthorization,
   migrateLocalDataToHousehold,
   type CloudHouseholdSummary,
   type CloudMigrationSummary,
@@ -25,6 +26,7 @@ export type CloudHouseholdState = {
   lastMigration: CloudMigrationSummary | null;
   members: HouseholdMember[];
   invite: HouseholdInvite | null;
+  isHouseholdCreationAuthorized: boolean;
   error: string | null;
   refresh: () => Promise<void>;
   createHousehold: (name: string) => Promise<void>;
@@ -77,6 +79,8 @@ export function useCloudHousehold(user: AuthenticatedUser | null, enabled = true
   const [lastMigration, setLastMigration] = useState<CloudMigrationSummary | null>(null);
   const [members, setMembers] = useState<HouseholdMember[]>([]);
   const [invite, setInvite] = useState<HouseholdInvite | null>(null);
+  const [creationAuthorized, setCreationAuthorized] = useState(false);
+  const [authorizedHouseholdId, setAuthorizedHouseholdId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(Boolean(user && enabled));
   const [resolvedUserUid, setResolvedUserUid] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
@@ -96,6 +100,8 @@ export function useCloudHousehold(user: AuthenticatedUser | null, enabled = true
       setHousehold(null);
       setMembers([]);
       setInvite(null);
+      setCreationAuthorized(false);
+      setAuthorizedHouseholdId(null);
       setIsLoading(false);
       setResolvedUserUid(null);
       return;
@@ -110,8 +116,13 @@ export function useCloudHousehold(user: AuthenticatedUser | null, enabled = true
         return;
       }
 
-      const nextHousehold = await findFirstHouseholdForUser(services.firestore, user.uid);
+      const nextHousehold = await findFirstHouseholdForUser(services.firestore, user);
+      const creationAuthorization = nextHousehold
+        ? null
+        : await getHouseholdCreationAuthorization(services.firestore, user.uid);
       setHousehold(nextHousehold);
+      setCreationAuthorized(Boolean(creationAuthorization));
+      setAuthorizedHouseholdId(creationAuthorization?.householdId ?? null);
       setLastMigration(nextHousehold?.lastMigration ?? null);
       setMembers(
         nextHousehold
@@ -133,6 +144,8 @@ export function useCloudHousehold(user: AuthenticatedUser | null, enabled = true
       setLastMigration(null);
       setMembers([]);
       setInvite(null);
+      setCreationAuthorized(false);
+      setAuthorizedHouseholdId(null);
       setIsLoading(false);
       setResolvedUserUid(null);
       setError(null);
@@ -144,6 +157,8 @@ export function useCloudHousehold(user: AuthenticatedUser | null, enabled = true
       setLastMigration(null);
       setMembers([]);
       setInvite(null);
+      setCreationAuthorized(false);
+      setAuthorizedHouseholdId(null);
       setResolvedUserUid(null);
       setError(null);
     }
@@ -160,6 +175,10 @@ export function useCloudHousehold(user: AuthenticatedUser | null, enabled = true
         setError("ログインが必要です。");
         return;
       }
+      if (!creationAuthorized || !authorizedHouseholdId) {
+        setError("家計簿の新規作成は管理者による初期設定時だけ利用できます。招待コードで参加してください。");
+        return;
+      }
 
       setIsWorking(true);
       setError(null);
@@ -170,17 +189,24 @@ export function useCloudHousehold(user: AuthenticatedUser | null, enabled = true
           return;
         }
 
-        const nextHousehold = await createHouseholdForUser(services.firestore, user, name);
+        const nextHousehold = await createHouseholdForUser(
+          services.firestore,
+          user,
+          name,
+          authorizedHouseholdId,
+        );
         setHousehold(nextHousehold);
         setLastMigration(null);
         setMembers(await listHouseholdMembers(services.firestore, nextHousehold.household.id));
+        setCreationAuthorized(false);
+        setAuthorizedHouseholdId(null);
       } catch (unknownError) {
         setError("クラウド家計簿の作成に失敗しました。");
       } finally {
         setIsWorking(false);
       }
     },
-    [getServices, user],
+    [authorizedHouseholdId, creationAuthorized, getServices, user],
   );
 
   const migrateLocalData = useCallback(async () => {
@@ -255,7 +281,7 @@ export function useCloudHousehold(user: AuthenticatedUser | null, enabled = true
           return;
         }
         await joinHouseholdWithInvite(services.firestore, user, code);
-        const nextHousehold = await findFirstHouseholdForUser(services.firestore, user.uid);
+        const nextHousehold = await findFirstHouseholdForUser(services.firestore, user);
         setHousehold(nextHousehold);
         setLastMigration(nextHousehold?.lastMigration ?? null);
         setMembers(
@@ -305,6 +331,7 @@ export function useCloudHousehold(user: AuthenticatedUser | null, enabled = true
     lastMigration,
     members,
     invite,
+    isHouseholdCreationAuthorized: creationAuthorized,
     error,
     refresh,
     createHousehold,
