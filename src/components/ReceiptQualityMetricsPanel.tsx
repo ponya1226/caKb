@@ -1,41 +1,40 @@
 import { Trash2 } from "lucide-react";
 import { formatMonthLabel } from "../lib/date";
-import type {
-  ReceiptQualityReviewReasonCode,
-  ReceiptQualitySummary,
+import {
+  LEGACY_RECEIPT_QUALITY_POLICY_VERSION,
+  RECEIPT_QUALITY_REVIEW_REASON_LABELS,
+  type ReceiptQualityReviewReasonCode,
+  type ReceiptQualitySummary,
 } from "../lib/receiptQualityMetrics";
+import { CopyTextButton } from "./CopyTextButton";
 
 type ReceiptQualityMetricsPanelProps = {
+  selectedMonthKey: string;
+  monthKeys: string[];
   summary: ReceiptQualitySummary;
+  reportText: string;
   error?: string | null;
-  onClear: () => boolean;
+  onMonthChange: (monthKey: string) => void;
+  onClear?: () => boolean;
 };
-
-const REASON_LABELS = {
-  ocr_failed: "読み取れた文字が不足",
-  total_missing: "支払総額を特定できない",
-  total_uncertain: "支払総額が不確か",
-  total_conflict: "支払総額の候補が競合",
-  total_unrealistic: "支払総額が通常範囲外",
-  balance_detected: "残高候補を検出",
-  date_missing: "利用日を特定できない",
-  date_out_of_range: "利用日が通常範囲外",
-  merchant_missing: "店舗名を特定できない",
-  merchant_uncertain: "店舗名が不確か",
-  merchant_conflict: "店舗名の候補が競合",
-  category_unresolved: "カテゴリを判断できない",
-  line_items_inconsistent: "品目合計に差がある",
-  batch_flow: "複数枚のため確認",
-  unknown: "判定情報が不足",
-} satisfies Record<ReceiptQualityReviewReasonCode, string>;
 
 function formatRate(rate: number | null): string {
   return rate === null ? "対象なし" : `${Math.round(rate * 100)}%`;
 }
 
+function formatPolicyLabel(policyVersion: string): string {
+  return policyVersion === LEGACY_RECEIPT_QUALITY_POLICY_VERSION
+    ? "旧形式（判定ルール記録なし）"
+    : policyVersion;
+}
+
 export function ReceiptQualityMetricsPanel({
+  selectedMonthKey,
+  monthKeys,
   summary,
+  reportText,
   error,
+  onMonthChange,
   onClear,
 }: ReceiptQualityMetricsPanelProps) {
   const hasMetrics = summary.processed > 0
@@ -47,7 +46,7 @@ export function ReceiptQualityMetricsPanel({
     .sort((left, right) => right[1] - left[1]);
 
   function handleClear() {
-    if (!window.confirm("この端末の自動登録集計を消去しますか？")) {
+    if (!onClear || !window.confirm("この端末の自動登録集計を消去しますか？")) {
       return;
     }
     onClear();
@@ -57,8 +56,8 @@ export function ReceiptQualityMetricsPanel({
     <section className="content-section receipt-quality-section">
       <div className="section-title-row">
         <div>
-          <h2>自動登録の確認</h2>
-          <p className="subtle-text">{formatMonthLabel(summary.monthKey)}・この端末のみ</p>
+          <h2>自動登録の記録</h2>
+          <p className="subtle-text">この端末のみ</p>
         </div>
       </div>
 
@@ -66,8 +65,17 @@ export function ReceiptQualityMetricsPanel({
         店舗名、金額、画像、読み取った文字は記録せず、処理件数と判定理由だけを集計します。
       </p>
 
+      <label className="field receipt-quality-month-field">
+        <span>表示する月</span>
+        <select value={selectedMonthKey} onChange={(event) => onMonthChange(event.target.value)}>
+          {monthKeys.map((monthKey) => (
+            <option key={monthKey} value={monthKey}>{formatMonthLabel(monthKey)}</option>
+          ))}
+        </select>
+      </label>
+
       {!hasMetrics ? (
-        <div className="empty-state">今月のレシート読み取りはまだありません</div>
+        <div className="empty-state">{formatMonthLabel(summary.monthKey)}のレシート読み取りはありません</div>
       ) : (
         <>
           <div className="receipt-quality-list">
@@ -99,12 +107,26 @@ export function ReceiptQualityMetricsPanel({
               <ul>
                 {reviewReasons.map(([code, count]) => (
                   <li key={code}>
-                    <span>{REASON_LABELS[code]}</span>
+                    <span>{RECEIPT_QUALITY_REVIEW_REASON_LABELS[code]}</span>
                     <strong>{count}件</strong>
                   </li>
                 ))}
               </ul>
             </div>
+          )}
+
+          {summary.policySummaries.length > 0 && (
+            <details className="receipt-quality-policy-details">
+              <summary>判定ルール別の内訳</summary>
+              <ul>
+                {summary.policySummaries.map((policy) => (
+                  <li key={policy.policyVersion}>
+                    <strong>{formatPolicyLabel(policy.policyVersion)}</strong>
+                    <span>読み取り{policy.processed}件 / 自動登録{policy.autoSaved}件 / 要確認{policy.needsReview}件</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
 
           {summary.reviewsDiscarded > 0 && (
@@ -115,10 +137,14 @@ export function ReceiptQualityMetricsPanel({
 
       {error && <p className="inline-error">{error}</p>}
 
-      <button className="button button-secondary full-width" type="button" onClick={handleClear} disabled={!hasMetrics}>
-        <Trash2 size={18} aria-hidden="true" />
-        この端末の集計を消去
-      </button>
+      <CopyTextButton text={hasMetrics ? reportText : ""} label="集計をコピー" />
+
+      {onClear && (
+        <button className="button button-secondary full-width" type="button" onClick={handleClear} disabled={!hasMetrics}>
+          <Trash2 size={18} aria-hidden="true" />
+          この端末の集計を消去
+        </button>
+      )}
     </section>
   );
 }

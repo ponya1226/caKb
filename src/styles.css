@@ -1041,6 +1041,10 @@ textarea {
   margin: 0;
 }
 
+.receipt-quality-month-field {
+  margin-top: 12px;
+}
+
 .receipt-quality-list {
   display: grid;
   margin: 12px 0;
@@ -1079,6 +1083,43 @@ textarea {
   margin: 6px 0 0;
   padding: 0;
   list-style: none;
+}
+
+.receipt-quality-policy-details {
+  margin: 14px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.receipt-quality-policy-details > summary {
+  padding: 11px 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.receipt-quality-policy-details ul {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0 0 12px;
+  list-style: none;
+}
+
+.receipt-quality-policy-details li {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.receipt-quality-policy-details strong,
+.receipt-quality-policy-details span {
+  overflow-wrap: anywhere;
+}
+
+.receipt-quality-policy-details span {
+  color: var(--text-muted);
+  font-size: 0.84rem;
 }
 
 .file-size-panel {

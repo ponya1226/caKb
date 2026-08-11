@@ -1,5 +1,34 @@
 # Development History
 
+## 2026-08-11 Versioned Device Quality Reporting
+
+目的: Confidence閾値を将来変更しても旧結果と新結果を混同せず、管理者と家族が自分の端末の過去実績を安全に確認・共有できるようにする。
+
+主な変更:
+
+- ADR 0017を追加し、月別集計をConfidence判定ルールversionごとに分離する方針を決定
+- `receipt-confidence-v1` を現在の判定ルールversionとして全判定結果へ付与し、自動保存、要確認、Undo、保存、破棄まで同じversionで集計
+- `cakb-receipt-quality-metrics-v2` を追加し、旧v1集計を `legacy` として読み、次回記録時にv2へ非破壊移行
+- アカウント画面で最新12か月を選択し、件数、割合、理由、判定ルール別内訳を確認できる折りたたみ表示を追加
+- household、利用者、レシート内容を含まない匿名集計文の明示的コピーを追加
+- cloud memberは閲覧・コピーだけ、ownerまたはローカル管理者は消去も可能とする権限制御を追加
+- Confidence閾値、自動保存条件、複数枚の確認動線、支出・Firestore・IndexedDB・バックアップのschemaは変更なし
+
+検証結果:
+
+- `npm run lint`: 成功
+- `npm run test`: 26ファイル、125件成功
+- `npm run build`: 成功。既存の大きいchunk警告のみ
+- `npm run test:e2e`: mobile Chromium 8件成功
+- `git diff --check`: 成功
+
+残課題:
+
+- 集計は端末単位で、家族の別端末とは合算されない
+- 自動保存後に支出一覧で行った総額修正は引き続き追跡しない
+- 1か月程度の実績が揃うまでConfidence閾値は変更しない
+- 複数枚は引き続き `batch_flow` 理由の要確認とする
+
 ## 2026-08-11 Device-local Receipt Quality Metrics
 
 目的: 実機確認を終えたConfidence自動保存を、レシート内容や利用者情報を収集せずに評価し、今後の閾値調整と一括撮影自動化を安全に判断できるようにする。

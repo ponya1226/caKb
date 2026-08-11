@@ -566,6 +566,26 @@ export function SettingsScreen({
         </p>
       </section>
 
+      <details className="admin-settings-panel device-quality-panel">
+        <summary>
+          <span>
+            <strong>この端末の自動登録状況</strong>
+            <small>{canManageSettings ? "月別結果を確認、コピー、消去" : "月別結果を確認、コピー"}</small>
+          </span>
+        </summary>
+        <div className="admin-settings-content">
+          <ReceiptQualityMetricsPanel
+            selectedMonthKey={receiptQualityMetrics.selectedMonthKey}
+            monthKeys={receiptQualityMetrics.monthKeys}
+            summary={receiptQualityMetrics.summary}
+            reportText={receiptQualityMetrics.reportText}
+            error={receiptQualityMetrics.error}
+            onMonthChange={receiptQualityMetrics.selectMonth}
+            onClear={canManageSettings ? receiptQualityMetrics.clearMetrics : undefined}
+          />
+        </div>
+      </details>
+
       {canManageSettings && (
         <details className="admin-settings-panel">
           <summary>
@@ -575,11 +595,6 @@ export function SettingsScreen({
             </span>
           </summary>
           <div className="admin-settings-content">
-            <ReceiptQualityMetricsPanel
-              summary={receiptQualityMetrics.summary}
-              error={receiptQualityMetrics.error}
-              onClear={receiptQualityMetrics.clearMetrics}
-            />
       {isHouseholdOwner && (
       <section className="content-section">
         <div className="section-title-row">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ReceiptCategorySuggestion } from "../types";
-import { assessReceiptConfidence } from "./receiptConfidence";
+import { assessReceiptConfidence, RECEIPT_CONFIDENCE_POLICY_VERSION } from "./receiptConfidence";
 import { parseReceiptText } from "./receiptParser";
 
 const NOW = new Date("2026-08-09T00:00:00.000Z");
@@ -35,6 +35,7 @@ describe("assessReceiptConfidence", () => {
     `);
 
     expect(result.decision).toBe("autoSave");
+    expect(result.policyVersion).toBe(RECEIPT_CONFIDENCE_POLICY_VERSION);
     expect(result.signals).toMatchObject({
       totalResolved: true,
       dateResolved: true,

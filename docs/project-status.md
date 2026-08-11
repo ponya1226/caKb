@@ -13,8 +13,9 @@ Last Updated: 2026-08-11
 - 要確認レシートを撮影端末へ最大7日一時保存するInbox、再読み込み復元、ホーム件数表示、保存・破棄・期限切れ削除
 - IndexedDB version 1から2への非破壊upgradeとhousehold scope付き `pendingReceiptReviews` store。Firestore、バックアップ、CSV、Sheetsのschema変更なし
 - 管理者・家族のスマホ実機でHigh自動保存、Low要確認、10秒Undo、Inboxの復元・保存・破棄を確認
-- 自動保存率、要確認理由、Undo率、要確認時の総額修正率を、レシート内容なしでhousehold別・月別に最大12か月保持する端末内集計
-- 通常画面へ操作を増やさず、折りたたみの管理者メニューだけに品質集計と消去操作を表示
+- 自動保存率、要確認理由、Undo率、要確認時の総額修正率を、レシート内容なしでhousehold別・月別・Confidence判定ルール別に最大12か月保持する端末内集計
+- アカウント画面の折りたたみ領域で、memberを含む利用者が過去月を閲覧して匿名集計をコピーでき、ownerまたはローカル管理者だけが消去できる権限制御
+- 旧v1集計を `legacy` 判定ルールとして読み、次回記録時にv2へ非破壊移行する互換処理
 
 - Pull Request向けFrontend、Firestore Rules、Google Vision Proxy、Dependency Review CI
 - PlaywrightとChromiumによるスマホ向けBrowser Smoke CI。アカウント、Googleの文字読み取り固定、IndexedDB支出CRUD、匿名fixtureのOCR確認、横overflowを検証
@@ -175,7 +176,7 @@ Last Updated: 2026-08-11
 
 - 要確認Inboxは撮影したブラウザprofileだけに保存され、家族の別端末には同期されない。端末間共有が必要になった場合はクラウド画像保存、暗号化、認可、削除期間を別ADRで決める必要がある。
 - Confidence初期閾値は安全側で、カテゴリは店舗ルールまたは同一・類似店舗履歴がない場合に要確認となる。自動保存率、Undo率、総額修正率を評価してから緩和する。
-- 自動登録品質集計は端末単位で、家族の別端末とは合算しない。支出一覧で後から行った総額編集も初期版の修正率には含めない。
+- 自動登録品質集計は端末単位で、家族の別端末とは合算しない。判定ルールversion別に比較できるが、支出一覧で後から行った総額編集は修正率に含めない。
 - 単体レシートだけがConfidence自動保存対象。複数枚は現行の全件確認キューを維持している。
 
 - stagingは同じFirebase project上のHosting previewであり、Authentication、Firestore、Cloud Runは分離されていない。認証済み共有動線の自動統合テストが必要になった場合は別projectを検討する。
@@ -216,7 +217,7 @@ Last Updated: 2026-08-11
 
 ## Next Recommended Priorities
 
-- 管理者・家族の各端末で1か月分の自動登録率、要確認理由、Undo率、要確認時の総額修正率を確認する
+- 管理者・家族の各端末で1か月分の判定ルール別自動登録率、要確認理由、Undo率、要確認時の総額修正率を確認する
 - 匿名fixtureを蓄積し、誤った総額がHighにならないことを確認してからConfidence閾値を調整する
 - 単体の安全性確認後、複数枚を画像単位のHigh自動保存とLow確認キューへ拡張する
 

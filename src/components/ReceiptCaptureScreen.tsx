@@ -27,7 +27,7 @@ type ReceiptSelection = {
 type ReceiptCaptureScreenProps = {
   onConfirm: (drafts: ReceiptDraft[], cause: ReceiptReviewCause) => Promise<void>;
   onAutoSave: (draft: ReceiptDraft) => Promise<Expense>;
-  onAutoSaveComplete: (expense: Expense) => void;
+  onAutoSaveComplete: (expense: Expense, draft: ReceiptDraft) => void;
   suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
   isGoogleVisionAuthenticated: boolean;
   getGoogleVisionIdToken: () => Promise<string | null>;
@@ -219,7 +219,7 @@ export function ReceiptCaptureScreen({
         setReceiptSelections([]);
         setBatchItems([]);
         setProgress(null);
-        onAutoSaveComplete(expense);
+        onAutoSaveComplete(expense, draft);
         return;
       }
 
