@@ -5,6 +5,7 @@ const isDeployedBuild = Boolean(process.env.E2E_BASE_URL);
 
 test("クラウド接続またはGoogleログインなしでは家計画面を表示しない", async ({ page }) => {
   await page.goto("/");
+  await expect(page).toHaveTitle("caKb 家族の家計簿");
 
   if (isDeployedBuild) {
     await expect(page.getByRole("heading", { name: "家計簿をはじめる", level: 1 })).toBeVisible();
