@@ -1,15 +1,14 @@
 # Project Overview
 
-caKbは、個人または家族で利用する「家計簿をつけなくていい家計簿」PWAです。レシート画像を自前Proxy経由のGoogle Visionで読み取り、説明可能なConfidence判定がHighなら自動保存し、Lowまたはuncertainの場合だけ確認・修正してIndexedDBまたはFirestoreに保存します。
+caKbは、家族で利用する「家計簿をつけなくていい家計簿」PWAです。レシート画像を自前Proxy経由のGoogle Visionで読み取り、説明可能なConfidence判定がHighならFirestoreへ自動保存し、Lowまたはuncertainの場合だけ確認・修正します。通常利用にはオンライン接続、Googleログイン、active householdを必須とします。
 
-MVPではバックエンド、ログイン、クラウド同期、家族共有、有料API、AI分析を実装しません。
-
-次フェーズでは、明示的に承認された方針として家族共有、Firebase Auth、Firestoreクラウド正本化、Google Sheets一方向出力を実装しています。対象外機能を追加する場合は、ADRとユーザー承認を必須にします。
+家族共有、Firebase Auth、Firestoreクラウド正本化、Google Vision、Google Sheets一方向出力は各ADRで明示承認済みです。対象外機能を追加する場合は、ADRとユーザー承認を必須にします。
 
 ## Architecture
 
 - Frontend: Vite, React, TypeScript
-- Persistence: IndexedDB for expenses, categories, receipt images, device-local pending receipt reviews
+- Ledger persistence: Cloud Firestore for expenses, categories, and shop category rules
+- Device-local persistence: IndexedDB only for pending reviews, legacy migration source, and test harnesses
 - Settings and device-local aggregate receipt quality metrics: localStorage
 - OCR: Google Vision through the self-owned proxy
 - Charts: Recharts
@@ -72,7 +71,8 @@ npm run test:e2e
 - 品目明細は付加情報とし、品目欠落だけを理由に必ず要確認へ落とさない。
 - 要確認レシートはADR 0015に従い、この端末だけに最大7日一時保存する。Firestore、バックアップ、ログへ含めない。
 - 自動保存品質の評価はADR 0016と0017に従い、月別・判定ルール別の件数と理由コードだけを端末内に保存する。レシート内容、金額、支出ID、利用者識別子を集計処理へ渡さず、利用者が明示的にコピーした匿名集計以外は外部へ送らない。
-- 保存先は利用状態に応じてIndexedDBまたはFirestoreとし、画面上で現在の保存先を明示する。
+- 通常利用の正本はFirestoreだけとし、未認証、household未確定、オフライン時にIndexedDBへフォールバックしない。
+- IndexedDBの支出・カテゴリstoreは旧データ移行元とtest harnessのために残し、新しい利用者向けローカル家計簿として使わない。
 - 主要な方針変更、保存形式変更、ライブラリ追加はADRを残す。
 - 大きな機能完了時は `docs/project-status.md` と `docs/development-history.md` を更新する。
 
@@ -106,8 +106,9 @@ UI変更では次を手動確認する。
 - 支出の登録、編集、削除ができる。
 - High confidenceの単体レシートを確認画面なしで保存し、短時間Undoできる。
 - Lowまたはuncertainの読み取り結果を理由付き確認画面で修正して保存できる。
-- アカウント画面で、この端末の月別自動登録率、要確認理由、Undo率、要確認時の総額修正率を確認・コピーできる。ownerまたはローカル管理者だけが集計を消去でき、cloud memberには管理機能を表示しない。
-- 再読み込み後もIndexedDBのデータが残る。
+- アカウント画面で、この端末の月別自動登録率、要確認理由、Undo率、要確認時の総額修正率を確認・コピーできる。household ownerだけが集計を消去でき、memberには管理機能を表示しない。
+- 未ログイン、Firebase未設定、オフライン時に家計画面と保存操作が表示されない。
+- active household接続後だけ支出の登録、編集、削除ができる。
 - CSVエクスポートが実行できる。
 
 ## Security / Privacy Rules
@@ -116,7 +117,7 @@ UI変更では次を手動確認する。
 - 支出データ、レシート画像、OCR全文を未承認の外部サービスやログへ送らない。Google Vision OCRとGoogle Sheets一方向出力は各ADRの範囲だけを例外とする。
 - 自動登録品質集計へ店舗名、日付、金額、品目、画像、OCR全文、支出ID、UID、メールアドレスを保存しない。
 - 自動登録品質のコピー文へhousehold scopeや利用者識別子を含めず、コピーは利用者の明示操作だけで実行する。
-- レシート画像保存OFFでは、ADR 0015の要確認中最大7日一時保存を除き、画像BlobをIndexedDBへ保存しない。
+- ADR 0015の要確認中最大7日一時保存を除き、レシート画像BlobをIndexedDBやFirestoreへ保存しない。
 - データ初期化は確認ダイアログを挟む。
 - ユーザーが作成した既存変更を無断で削除、revertしない。
 
@@ -156,6 +157,7 @@ Firebase Hosting, Firebase Auth, Cloud Firestore, and Google Sheets one-way expo
 - 明示承認とADRなしに新しい有料APIや外部サービスを導入する。
 - 銀行・カード連携、外部LLM、新OCR Providerなど当面対象外の機能を混ぜる。
 - Confidence判定なしでOCR結果を自動保存する、またはLow/uncertainを自動保存する。
+- 未認証、household未確定、オフライン時にlocal repositoryへ支出を保存するfallbackを追加する。
 - ADR 0016・0017の集計を自動で外部送信する、またはレシート・支出・household・利用者を特定できる値を追加する。
-- ADR 0015の期限付き要確認Inboxを除き、レシート画像保存OFFでも画像Blobを保存する。
+- ADR 0015の期限付き要確認Inboxを除き、レシート画像Blobを保存する。
 - `git reset --hard` や破壊的なcheckoutを無断で実行する。

@@ -1,5 +1,35 @@
 # Development History
 
+## 2026-08-11 Cloud-only Authenticated Ledger
+
+目的: 利用価値がなくなったローカル家計簿への暗黙フォールバックを廃止し、家族全員が同じFirestore正本だけを扱うオンライン認証必須の動作へ一本化する。
+
+主な変更:
+
+- ADR 0018を追加し、オンライン接続、Firebase設定、Googleログイン、active householdを通常利用の必須条件に決定
+- 接続、認証、household確認を説明可能な状態へ分離し、未ログイン、設定不足、オフライン、再接続中、権限解除では家計操作全体を遮断
+- `useBudgetData` に明示的な停止状態を追加し、アクセスゲートがReadyでない間はlocal repositoryにもFirestore repositoryにも接続しない構成へ変更
+- アカウント切替時に前利用者のhousehold状態を即時クリアし、household確認エラー時は古い状態を使わず再試行またはログアウトへ誘導
+- 通常ヘッダーを家計簿名とクラウド同期済み表示へ統一し、端末容量、永続化、確定後画像保存などローカル正本向け設定を利用画面から削除
+- household作成・招待参加をアクセスゲートへ移し、ownerの旧ローカルデータ移行は救済機能として維持
+- 製品アプリのクラウド必須ゲートとオフライン遮断をPlaywrightで検証し、local repositoryの支出CRUDは専用test harnessへ分離
+- README、AGENTS、Architecture、Roadmap、Project Statusと旧ADRの後続注記を現在方針へ更新
+
+検証結果:
+
+- `npm run lint`: 成功
+- `npm run test`: 27ファイル、125件成功
+- `npm run build`: 成功。Firebase import構成と約1,015KBのmain chunkに関する既知警告のみ
+- `npm run test:e2e`: mobile Chromium 9件成功
+- `git diff --check`: 成功
+
+残課題:
+
+- 実認証済みowner/memberによる、ログイン、household作成・参加、オフライン復旧、権限解除の自動統合テストは未導入
+- 旧IndexedDBデータ移行の廃止時期は、利用者の移行完了状況と告知期間を確認して判断する
+- オフライン支出登録と書き込みキューは意図的に対象外。通信障害中は家計操作を利用できない
+- Firebase importの静的・動的混在と約1,015KBのmain chunkは別タスクで見直す
+
 ## 2026-08-11 Versioned Device Quality Reporting
 
 目的: Confidence閾値を将来変更しても旧結果と新結果を混同せず、管理者と家族が自分の端末の過去実績を安全に確認・共有できるようにする。

@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-07-07
 
+2026-08-11のADR 0018により、Hosting移行期のIndexedDB正本方針は終了した。現在の通常利用はオンライン認証済みhouseholdのFirestoreだけを正本とする。
+
 ## Context
 
 GitHub Pages上ではPCのGoogleログインは動作したが、スマホではログイン復帰後に未ログインのままになる事象が発生した。Firebase Authenticationのredirect認証は、Firebase Hosting以外のホストではブラウザのサードパーティストレージ制限の影響を受ける場合がある。

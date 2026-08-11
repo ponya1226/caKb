@@ -1,14 +1,17 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
-import { CalendarDays, Camera, CircleUserRound, Cloud, CloudOff, Home, List, Plus, ReceiptText, RefreshCw } from "lucide-react";
+import { CalendarDays, Camera, CircleUserRound, Cloud, Home, List, Plus, ReceiptText, RefreshCw } from "lucide-react";
+import { CloudAccessScreen, CloudConnectionRequiredScreen } from "./components/CloudAccessScreen";
 import { ExpenseEditor } from "./components/ExpenseEditor";
 import { ReceiptAutoSaveNotice } from "./components/ReceiptAutoSaveNotice";
 import { useBudgetData } from "./hooks/useBudgetData";
 import { useCloudHousehold } from "./hooks/useCloudHousehold";
 import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { useGoogleSheetsSync } from "./hooks/useGoogleSheetsSync";
+import { useOnlineStatus } from "./hooks/useOnlineStatus";
 import { usePendingReceiptReviews } from "./hooks/usePendingReceiptReviews";
 import { useReceiptQualityMetrics } from "./hooks/useReceiptQualityMetrics";
 import { normalizeShopNameForCategory } from "./lib/categorySuggestion";
+import { resolveCloudAccessState } from "./lib/cloudAccess";
 import { getFirebaseClientServices } from "./lib/firebaseConfig";
 import { isReceiptOcrConfigured } from "./lib/receiptOcr";
 import { normalizeReceiptQualityPolicyVersion } from "./lib/receiptQualityMetrics";
@@ -64,7 +67,8 @@ export default function App() {
   const [isManualQuickAddOpen, setIsManualQuickAddOpen] = useState(false);
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
   const firebaseAuth = useFirebaseAuth();
-  const cloudHousehold = useCloudHousehold(firebaseAuth.user);
+  const isOnline = useOnlineStatus();
+  const cloudHousehold = useCloudHousehold(firebaseAuth.user, isOnline);
   const googleSheetsSync = useGoogleSheetsSync(cloudHousehold.household, firebaseAuth.getIdToken);
   const pendingReceiptReviews = usePendingReceiptReviews(cloudHousehold.household?.household.id ?? null);
   const receiptQualityMetrics = useReceiptQualityMetrics(cloudHousehold.household?.household.id ?? null);
@@ -81,12 +85,24 @@ export default function App() {
 
     return createFirestoreBudgetRepository(services.firestore, householdId, firebaseAuth.user.uid);
   }, [cloudHousehold.household?.household.id, firebaseAuth.user]);
+  const cloudAccessState = resolveCloudAccessState({
+    isOnline,
+    isFirebaseConfigured: firebaseAuth.isConfigured,
+    isAuthLoading: firebaseAuth.isLoading,
+    hasUser: Boolean(firebaseAuth.user),
+    isHouseholdLoading: cloudHousehold.isLoading,
+    hasHousehold: Boolean(cloudHousehold.household),
+    hasHouseholdError: Boolean(cloudHousehold.error),
+  });
+  const isCloudReady = cloudAccessState === "ready" && Boolean(cloudBudgetRepository);
   const budgetData = useBudgetData({
     repository: cloudBudgetRepository ?? undefined,
-    storageMode: cloudBudgetRepository ? "cloud" : "local",
+    storageMode: "cloud",
+    enabled: isCloudReady,
   });
-  const isCloudStorage = budgetData.storageMode === "cloud";
-  const canUseReceiptOcr = Boolean(firebaseAuth.user && cloudHousehold.household) && isReceiptOcrConfigured();
+  const canUseReceiptOcr = cloudAccessState === "ready"
+    && budgetData.cloudConnection?.status === "online"
+    && isReceiptOcrConfigured();
   const activeHouseholdName = cloudHousehold.household?.household.name;
   const cloudConnection = budgetData.cloudConnection;
   const householdMemberNameMap = useMemo(() => {
@@ -352,6 +368,26 @@ export default function App() {
     });
   }
 
+  if (cloudAccessState !== "ready") {
+    return (
+      <CloudAccessScreen
+        state={cloudAccessState}
+        firebaseAuth={firebaseAuth}
+        cloudHousehold={cloudHousehold}
+      />
+    );
+  }
+
+  if (!cloudBudgetRepository) {
+    return (
+      <CloudAccessScreen
+        state="configurationMissing"
+        firebaseAuth={firebaseAuth}
+        cloudHousehold={cloudHousehold}
+      />
+    );
+  }
+
   if (budgetData.isLoading) {
     return (
       <main className="app-shell center-shell">
@@ -384,52 +420,30 @@ export default function App() {
     );
   }
 
+  if (!cloudConnection || cloudConnection.status !== "online") {
+    return (
+      <CloudConnectionRequiredScreen
+        connection={cloudConnection ?? { status: "reconnecting" }}
+        onRetry={budgetData.retryCloudConnection}
+        onSignOut={firebaseAuth.signOut}
+      />
+    );
+  }
+
   return (
     <div className="app-shell">
-      <header className={`app-header ${isCloudStorage ? "cloud-mode" : "local-mode"}`}>
+      <header className="app-header cloud-mode">
         <div className="brand-mark">
-          {isCloudStorage ? <Cloud size={20} aria-hidden="true" /> : <ReceiptText size={20} aria-hidden="true" />}
+          <Cloud size={20} aria-hidden="true" />
         </div>
         <div className="brand-copy">
-          <span className="app-name">{isCloudStorage ? "家族の家計簿" : "この端末の家計簿"}</span>
-          <span className="app-subtitle">
-            {isCloudStorage
-              ? `${activeHouseholdName ?? "共有家計簿"} / ${
-                  cloudConnection?.status === "online"
-                    ? "同期済み"
-                    : cloudConnection?.status === "offline"
-                      ? "オフライン"
-                      : cloudConnection?.status === "permissionDenied"
-                        ? "アクセス権なし"
-                        : "再接続中"
-                }`
-              : firebaseAuth.user
-                ? "Googleログイン中 / この端末に保存"
-                : "未ログイン / この端末に保存"}
-          </span>
+          <span className="app-name">家族の家計簿</span>
+          <span className="app-subtitle">{activeHouseholdName ?? "共有家計簿"} / 同期済み</span>
         </div>
-        <span className="storage-mode-badge" aria-label={`現在の保存先: ${isCloudStorage ? "クラウド" : "この端末"}`}>
-          {isCloudStorage ? "クラウド" : "この端末"}
+        <span className="storage-mode-badge" aria-label="現在の保存先: クラウド">
+          クラウド
         </span>
       </header>
-
-      {isCloudStorage && cloudConnection && cloudConnection.status !== "online" && cloudConnection.status !== "permissionDenied" && (
-        <div className="connection-banner" role="status">
-          <CloudOff size={18} aria-hidden="true" />
-          <div>
-            <strong>{cloudConnection.status === "offline" ? "オフラインです" : "クラウドへ再接続しています"}</strong>
-            <span>
-              {cloudConnection.lastSuccessfulSyncAt
-                ? `最終同期: ${new Date(cloudConnection.lastSuccessfulSyncAt).toLocaleString("ja-JP")}`
-                : "接続が戻るまで保存操作はできません"}
-            </span>
-          </div>
-          <button className="button button-secondary button-compact" type="button" onClick={budgetData.retryCloudConnection}>
-            <RefreshCw size={16} aria-hidden="true" />
-            再接続
-          </button>
-        </div>
-      )}
 
       {isUpdateAvailable && (
         <div className="update-banner" role="status">
@@ -518,11 +532,7 @@ export default function App() {
               expenses={budgetData.expenses}
               categories={budgetData.categories}
               settings={budgetData.settings}
-              storageHealth={budgetData.storageHealth}
-              onUpdateSettings={budgetData.updateSettings}
               onImportBackup={budgetData.importBackup}
-              onRequestPersistentStorage={budgetData.requestPersistentStorage}
-              onRefreshStorageHealth={budgetData.refreshStorageHealth}
               onResetData={async () => {
                 await budgetData.resetData();
                 await pendingReceiptReviews.clearReviews();
@@ -539,7 +549,6 @@ export default function App() {
               firebaseAuth={firebaseAuth}
               cloudHousehold={cloudHousehold}
               googleSheetsSync={googleSheetsSync}
-              storageMode={budgetData.storageMode}
               cloudConnection={budgetData.cloudConnection}
               receiptQualityMetrics={receiptQualityMetrics}
             />
