@@ -12,6 +12,7 @@ caKbは「家計簿をつけなくていい家計簿」を目指す家計簿PWA�
 - 自動保存直後の「元に戻す」
 - 判断が曖昧なレシートだけを確認・修正して保存
 - 要確認レシートの端末内一時Inboxとホームの件数表示
+- 店舗名・金額・画像を記録しない端末内の自動登録品質集計
 - 店舗別カテゴリルールによるカテゴリ初期値反映
 - 利用者によるカテゴリ追加、名称変更、色変更
 - IndexedDBへの支出、カテゴリ、任意のレシート画像保存
@@ -43,7 +44,7 @@ npm run lint:e2e
 npm run test:e2e
 ```
 
-`npm run test:e2e` はproduction buildを起動し、スマホ幅のChromiumでアカウント、レシート、支出の登録・編集・削除を確認します。匿名fixtureでHigh confidenceの自動保存とUndo、Low confidenceの確認フォールバック、要確認Inboxの再読み込み復元・保存・破棄・期限切れを検証します。Chromiumのインストールは開発端末ごとに初回だけ必要です。
+`npm run test:e2e` はproduction buildを起動し、スマホ幅のChromiumでアカウント、レシート、支出の登録・編集・削除を確認します。匿名fixtureでHigh confidenceの自動保存とUndo、Low confidenceの確認フォールバック、要確認Inbox、自動登録品質集計の再読み込み・household分離・消去を検証します。Chromiumのインストールは開発端末ごとに初回だけ必要です。
 
 ## データ保存
 
@@ -54,6 +55,7 @@ npm run test:e2e
 - レシート画像保存は設定画面でON/OFFできます。初期値はOFFです。
 - 要確認レシートの画像と読み取った文字は、確認できるよう撮影した端末に最大7日間だけ一時保存します。確定後の画像保存がOFFでも要確認中は保持し、保存・破棄・期限切れで削除します。
 - 要確認Inboxはクラウド、バックアップファイル、CSV、Google Sheetsには含めません。
+- 自動登録率、要確認理由、Undo率、要確認時の総額修正率は、レシート内容を含まない月別件数としてこの端末に最大12か月保存します。外部サービスや家族の別端末へ送信しません。
 - レシート読み取りでは、利用者への明示後に画像を自前Proxy経由でGoogle Visionへ送信します。caKbのサーバーには画像を保存しません。
 
 ## 開発ドキュメント
@@ -72,7 +74,7 @@ npm run test:e2e
 
 利用者向けのレシート読み取りはGoogle Visionに固定しています。単体レシートは撮影後に自動で読み取り、安全に判断できた場合は確認操作なしで保存します。判断できない場合だけ既存確認画面を表示します。フロントエンドからGoogle Cloudへ直接接続せず、自前Proxyを経由します。Proxy URLが未設定の場合、レシート読み取りは無効になり、手入力は引き続き利用できます。
 
-自動保存と要確認の方針は `docs/decisions/0014-capture-first-auto-save-direction.md`、端末内一時Inboxは `docs/decisions/0015-device-local-pending-receipt-inbox.md` を参照してください。
+自動保存と要確認の方針は `docs/decisions/0014-capture-first-auto-save-direction.md`、端末内一時Inboxは `docs/decisions/0015-device-local-pending-receipt-inbox.md`、個人情報を持たない品質集計は `docs/decisions/0016-device-local-receipt-quality-metrics.md` を参照してください。
 
 ```env
 VITE_GOOGLE_VISION_PROXY_URL=

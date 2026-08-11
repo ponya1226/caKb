@@ -7,11 +7,12 @@ import { useCloudHousehold } from "./hooks/useCloudHousehold";
 import { useFirebaseAuth } from "./hooks/useFirebaseAuth";
 import { useGoogleSheetsSync } from "./hooks/useGoogleSheetsSync";
 import { usePendingReceiptReviews } from "./hooks/usePendingReceiptReviews";
+import { useReceiptQualityMetrics } from "./hooks/useReceiptQualityMetrics";
 import { normalizeShopNameForCategory } from "./lib/categorySuggestion";
 import { getFirebaseClientServices } from "./lib/firebaseConfig";
 import { isReceiptOcrConfigured } from "./lib/receiptOcr";
 import { createFirestoreBudgetRepository } from "./lib/repositories/firestoreBudgetRepository";
-import type { Expense, ExpenseFormValues, ReceiptDraft, ReceiptSaveOptions } from "./types";
+import type { Expense, ExpenseFormValues, ReceiptDraft, ReceiptReviewCause, ReceiptSaveOptions } from "./types";
 
 type View = "dashboard" | "expenses" | "yearly" | "receipt" | "confirm" | "settings";
 
@@ -47,6 +48,7 @@ const AUTO_SAVE_UNDO_WINDOW_MS = 10_000;
 type RecentAutoSave = {
   expense: Expense;
   expiresAt: number;
+  qualityScopeKey: string;
 };
 
 export default function App() {
@@ -63,6 +65,7 @@ export default function App() {
   const cloudHousehold = useCloudHousehold(firebaseAuth.user);
   const googleSheetsSync = useGoogleSheetsSync(cloudHousehold.household, firebaseAuth.getIdToken);
   const pendingReceiptReviews = usePendingReceiptReviews(cloudHousehold.household?.household.id ?? null);
+  const receiptQualityMetrics = useReceiptQualityMetrics(cloudHousehold.household?.household.id ?? null);
   const cloudBudgetRepository = useMemo(() => {
     const householdId = cloudHousehold.household?.household.id;
     if (!firebaseAuth.user || !householdId) {
@@ -175,6 +178,7 @@ export default function App() {
       }
       throw unknownError;
     }
+    receiptQualityMetrics.recordReviewSaved(receiptDraft.initialValues.amount !== values.amount);
     let nextRemainingDrafts = remainingDrafts;
     if (remainingDrafts.some((draft) => draft.pendingReviewId)) {
       try {
@@ -196,14 +200,20 @@ export default function App() {
   }
 
   async function handleAutoSaveReceipt(draft: ReceiptDraft): Promise<Expense> {
-    return budgetData.addReceiptExpense(draft.initialValues, {
+    const expense = await budgetData.addReceiptExpense(draft.initialValues, {
       imageBlob: draft.imageFile,
       ocrText: draft.ocrText,
     });
+    receiptQualityMetrics.recordAutoSave(draft.confidenceAssessment);
+    return expense;
   }
 
   function handleAutoSaveComplete(expense: Expense) {
-    setRecentAutoSave({ expense, expiresAt: Date.now() + AUTO_SAVE_UNDO_WINDOW_MS });
+    setRecentAutoSave({
+      expense,
+      expiresAt: Date.now() + AUTO_SAVE_UNDO_WINDOW_MS,
+      qualityScopeKey: receiptQualityMetrics.scopeKey,
+    });
     setUndoError(null);
     setView("dashboard");
   }
@@ -217,6 +227,7 @@ export default function App() {
     setUndoError(null);
     try {
       await budgetData.removeExpense(recentAutoSave.expense);
+      receiptQualityMetrics.recordUndo(recentAutoSave.qualityScopeKey);
       setRecentAutoSave(null);
     } catch {
       setUndoError("登録を元に戻せませんでした。支出一覧を確認してください。");
@@ -230,7 +241,7 @@ export default function App() {
     setView("receipt");
   }
 
-  async function handleReceiveDrafts(drafts: ReceiptDraft[]) {
+  async function handleReceiveDrafts(drafts: ReceiptDraft[], cause: ReceiptReviewCause) {
     if (drafts.length === 0) {
       return;
     }
@@ -241,6 +252,10 @@ export default function App() {
     } catch {
       // Keep the current review usable even when this device cannot persist it.
     }
+    receiptQualityMetrics.recordNeedsReview(
+      drafts.map((draft) => draft.confidenceAssessment),
+      cause,
+    );
     revokeReceiptDraftUrls(receiptDrafts);
     setReceiptDrafts(nextDrafts);
     setReceiptBatchTotal(nextDrafts.length);
@@ -303,6 +318,7 @@ export default function App() {
     if (receiptDraft.pendingReviewId) {
       await pendingReceiptReviews.removeReviews([receiptDraft.pendingReviewId]);
     }
+    receiptQualityMetrics.recordReviewDiscarded();
     const remainingDrafts = receiptDrafts.slice(1);
     URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
     setReceiptDrafts(remainingDrafts);
@@ -501,6 +517,7 @@ export default function App() {
               onResetData={async () => {
                 await budgetData.resetData();
                 await pendingReceiptReviews.clearReviews();
+                receiptQualityMetrics.clearMetrics();
               }}
               onRefreshData={budgetData.refresh}
               onAddCategory={budgetData.addCategory}
@@ -515,6 +532,7 @@ export default function App() {
               googleSheetsSync={googleSheetsSync}
               storageMode={budgetData.storageMode}
               cloudConnection={budgetData.cloudConnection}
+              receiptQualityMetrics={receiptQualityMetrics}
             />
           )}
         </Suspense>

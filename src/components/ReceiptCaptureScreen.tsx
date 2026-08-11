@@ -15,7 +15,7 @@ import {
   selectReceiptBatchKeys,
   type ReceiptBatchItem,
 } from "../lib/receiptBatch";
-import type { Expense, OcrProgress, OcrResult, ReceiptCategorySuggestion, ReceiptDraft } from "../types";
+import type { Expense, OcrProgress, OcrResult, ReceiptCategorySuggestion, ReceiptDraft, ReceiptReviewCause } from "../types";
 
 const LARGE_RECEIPT_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -25,7 +25,7 @@ type ReceiptSelection = {
 };
 
 type ReceiptCaptureScreenProps = {
-  onConfirm: (drafts: ReceiptDraft[]) => Promise<void>;
+  onConfirm: (drafts: ReceiptDraft[], cause: ReceiptReviewCause) => Promise<void>;
   onAutoSave: (draft: ReceiptDraft) => Promise<Expense>;
   onAutoSaveComplete: (expense: Expense) => void;
   suggestCategoryForShop: (shopName: string) => ReceiptCategorySuggestion | null;
@@ -224,7 +224,7 @@ export function ReceiptCaptureScreen({
       }
 
       markPreviewUrlsTransferred([selection]);
-      await onConfirm([draft]);
+      await onConfirm([draft], "confidence");
     } catch (unknownError) {
       setError(unknownError instanceof Error ? unknownError.message : "レシートを読み取れませんでした");
     } finally {
@@ -245,7 +245,7 @@ export function ReceiptCaptureScreen({
     markPreviewUrlsTransferred(
       receiptSelections.filter((selection) => Boolean(draftsByPreviewUrl[selection.previewUrl])),
     );
-    await onConfirm(drafts);
+    await onConfirm(drafts, "batch");
   }
 
   async function handleRunOcr(failedOnly = false) {

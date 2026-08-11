@@ -9,9 +9,11 @@ import type { BudgetStorageMode } from "../hooks/useBudgetData";
 import type { CloudHouseholdState } from "../hooks/useCloudHousehold";
 import type { FirebaseAuthState } from "../hooks/useFirebaseAuth";
 import type { GoogleSheetsSyncState } from "../hooks/useGoogleSheetsSync";
+import type { ReceiptQualityMetricsState } from "../hooks/useReceiptQualityMetrics";
 import { buildGoogleSpreadsheetUrl, GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL } from "../lib/googleSheetsSync";
 import { canManageBudgetSettings } from "../lib/settingsAccess";
 import type { AppSettings, BackupImportMode, Category, CloudConnectionState, Expense, ShopCategoryRule, StorageHealth } from "../types";
+import { ReceiptQualityMetricsPanel } from "./ReceiptQualityMetricsPanel";
 
 type SettingsScreenProps = {
   expenses: Expense[];
@@ -36,6 +38,7 @@ type SettingsScreenProps = {
   googleSheetsSync: GoogleSheetsSyncState;
   storageMode: BudgetStorageMode;
   cloudConnection: CloudConnectionState | null;
+  receiptQualityMetrics: ReceiptQualityMetricsState;
 };
 
 type CategoryDraft = Pick<Category, "name" | "color">;
@@ -106,6 +109,7 @@ export function SettingsScreen({
   googleSheetsSync,
   storageMode,
   cloudConnection,
+  receiptQualityMetrics,
 }: SettingsScreenProps) {
   const importInputRef = useRef<HTMLInputElement>(null);
   const [importMode, setImportMode] = useState<BackupImportMode>("append");
@@ -571,6 +575,11 @@ export function SettingsScreen({
             </span>
           </summary>
           <div className="admin-settings-content">
+            <ReceiptQualityMetricsPanel
+              summary={receiptQualityMetrics.summary}
+              error={receiptQualityMetrics.error}
+              onClear={receiptQualityMetrics.clearMetrics}
+            />
       {isHouseholdOwner && (
       <section className="content-section">
         <div className="section-title-row">

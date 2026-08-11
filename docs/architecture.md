@@ -16,6 +16,8 @@ React screens/components
       -> Firestore repository
   -> usePendingReceiptReviews hook
     -> IndexedDB pending review store
+  -> useReceiptQualityMetrics hook
+    -> localStorage monthly aggregate counters
   -> OCR runner
   -> receipt parser
   -> receipt confidence assessment
@@ -101,6 +103,8 @@ Firebase client configは `VITE_FIREBASE_*` 環境変数から読み取り、未
 - `googleVisionOcr.ts`: 自前Proxyへの画像送信、レスポンス検証、安全なエラー変換
 
 OCR全文を取得した後は `receiptParser.ts` で日付、店舗名、金額候補と残高リスクを抽出し、`receiptConfidence.ts` が説明可能な信号から自動保存可否を決めます。High confidenceの単体レシートは `useBudgetData` 経由で自動保存し、Lowまたはuncertainだけを既存確認画面へ送ります。Lowまたはuncertainは `usePendingReceiptReviews` を通して撮影端末のInboxへ最大7日一時保存し、ホームから復元します。Proxyが返す単語と座標を使い、`receiptParser.ts` が同じ高さの単語を左から右へ並べ直して品目名と金額を対応付けます。単語座標がない場合はOCR全文による解析へ戻ります。Confidenceと理由は一時Inboxで保持し、支出・Firestoreの保存schemaは変更しません。
+
+実際の自動保存、要確認、Undo、要確認保存時の総額変更、破棄は `useReceiptQualityMetrics` を通してhousehold別・月別の件数へ集計します。集計は最新12か月を `localStorage` に保持し、店舗名、日付、金額、品目、画像、OCR全文、支出ID、利用者識別子を含めません。管理者メニューで撮影端末の集計だけを表示し、Firestore、バックアップ、CSV、Google Sheets、外部ログへは送信しません。詳細はADR 0016に従います。
 
 Google Vision利用時はレシート画像を外部サービスへ送信しますが、フロントエンドにGoogle Cloud認証情報は置かず、Proxy側でも画像やOCR全文を永続保存しません。Hosting環境ではFirebase ID tokenをProxyで検証し、未ログイン状態ではGoogle Vision OCRを利用できないようにします。
 
