@@ -274,6 +274,8 @@ export type ReceiptSaveOptions = {
   saveCategoryRule: boolean;
 };
 
+export type ReceiptReviewCause = "confidence" | "batch";
+
 export type ReceiptDraft = {
   imageFile: File;
   imagePreviewUrl: string;

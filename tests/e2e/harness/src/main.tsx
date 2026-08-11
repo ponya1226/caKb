@@ -4,9 +4,11 @@ import { OcrConfirmScreen } from "../../../../src/components/OcrConfirmScreen";
 import { DashboardScreen } from "../../../../src/components/DashboardScreen";
 import { ReceiptAutoSaveNotice } from "../../../../src/components/ReceiptAutoSaveNotice";
 import { ReceiptCaptureScreen } from "../../../../src/components/ReceiptCaptureScreen";
+import { ReceiptQualityMetricsPanel } from "../../../../src/components/ReceiptQualityMetricsPanel";
 import { usePendingReceiptReviews } from "../../../../src/hooks/usePendingReceiptReviews";
+import { useReceiptQualityMetrics } from "../../../../src/hooks/useReceiptQualityMetrics";
 import "../../../../src/styles.css";
-import type { Expense, ExpenseFormValues, ReceiptDraft, ReceiptSaveOptions } from "../../../../src/types";
+import type { Expense, ExpenseFormValues, ReceiptConfidenceAssessment, ReceiptDraft, ReceiptSaveOptions } from "../../../../src/types";
 
 const categories = [
   { id: "food", name: "食費", color: "#16a34a", sortOrder: 1 },
@@ -48,6 +50,37 @@ const initialDraft: ReceiptDraft = {
     source: "rule",
     ruleId: "fixture-rule",
   },
+};
+
+const autoSaveAssessment: ReceiptConfidenceAssessment = {
+  decision: "autoSave",
+  signals: {
+    ocrSucceeded: true,
+    totalResolved: true,
+    dateResolved: true,
+    merchantResolved: true,
+    categoryResolved: true,
+    conflictingAmounts: false,
+    conflictingMerchants: false,
+    suspiciousBalanceCandidate: false,
+    lineItemConsistency: "consistent",
+  },
+  reasons: [],
+};
+
+const needsReviewAssessment: ReceiptConfidenceAssessment = {
+  ...autoSaveAssessment,
+  decision: "needsReview",
+  signals: {
+    ...autoSaveAssessment.signals,
+    totalResolved: false,
+    categoryResolved: false,
+    conflictingAmounts: true,
+  },
+  reasons: [
+    { code: "total_conflict", message: "支払総額の候補が複数あります", severity: "blocking" },
+    { code: "category_unresolved", message: "カテゴリを選んでください", severity: "blocking" },
+  ],
 };
 
 function OcrConfirmHarness() {
@@ -229,6 +262,52 @@ function PendingReviewHarness() {
   );
 }
 
+function ReceiptQualityMetricsHarness() {
+  const scopeKey = new URLSearchParams(window.location.search).get("scope") ?? "household:e2e";
+  const metrics = useReceiptQualityMetrics(scopeKey);
+
+  return (
+    <div className="app-shell">
+      <main className="app-main">
+        <ReceiptQualityMetricsPanel
+          summary={metrics.summary}
+          error={metrics.error}
+          onClear={metrics.clearMetrics}
+        />
+        <div className="capture-actions">
+          <button
+            data-testid="record-auto-save"
+            type="button"
+            onClick={() => metrics.recordAutoSave(autoSaveAssessment)}
+          >
+            自動登録を記録
+          </button>
+          <button
+            data-testid="record-review"
+            type="button"
+            onClick={() => metrics.recordNeedsReview([needsReviewAssessment], "confidence")}
+          >
+            要確認を記録
+          </button>
+          <button
+            data-testid="record-batch-review"
+            type="button"
+            onClick={() => metrics.recordNeedsReview([autoSaveAssessment], "batch")}
+          >
+            一括確認を記録
+          </button>
+          <button data-testid="record-undo" type="button" onClick={() => metrics.recordUndo()}>
+            元に戻すを記録
+          </button>
+          <button data-testid="record-correction" type="button" onClick={() => metrics.recordReviewSaved(true)}>
+            総額修正を記録
+          </button>
+        </div>
+      </main>
+    </div>
+  );
+}
+
 const screen = new URLSearchParams(window.location.search).get("screen");
 createRoot(document.getElementById("root")!).render(
   screen === "capture-high"
@@ -237,5 +316,7 @@ createRoot(document.getElementById("root")!).render(
       ? <ReceiptCaptureHarness needsReview />
       : screen === "pending-inbox"
         ? <PendingReviewHarness />
-      : <OcrConfirmHarness />,
+        : screen === "quality-metrics"
+          ? <ReceiptQualityMetricsHarness />
+          : <OcrConfirmHarness />,
 );

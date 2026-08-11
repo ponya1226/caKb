@@ -1032,6 +1032,55 @@ textarea {
   background: #ffffff;
 }
 
+.receipt-quality-section .section-title-row > div {
+  display: grid;
+  gap: 2px;
+}
+
+.receipt-quality-section .section-title-row p {
+  margin: 0;
+}
+
+.receipt-quality-list {
+  display: grid;
+  margin: 12px 0;
+  border-top: 1px solid var(--line);
+}
+
+.receipt-quality-list > div,
+.receipt-quality-reasons li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.receipt-quality-list span,
+.receipt-quality-reasons span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+}
+
+.receipt-quality-list strong,
+.receipt-quality-reasons strong {
+  flex: none;
+}
+
+.receipt-quality-reasons {
+  margin: 14px 0;
+}
+
+.receipt-quality-reasons ul {
+  display: grid;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
 .file-size-panel {
   display: grid;
   gap: 8px;
