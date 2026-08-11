@@ -11,6 +11,7 @@ import { useReceiptQualityMetrics } from "./hooks/useReceiptQualityMetrics";
 import { normalizeShopNameForCategory } from "./lib/categorySuggestion";
 import { getFirebaseClientServices } from "./lib/firebaseConfig";
 import { isReceiptOcrConfigured } from "./lib/receiptOcr";
+import { normalizeReceiptQualityPolicyVersion } from "./lib/receiptQualityMetrics";
 import { createFirestoreBudgetRepository } from "./lib/repositories/firestoreBudgetRepository";
 import type { Expense, ExpenseFormValues, ReceiptDraft, ReceiptReviewCause, ReceiptSaveOptions } from "./types";
 
@@ -48,6 +49,7 @@ const AUTO_SAVE_UNDO_WINDOW_MS = 10_000;
 type RecentAutoSave = {
   expense: Expense;
   expiresAt: number;
+  qualityPolicyVersion: string;
   qualityScopeKey: string;
 };
 
@@ -178,7 +180,10 @@ export default function App() {
       }
       throw unknownError;
     }
-    receiptQualityMetrics.recordReviewSaved(receiptDraft.initialValues.amount !== values.amount);
+    receiptQualityMetrics.recordReviewSaved(
+      receiptDraft.confidenceAssessment,
+      receiptDraft.initialValues.amount !== values.amount,
+    );
     let nextRemainingDrafts = remainingDrafts;
     if (remainingDrafts.some((draft) => draft.pendingReviewId)) {
       try {
@@ -208,10 +213,11 @@ export default function App() {
     return expense;
   }
 
-  function handleAutoSaveComplete(expense: Expense) {
+  function handleAutoSaveComplete(expense: Expense, draft: ReceiptDraft) {
     setRecentAutoSave({
       expense,
       expiresAt: Date.now() + AUTO_SAVE_UNDO_WINDOW_MS,
+      qualityPolicyVersion: normalizeReceiptQualityPolicyVersion(draft.confidenceAssessment?.policyVersion),
       qualityScopeKey: receiptQualityMetrics.scopeKey,
     });
     setUndoError(null);
@@ -227,7 +233,10 @@ export default function App() {
     setUndoError(null);
     try {
       await budgetData.removeExpense(recentAutoSave.expense);
-      receiptQualityMetrics.recordUndo(recentAutoSave.qualityScopeKey);
+      receiptQualityMetrics.recordUndo(
+        recentAutoSave.qualityScopeKey,
+        recentAutoSave.qualityPolicyVersion,
+      );
       setRecentAutoSave(null);
     } catch {
       setUndoError("登録を元に戻せませんでした。支出一覧を確認してください。");
@@ -318,7 +327,7 @@ export default function App() {
     if (receiptDraft.pendingReviewId) {
       await pendingReceiptReviews.removeReviews([receiptDraft.pendingReviewId]);
     }
-    receiptQualityMetrics.recordReviewDiscarded();
+    receiptQualityMetrics.recordReviewDiscarded(receiptDraft.confidenceAssessment);
     const remainingDrafts = receiptDrafts.slice(1);
     URL.revokeObjectURL(receiptDraft.imagePreviewUrl);
     setReceiptDrafts(remainingDrafts);

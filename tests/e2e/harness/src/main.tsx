@@ -7,6 +7,7 @@ import { ReceiptCaptureScreen } from "../../../../src/components/ReceiptCaptureS
 import { ReceiptQualityMetricsPanel } from "../../../../src/components/ReceiptQualityMetricsPanel";
 import { usePendingReceiptReviews } from "../../../../src/hooks/usePendingReceiptReviews";
 import { useReceiptQualityMetrics } from "../../../../src/hooks/useReceiptQualityMetrics";
+import { RECEIPT_CONFIDENCE_POLICY_VERSION } from "../../../../src/lib/receiptConfidence";
 import "../../../../src/styles.css";
 import type { Expense, ExpenseFormValues, ReceiptConfidenceAssessment, ReceiptDraft, ReceiptSaveOptions } from "../../../../src/types";
 
@@ -53,6 +54,7 @@ const initialDraft: ReceiptDraft = {
 };
 
 const autoSaveAssessment: ReceiptConfidenceAssessment = {
+  policyVersion: RECEIPT_CONFIDENCE_POLICY_VERSION,
   decision: "autoSave",
   signals: {
     ocrSucceeded: true,
@@ -157,7 +159,7 @@ function ReceiptCaptureHarness({ needsReview }: { needsReview: boolean }) {
         <ReceiptCaptureScreen
           onConfirm={async (drafts) => setReviewDraft(drafts[0] ?? null)}
           onAutoSave={async (draft) => createFixtureExpense(draft)}
-          onAutoSaveComplete={setSavedExpense}
+          onAutoSaveComplete={(expense) => setSavedExpense(expense)}
           suggestCategoryForShop={() => needsReview ? null : {
             categoryId: "food",
             matchedShopName: "サンプルストア",
@@ -263,18 +265,24 @@ function PendingReviewHarness() {
 }
 
 function ReceiptQualityMetricsHarness() {
-  const scopeKey = new URLSearchParams(window.location.search).get("scope") ?? "household:e2e";
+  const searchParams = new URLSearchParams(window.location.search);
+  const scopeKey = searchParams.get("scope") ?? "household:e2e";
+  const readOnly = searchParams.get("readonly") === "1";
   const metrics = useReceiptQualityMetrics(scopeKey);
 
   return (
     <div className="app-shell">
       <main className="app-main">
         <ReceiptQualityMetricsPanel
+          selectedMonthKey={metrics.selectedMonthKey}
+          monthKeys={metrics.monthKeys}
           summary={metrics.summary}
+          reportText={metrics.reportText}
           error={metrics.error}
-          onClear={metrics.clearMetrics}
+          onMonthChange={metrics.selectMonth}
+          onClear={readOnly ? undefined : metrics.clearMetrics}
         />
-        <div className="capture-actions">
+        {!readOnly && <div className="capture-actions">
           <button
             data-testid="record-auto-save"
             type="button"
@@ -299,10 +307,14 @@ function ReceiptQualityMetricsHarness() {
           <button data-testid="record-undo" type="button" onClick={() => metrics.recordUndo()}>
             元に戻すを記録
           </button>
-          <button data-testid="record-correction" type="button" onClick={() => metrics.recordReviewSaved(true)}>
+          <button
+            data-testid="record-correction"
+            type="button"
+            onClick={() => metrics.recordReviewSaved(needsReviewAssessment, true)}
+          >
             総額修正を記録
           </button>
-        </div>
+        </div>}
       </main>
     </div>
   );

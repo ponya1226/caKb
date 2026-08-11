@@ -26,6 +26,7 @@ function createDraft(): ReceiptDraft {
       memo: "",
     },
     confidenceAssessment: {
+      policyVersion: "receipt-confidence-v1",
       decision: "needsReview",
       signals: {
         ocrSucceeded: true,
@@ -68,6 +69,7 @@ describe("pendingReceiptReview", () => {
     expect(restored.imageFile.name).toBe("anonymous-receipt.png");
     expect(restored.initialValues).toEqual(draft.initialValues);
     expect(restored.confidenceAssessment?.decision).toBe("needsReview");
+    expect(restored.confidenceAssessment?.policyVersion).toBe("receipt-confidence-v1");
   });
 
   it("preserves the original retention deadline when a review is updated", () => {

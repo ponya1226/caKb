@@ -19,6 +19,7 @@ test("一般利用者向けのアカウント画面を表示する", async ({ pa
 
   await expect(page.getByRole("heading", { name: "アカウント", level: 1 })).toBeVisible();
   await expect(page.getByText("未ログインです。現在のデータはこの端末に保存されています。")).toBeVisible();
+  await expect(page.getByText("この端末の自動登録状況", { exact: true })).toBeVisible();
   await expect(page.getByText("この端末のデータ管理", { exact: true })).toBeVisible();
   await expect(page.getByText("メンバーを招待", { exact: true })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);

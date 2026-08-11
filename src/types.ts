@@ -256,6 +256,7 @@ export type ReceiptConfidenceReason = {
 };
 
 export type ReceiptConfidenceAssessment = {
+  policyVersion?: string;
   decision: "autoSave" | "needsReview";
   signals: ReceiptConfidenceSignals;
   reasons: ReceiptConfidenceReason[];
