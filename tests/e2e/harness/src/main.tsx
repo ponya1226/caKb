@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
+import { CloudAccessScreen } from "../../../../src/components/CloudAccessScreen";
 import { OcrConfirmScreen } from "../../../../src/components/OcrConfirmScreen";
 import { DashboardScreen } from "../../../../src/components/DashboardScreen";
 import { ExpenseListScreen } from "../../../../src/components/ExpenseListScreen";
@@ -9,6 +10,8 @@ import { ReceiptQualityMetricsPanel } from "../../../../src/components/ReceiptQu
 import { usePendingReceiptReviews } from "../../../../src/hooks/usePendingReceiptReviews";
 import { useBudgetData } from "../../../../src/hooks/useBudgetData";
 import { useReceiptQualityMetrics } from "../../../../src/hooks/useReceiptQualityMetrics";
+import type { CloudHouseholdState } from "../../../../src/hooks/useCloudHousehold";
+import type { FirebaseAuthState } from "../../../../src/hooks/useFirebaseAuth";
 import { RECEIPT_CONFIDENCE_POLICY_VERSION } from "../../../../src/lib/receiptConfidence";
 import "../../../../src/styles.css";
 import type { Expense, ExpenseFormValues, ReceiptConfidenceAssessment, ReceiptDraft, ReceiptSaveOptions } from "../../../../src/types";
@@ -346,6 +349,53 @@ function BudgetCrudHarness() {
   );
 }
 
+function CloudAccessHarness({ creationAuthorized }: { creationAuthorized: boolean }) {
+  const [result, setResult] = useState<string | null>(null);
+  const firebaseAuth: FirebaseAuthState = {
+    isConfigured: true,
+    isLoading: false,
+    isWorking: false,
+    user: {
+      uid: "fixture-user",
+      displayName: "テスト利用者",
+      email: "fixture@example.invalid",
+    },
+    error: null,
+    getIdToken: async () => "fixture-token",
+    signInWithGoogle: async () => undefined,
+    signOut: async () => setResult("ログアウト"),
+    clearError: () => undefined,
+  };
+  const cloudHousehold: CloudHouseholdState = {
+    isLoading: false,
+    isWorking: false,
+    household: null,
+    lastMigration: null,
+    members: [],
+    invite: null,
+    isHouseholdCreationAuthorized: creationAuthorized,
+    error: null,
+    refresh: async () => undefined,
+    createHousehold: async (name) => setResult(`作成:${name}`),
+    migrateLocalData: async () => undefined,
+    createInvite: async () => undefined,
+    joinHousehold: async (code) => setResult(`参加:${code}`),
+    removeMember: async () => undefined,
+    clearError: () => undefined,
+  };
+
+  return (
+    <>
+      <CloudAccessScreen
+        state="householdRequired"
+        firebaseAuth={firebaseAuth}
+        cloudHousehold={cloudHousehold}
+      />
+      {result && <output data-testid="cloud-access-result">{result}</output>}
+    </>
+  );
+}
+
 const screen = new URLSearchParams(window.location.search).get("screen");
 createRoot(document.getElementById("root")!).render(
   screen === "capture-high"
@@ -358,5 +408,9 @@ createRoot(document.getElementById("root")!).render(
           ? <ReceiptQualityMetricsHarness />
           : screen === "budget-crud"
             ? <BudgetCrudHarness />
+            : screen === "family-access"
+              ? <CloudAccessHarness creationAuthorized={false} />
+              : screen === "family-bootstrap"
+                ? <CloudAccessHarness creationAuthorized />
           : <OcrConfirmHarness />,
 );

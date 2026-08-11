@@ -1,6 +1,14 @@
 # caKb 家族の家計簿
 
-caKbは「家計簿をつけなくていい家計簿」を目指す、家族向けのクラウド家計簿PWAです。レシートを撮影すると、日付、店舗、総額、カテゴリを説明可能なルールで判定し、確信度が高い場合は自動保存します。判断が曖昧な場合だけ確認画面へ案内します。オンライン接続、Googleログイン、家族の家計簿への参加を必須とし、Firestoreを支出データの唯一の正本として利用します。
+caKbは「家計簿をつけなくていい家計簿」を目指す、特定の家族だけで使うクラウド家計簿PWAです。レシートを撮影すると、日付、店舗、総額、カテゴリを説明可能なルールで判定し、確信度が高い場合は自動保存します。判断が曖昧な場合だけ確認画面へ案内します。オンライン接続、Googleログイン、家族の家計簿への参加を必須とし、Firestoreを支出データの唯一の正本として利用します。
+
+## 利用範囲
+
+- 管理者が招待した家族だけが利用します。Firebase HostingのURLは一般向けサービスの提供を意味しません。
+- 未所属の利用者は、期限付き・1回限りの招待コードでのみ家族の家計簿へ参加できます。
+- householdの初期作成は、管理者がFirestoreで事前許可したownerだけに表示・許可します。
+- 商用リリース、一般公開登録、課金、広告、不特定世帯への提供は現在の対象外です。
+- 詳細は `docs/decisions/0019-family-only-product-scope.md` を参照してください。
 
 ## 主な機能
 
@@ -49,7 +57,7 @@ npm run test:e2e
 ## データ保存
 
 - 支出、カテゴリ、店舗別カテゴリルールはFirestoreへ保存し、同じ家計簿に参加する家族で共有します。
-- 未ログイン、household未作成、オフライン時は家計操作を表示せず、IndexedDBへ支出を自動保存しません。
+- 未ログイン、家族の家計簿へ未参加、オフライン時は家計操作を表示せず、IndexedDBへ支出を自動保存しません。
 - 設定はlocalStorageに保存します。
 - レシート画像BlobはFirestoreへ保存しません。
 - 要確認レシートの画像と読み取った文字は、確認できるよう撮影した端末に最大7日間だけ一時保存します。確定後の画像保存がOFFでも要確認中は保持し、保存・破棄・期限切れで削除します。
@@ -106,7 +114,7 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=
 
 詳細は `docs/firebase-cloud-setup.md` と `docs/decisions/0006-firebase-foundation.md` を参照してください。Firebase設定値やservice account keyはリポジトリへ追加しないでください。
 
-Firebase設定後は、アプリ起動時のアクセス画面からGoogleログインし、クラウド家計簿を作成または招待コードで参加します。active householdへ接続後だけ通常画面を表示し、Firestoreを支出登録・一覧表示の正本として使います。ownerはアカウント画面から、旧版のIndexedDB内支出・カテゴリとlocalStorage内店舗ルールをFirestoreへ明示的に移行できます。
+Firebase設定後は、アプリ起動時のアクセス画面からGoogleログインし、既存メンバーとして接続するか、招待コードで家族の家計簿へ参加します。householdの初期作成は、Firestoreで事前許可されたownerだけが実行できます。active householdへ接続後だけ通常画面を表示し、Firestoreを支出登録・一覧表示の正本として使います。ownerはアカウント画面から、旧版のIndexedDB内支出・カテゴリとlocalStorage内店舗ルールをFirestoreへ明示的に移行できます。
 
 スマホのGoogleログイン安定化のため、正規の確認URLは Firebase Hosting の `https://cakb-dev.firebaseapp.com` です。Hosting移行の方針は `docs/decisions/0007-firebase-hosting-auth-migration.md` を参照してください。
 

@@ -6,9 +6,14 @@ const SHOP_CATEGORY_RULES = "shopCategoryRules";
 const SHEET_SYNC_SETTINGS = "sheetSyncSettings";
 const USERS = "users";
 const HOUSEHOLD_INVITES = "householdInvites";
+const FAMILY_OWNER_AUTHORIZATIONS = "familyOwnerAuthorizations";
 
 export function userProfilePath(uid: string): string {
   return `${USERS}/${uid}`;
+}
+
+export function familyOwnerAuthorizationPath(uid: string): string {
+  return `${FAMILY_OWNER_AUTHORIZATIONS}/${uid}`;
 }
 
 export function householdPath(householdId: string): string {

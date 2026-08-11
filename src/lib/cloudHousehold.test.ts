@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildHousehold, buildOwnerMember, toCloudCategory, toCloudExpense, toCloudShopCategoryRule } from "./cloudHousehold";
+import {
+  buildHousehold,
+  buildOwnerMember,
+  parseHouseholdCreationAuthorization,
+  toCloudCategory,
+  toCloudExpense,
+  toCloudShopCategoryRule,
+} from "./cloudHousehold";
 import type { Category, Expense, ShopCategoryRule, UserProfile } from "../types";
 
 const expense: Expense = {
@@ -31,6 +38,28 @@ const rule: ShopCategoryRule = {
 };
 
 describe("cloudHousehold", () => {
+  it("accepts only a valid owner bootstrap authorization", () => {
+    expect(
+      parseHouseholdCreationAuthorization(
+        { uid: "user-1", householdId: " family-primary ", active: true },
+        "user-1",
+      ),
+    ).toEqual({ uid: "user-1", householdId: "family-primary", active: true });
+    expect(
+      parseHouseholdCreationAuthorization(
+        { uid: "other-user", householdId: "family-primary", active: true },
+        "user-1",
+      ),
+    ).toBeNull();
+    expect(
+      parseHouseholdCreationAuthorization(
+        { uid: "user-1", householdId: 123, active: true },
+        "user-1",
+      ),
+    ).toBeNull();
+    expect(parseHouseholdCreationAuthorization(null, "user-1")).toBeNull();
+  });
+
   it("builds household and owner member documents", () => {
     const household = buildHousehold(" Shared Ledger ", "user-1", "2026-07-05T00:00:00.000Z");
     const member = buildOwnerMember("household-1", "user-1", "2026-07-05T00:00:00.000Z");

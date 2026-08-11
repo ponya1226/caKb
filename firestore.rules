@@ -16,6 +16,20 @@ service cloud.firestore {
         get(/databases/$(database)/documents/households/$(householdId)/members/$(request.auth.uid)).data.role == "owner";
     }
 
+    function canCreateFamilyHousehold(householdId) {
+      let authorizationPath = /databases/$(database)/documents/familyOwnerAuthorizations/$(request.auth.uid);
+      return isSignedIn() &&
+        exists(authorizationPath) &&
+        get(authorizationPath).data.uid == request.auth.uid &&
+        get(authorizationPath).data.householdId == householdId &&
+        get(authorizationPath).data.active == true;
+    }
+
+    function hasActiveHouseholdMembershipAfter(uid) {
+      return request.resource.data.activeHouseholdId is string &&
+        existsAfter(/databases/$(database)/documents/households/$(request.resource.data.activeHouseholdId)/members/$(uid));
+    }
+
     function isValidInviteJoin(householdId, uid, inviteCode) {
       let invitePath = /databases/$(database)/documents/householdInvites/$(inviteCode);
       return isSignedIn() &&
@@ -29,12 +43,21 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow create, read, update: if isSignedIn() && request.auth.uid == uid;
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow create, update: if isSignedIn() &&
+        request.auth.uid == uid &&
+        hasActiveHouseholdMembershipAfter(uid);
       allow delete: if false;
     }
 
+    match /familyOwnerAuthorizations/{uid} {
+      allow get: if isSignedIn() && request.auth.uid == uid;
+      allow list, create, update, delete: if false;
+    }
+
     match /households/{householdId} {
-      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow create: if canCreateFamilyHousehold(householdId) &&
+        request.resource.data.ownerUid == request.auth.uid;
       allow read: if isHouseholdMember(householdId);
       allow update, delete: if isHouseholdOwner(householdId);
 
@@ -45,7 +68,8 @@ service cloud.firestore {
           (
             isSignedIn() &&
             uid == request.auth.uid &&
-            get(/databases/$(database)/documents/households/$(householdId)).data.ownerUid == request.auth.uid &&
+            canCreateFamilyHousehold(householdId) &&
+            getAfter(/databases/$(database)/documents/households/$(householdId)).data.ownerUid == request.auth.uid &&
             request.resource.data.uid == request.auth.uid &&
             request.resource.data.role == "owner"
           ) ||

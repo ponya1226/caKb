@@ -10,6 +10,7 @@ import {
 } from "firebase/firestore";
 import type { HouseholdInvite, HouseholdMember } from "../types";
 import type { CloudUser } from "./cloudHousehold";
+import { buildUserProfile } from "./userProfile";
 import {
   householdInvitePath,
   householdMemberPath,
@@ -110,7 +111,10 @@ export async function joinHouseholdWithInvite(
     });
     transaction.set(
       doc(firestore, userProfilePath(user.uid)),
-      { activeHouseholdId: invite.householdId, updatedAt: now },
+      {
+        ...buildUserProfile({ uid: user.uid, displayName: user.displayName, email: user.email ?? null }, now),
+        activeHouseholdId: invite.householdId,
+      },
       { merge: true },
     );
 

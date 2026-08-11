@@ -65,6 +65,7 @@ stagingは同じ `cakb-dev` project上のHosting previewです。Authentication�
 
 ```text
 users/{uid}
+familyOwnerAuthorizations/{uid}
 households/{householdId}
 households/{householdId}/members/{uid}
 households/{householdId}/expenses/{expenseId}
@@ -75,13 +76,27 @@ households/{householdId}/sheetSyncSettings/default
 
 `members/{uid}` には `owner` または `member` roleを持たせます。初期版ではowner/memberの2権限だけを扱います。
 
+## Family-only Bootstrap
+
+既存householdを利用する通常運用では追加設定は不要です。新しいFirebase環境で最初のhouseholdを作る場合だけ、Firebase Consoleまたは管理者権限を持つ運用手段から次のドキュメントを事前登録します。実UIDをrepositoryへ記録しないでください。
+
+```text
+familyOwnerAuthorizations/{ownerUid}
+  uid: {ownerUid}
+  householdId: family-primary
+  active: true
+```
+
+ログインしたUIDとドキュメントID・`uid` が一致し、作成先が指定した `householdId` と一致する場合だけ初期作成UIとRulesが許可します。作成成功後は `active` を `false` に変更できます。authorizationはクライアントから作成・変更・削除できません。家族メンバーはownerが発行した期限付き・1回限りの招待コードで参加します。
+
 ## Security Rules
 
 初期Rulesは `firestore.rules` にあります。
 
 実デプロイ前に確認すること:
 
-- ownerがhouseholdを作成し、自分のmember recordを作れる
+- 事前許可されたownerだけが指定householdを作成し、自分のmember recordを作れる
+- 未許可の認証済み利用者はhouseholdを作成できず、authorizationを書き換えられない
 - household memberだけが支出、カテゴリ、店舗カテゴリルールを読める
 - sheet sync settingsはownerだけが編集できる
 - 未ログインユーザーがすべて拒否される
@@ -96,7 +111,7 @@ IndexedDBからFirestoreへの移行は自動実行しません。ログイン�
 
 レシート画像Blobは初期移行対象外です。必要になった場合はCloud Storage、保存期間、家族閲覧権限、削除方針を別ADRで決めます。
 
-現時点の移行はコピーのみです。移行後も、アプリの支出登録、一覧、編集、削除はIndexedDBを正本として動作します。Firestoreを正本に切り替えるには、Firestore cloud repositoryと同期/競合方針の実装が必要です。
+現時点の移行はコピーのみです。通常利用の支出登録、一覧、編集、削除はFirestoreを唯一の正本として動作します。IndexedDBは旧データの移行元、要確認Inbox、test harnessに限定し、家計簿fallbackとしては利用しません。
 
 ## Operational Checks
 

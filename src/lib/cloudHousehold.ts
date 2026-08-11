@@ -24,7 +24,9 @@ import type {
 } from "../types";
 import { removeUndefinedFields } from "./firestoreSanitizer";
 import { createId } from "./id";
+import { buildUserProfile } from "./userProfile";
 import {
+  familyOwnerAuthorizationPath,
   householdCategoriesPath,
   householdExpensesPath,
   householdMemberPath,
@@ -48,6 +50,49 @@ export type CloudUser = {
   displayName: string;
   email?: string;
 };
+
+export type HouseholdCreationAuthorization = {
+  uid: string;
+  householdId: string;
+  active: true;
+};
+
+export function parseHouseholdCreationAuthorization(
+  value: unknown,
+  uid: string,
+): HouseholdCreationAuthorization | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const authorization = value as Record<string, unknown>;
+  if (
+    authorization.uid !== uid ||
+    authorization.active !== true ||
+    typeof authorization.householdId !== "string" ||
+    !authorization.householdId.trim()
+  ) {
+    return null;
+  }
+
+  return {
+    uid,
+    householdId: authorization.householdId.trim(),
+    active: true,
+  };
+}
+
+export async function getHouseholdCreationAuthorization(
+  firestore: Firestore,
+  uid: string,
+): Promise<HouseholdCreationAuthorization | null> {
+  const authorizationSnapshot = await getDoc(doc(firestore, familyOwnerAuthorizationPath(uid)));
+  if (!authorizationSnapshot.exists()) {
+    return null;
+  }
+
+  return parseHouseholdCreationAuthorization(authorizationSnapshot.data(), uid);
+}
 
 async function getHouseholdSummaryById(
   firestore: Firestore,
@@ -75,9 +120,14 @@ async function getHouseholdSummaryById(
   };
 }
 
-export function buildHousehold(name: string, ownerUid: string, now = new Date().toISOString()): Household {
+export function buildHousehold(
+  name: string,
+  ownerUid: string,
+  now = new Date().toISOString(),
+  id = createId("household"),
+): Household {
   return {
-    id: createId("household"),
+    id,
     name: name.trim() || "家計簿",
     ownerUid,
     createdAt: now,
@@ -143,26 +193,33 @@ export async function createHouseholdForUser(
   firestore: Firestore,
   user: CloudUser,
   name: string,
+  authorizedHouseholdId: string,
 ): Promise<CloudHouseholdSummary> {
   const now = new Date().toISOString();
-  const household = buildHousehold(name || `${user.displayName}の家計簿`, user.uid, now);
+  const household = buildHousehold(name || `${user.displayName}の家計簿`, user.uid, now, authorizedHouseholdId);
   const member = buildOwnerMember(household.id, user.uid, now, user.displayName, user.email);
 
-  await setDoc(doc(firestore, householdPath(household.id)), household);
-  await setDoc(doc(firestore, householdMemberPath(household.id, user.uid)), member);
-  await setDoc(
+  const batch = writeBatch(firestore);
+  batch.set(doc(firestore, householdPath(household.id)), household);
+  batch.set(doc(firestore, householdMemberPath(household.id, user.uid)), member);
+  batch.set(
     doc(firestore, userProfilePath(user.uid)),
     {
+      ...buildUserProfile({ uid: user.uid, displayName: user.displayName, email: user.email ?? null }, now),
       activeHouseholdId: household.id,
-      updatedAt: now,
     },
     { merge: true },
   );
+  await batch.commit();
 
   return { household, member };
 }
 
-export async function findFirstHouseholdForUser(firestore: Firestore, uid: string): Promise<CloudHouseholdSummary | null> {
+export async function findFirstHouseholdForUser(
+  firestore: Firestore,
+  user: CloudUser,
+): Promise<CloudHouseholdSummary | null> {
+  const { uid } = user;
   const userSnapshot = await getDoc(doc(firestore, userProfilePath(uid)));
   const activeHouseholdId = userSnapshot.exists() ? (userSnapshot.data() as Partial<UserProfile>).activeHouseholdId : undefined;
   if (activeHouseholdId) {
@@ -192,7 +249,17 @@ export async function findFirstHouseholdForUser(firestore: Firestore, uid: strin
     return null;
   }
 
-  await setDoc(doc(firestore, userProfilePath(uid)), { activeHouseholdId: member.householdId }, { merge: true });
+  const now = new Date().toISOString();
+  const profile = buildUserProfile({ uid, displayName: user.displayName, email: user.email ?? null }, now);
+  await setDoc(
+    doc(firestore, userProfilePath(uid)),
+    {
+      ...profile,
+      activeHouseholdId: member.householdId,
+      createdAt: userSnapshot.exists() ? userSnapshot.data().createdAt ?? now : now,
+    },
+    { merge: true },
+  );
 
   const lastMigration = userSnapshot.exists()
     ? (userSnapshot.data() as Partial<UserProfile>).lastCloudMigration

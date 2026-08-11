@@ -155,8 +155,8 @@ export function useFirebaseAuth(): FirebaseAuthState {
     let isActive = true;
     let unsubscribe: (() => void) | undefined;
 
-    Promise.all([loadServices(), import("firebase/auth"), import("../lib/userProfile")])
-      .then(([services, authModule, userProfileModule]) => {
+    Promise.all([loadServices(), import("firebase/auth")])
+      .then(([services, authModule]) => {
         if (!isActive) {
           return;
         }
@@ -191,9 +191,6 @@ export function useFirebaseAuth(): FirebaseAuthState {
             }
 
             setUser(toAuthenticatedUser(result.user));
-            return userProfileModule.upsertUserProfile(services.firestore, result.user).catch(() => {
-              setError("ログインは完了しましたが、利用者情報を保存できませんでした。もう一度お試しください。");
-            });
           })
           .catch((unknownError) => {
             if (!isActive) {
@@ -228,10 +225,7 @@ export function useFirebaseAuth(): FirebaseAuthState {
     setIsWorking(true);
     setError(null);
     try {
-      const [{ browserLocalPersistence, setPersistence, signInWithPopup, signInWithRedirect }, { upsertUserProfile }] = await Promise.all([
-        import("firebase/auth"),
-        import("../lib/userProfile"),
-      ]);
+      const { browserLocalPersistence, setPersistence, signInWithPopup, signInWithRedirect } = await import("firebase/auth");
 
       await setPersistence(services.auth, browserLocalPersistence).catch(() => {
         // If local persistence is unavailable, Firebase falls back to its current persistence.
@@ -244,9 +238,6 @@ export function useFirebaseAuth(): FirebaseAuthState {
 
       const credential = await signInWithPopup(services.auth, services.googleProvider);
       setUser(toAuthenticatedUser(credential.user));
-      await upsertUserProfile(services.firestore, credential.user).catch(() => {
-        setError("ログインは完了しましたが、利用者情報を保存できませんでした。もう一度お試しください。");
-      });
     } catch (unknownError) {
       setError(getSafeAuthErrorMessage(unknownError));
     } finally {
