@@ -60,7 +60,9 @@ npm run test:e2e
 - push前に `git status -sb` で作業範囲を確認し、無関係な変更をstageしない。
 - commit前に可能な限り `npm run lint`、`npm run test`、`npm run build`、`git diff --check` を実行する。UI変更では `npm run test:e2e` も実行する。
 - commit messageは `feat:`、`fix:`、`docs:`、`test:`、`refactor:`、`chore:` を基本にする。
-- GitHubへのpushはユーザーから明示依頼がある場合に行う。
+- 完了した変更は、ユーザーが停止、保留、またはローカル確認を指定しない限り、短期ブランチへcommit・pushし、Pull Requestの必須CI成功後にmergeして既定のdeploy pipelineまで進める。
+- protected branch、必須CI、GitHub environmentのrequired reviewerは迂回しない。人によるproduction承認が必要な場合は承認待ちを利用者へ明示する。
+- frontendまたはFirestore Rulesを変更した場合はFirebase Hosting workflowを確認する。Cloud RunはProxyまたはそのworkflowを変更した場合だけ再deployする。deploy対象のない文書変更だけならpush・mergeまでとする。
 - `main` merge後のFirebase Hostingはstaging preview、browser smoke test、GitHub production承認、検証済みversionの本番昇格の順で行う。productionを直接上書きするworkflowへ戻さない。
 
 ## Development Principles

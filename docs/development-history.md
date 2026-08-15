@@ -1,5 +1,23 @@
 # Development History
 
+## 2026-08-15 Default Publish And Deploy Behavior
+
+目的: 完了した変更をローカルcommitで止めず、通常は既存の安全なリリース工程を通して家族の利用環境まで反映する。
+
+主な変更:
+
+- 利用者が停止、保留、またはローカル確認を指定しない限り、commit、push、Pull Request、必須CI、merge、該当deployまで進める運用へ変更
+- production required reviewer、protected branch、必須CIを維持し、承認が必要な場合は迂回せず利用者へ案内
+- Firebase HostingはfrontendまたはRules変更時、Cloud RunはProxy関連変更時だけdeployする対象判定を明文化
+
+検証結果:
+
+- `git diff --check`: 成功
+
+残課題:
+
+- production required reviewerが必要なrunは、家族管理者によるGitHub上の承認が引き続き必要
+
 ## 2026-08-15 Line-item Reconciliation Review Gate
 
 目的: 支払総額が正しくても品目候補が欠落するレシートを自動保存せず、長い品目をスマホで再編集できるようにする。

@@ -15,6 +15,14 @@ caKbは、短期ブランチ、Pull Request、必須CI、`main` へのmerge、st
 
 `main` への直接push、force push、履歴削除は行いません。緊急修正でも短期ブランチとPull Requestを使用します。
 
+## 既定の公開動作
+
+- 実装とローカル検証が完了した変更は、利用者が停止、保留、またはローカル確認を指定しない限り、commit、push、Pull Request、必須CI、merge、該当deployの確認まで継続する。
+- production required reviewerなど人の承認が必要なgateは迂回せず、承認待ちになった時点で利用者へ操作を案内する。
+- frontendまたはFirestore Rulesを変更した場合はFirebase Hosting pipelineを確認する。Proxyまたはそのworkflowを変更した場合だけCloud Runを再deployする。
+- 文書だけの変更などdeploy対象がない場合は、push、Pull Request、mergeまでを完了条件とする。
+- 作業ツリーに無関係な変更がある場合、migrationや復旧方針が未確定の場合、CIが失敗した場合は自動でmergeまたはdeployせず原因を解消する。
+
 ## 必須CI
 
 - `Frontend CI`: 型検査、ユニットテスト、production build、production依存監査
