@@ -256,6 +256,7 @@ export function ExpenseListScreen({
             <ExpenseEditor
               categories={categories}
               initialValues={editingExpense}
+              defaultLineItemsOpen
               submitLabel="更新"
               onCancel={() => setEditingExpense(null)}
               onSubmit={async (values) => {

@@ -606,7 +606,8 @@ function isLineItemAmountOnlyLine(line: string, match: AmountMatch): boolean {
     return false;
   }
 
-  return cleanLineItemName(line, match).length === 0;
+  const residualName = cleanLineItemName(line, match);
+  return residualName.length === 0 || /^(?:特|特価)$/.test(residualName);
 }
 
 function isDiscountLineItemName(name: string): boolean {
@@ -615,6 +616,33 @@ function isDiscountLineItemName(name: string): boolean {
 
 function isDiscountAmountOnlyLine(line: string, match: AmountMatch): boolean {
   return match.amount < 0 && cleanLineItemName(line, match).length === 0;
+}
+
+function isDiscountMarkerLine(line: string): boolean {
+  const normalizedLine = normalizeText(line);
+  if (!/%/.test(normalizedLine) || /-\s*\d/.test(normalizedLine)) {
+    return false;
+  }
+
+  return (
+    LINE_ITEM_DISCOUNT_PATTERN.test(normalizedLine) ||
+    (/[★*※]/.test(normalizedLine) && /\(?\s*\d{1,2}\s*%\s*\)?/.test(normalizedLine))
+  );
+}
+
+function createPendingDiscountName(line: string): PendingLineItemName {
+  const normalizedLine = normalizeText(line).trim();
+  const normalizedName = normalizeLineItemName(normalizedLine);
+  const rate = normalizedLine.match(/(\d{1,2})\s*%/)?.[1];
+  const name = LINE_ITEM_DISCOUNT_PATTERN.test(normalizedName)
+    ? normalizedName
+    : `割引${rate ? `(${rate}%)` : ""}`;
+
+  return {
+    name,
+    line: normalizedLine,
+    hasItemCode: false,
+  };
 }
 
 function shouldSuppressNextAmountOnlyLine(line: string): boolean {
@@ -640,18 +668,6 @@ function getLineItemConfidence(line: string, match: AmountMatch): number {
   }
 
   return Math.min(confidence, 0.94);
-}
-
-function uniqueLineItemCandidates(candidates: ReceiptLineItemCandidate[]): ReceiptLineItemCandidate[] {
-  const seen = new Set<string>();
-  return candidates.filter((candidate) => {
-    const key = `${candidate.name}:${candidate.amount}`;
-    if (seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  });
 }
 
 function findLineItemSubtotal(lines: string[]): number | null {
@@ -782,6 +798,7 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
   const pendingNames: PendingLineItemName[] = [];
   const pendingAmounts: PendingLineItemAmount[] = [];
   const unmatchedNames: PendingLineItemName[] = [];
+  let pendingDiscountName: PendingLineItemName | null = null;
   let suppressNextAmountOnlyLine = false;
 
   function clearPendingNamesAsUnmatched() {
@@ -795,16 +812,14 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
     if (shouldSkipLineItemLine(line)) {
       clearPendingNamesAsUnmatched();
       pendingAmounts.length = 0;
+      pendingDiscountName = null;
       suppressNextAmountOnlyLine = shouldSuppressNextAmountOnlyLine(line);
       return;
     }
 
     const normalizedLine = normalizeText(line);
-    if (LINE_ITEM_DISCOUNT_PATTERN.test(normalizedLine) && /%/.test(normalizedLine) && !/-\s*\d/.test(normalizedLine)) {
-      const pendingName = createPendingLineItemName(line);
-      if (pendingName) {
-        pendingNames.push(pendingName);
-      }
+    if (isDiscountMarkerLine(normalizedLine)) {
+      pendingDiscountName = createPendingDiscountName(line);
       suppressNextAmountOnlyLine = false;
       return;
     }
@@ -861,17 +876,24 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
     }
     suppressNextAmountOnlyLine = false;
 
+    if (isDiscountAmountOnlyLine(line, match)) {
+      const discountName = pendingDiscountName ?? createPendingDiscountName("割引");
+      candidates.push({
+        name: discountName.name,
+        amount: match.amount,
+        line: `${discountName.line} / ${normalizeText(line).trim()}`,
+        confidence: Math.max(0.72, getLineItemConfidence(line, match) - 0.04),
+      });
+      pendingDiscountName = null;
+      return;
+    }
+
     if (
       pendingNames.length > 0 &&
-      (isLineItemAmountOnlyLine(line, match) || isDiscountAmountOnlyLine(line, match))
+      isLineItemAmountOnlyLine(line, match)
     ) {
       const pendingName = pendingNames.shift();
       if (!pendingName) {
-        return;
-      }
-
-      if (match.amount < 0 && !isDiscountLineItemName(pendingName.name)) {
-        clearPendingNamesAsUnmatched();
         return;
       }
 
@@ -898,6 +920,7 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
 
     clearPendingNamesAsUnmatched();
     pendingAmounts.length = 0;
+    pendingDiscountName = null;
     const name = cleanLineItemName(line, match);
     if (!isUsableLineItemName(name)) {
       return;
@@ -912,10 +935,7 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
   });
 
   const reconciledCandidates = reconcileUnmatchedLineItem(candidates, unmatchedNames, lines);
-  return uniqueLineItemCandidates(inferSingleReceiptLineItem(reconciledCandidates, lines)).slice(
-    0,
-    MAX_LINE_ITEM_CANDIDATES,
-  );
+  return inferSingleReceiptLineItem(reconciledCandidates, lines).slice(0, MAX_LINE_ITEM_CANDIDATES);
 }
 
 function normalizeShopNameCandidate(line: string): { value: string; confidenceBoost: number } {
