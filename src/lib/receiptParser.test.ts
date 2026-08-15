@@ -482,6 +482,27 @@ describe("parseReceiptText", () => {
     expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toEqual(
       expect.arrayContaining([455, 6154, 10000, 3846]),
     );
+    expect(result.riskSignals.taxAmounts).toEqual([455]);
+  });
+
+  it("keeps tax amounts separate from supermarket line items", () => {
+    const result = parseReceiptText(`
+      SAMPLE MARKET
+      2026年08月15日 12:01
+      01 サンプル商品A ¥99
+      01 サンプル商品B ¥359
+      小計 2点 ¥458
+      税込金額合計 ¥495
+      8%税抜対象額 ¥458
+      8%税額 ¥37
+      お買上計 ¥495
+    `);
+
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["サンプル商品A", 99],
+      ["サンプル商品B", 359],
+    ]);
+    expect(result.riskSignals.taxAmounts).toEqual([37]);
   });
 
   it("ignores department codes and gram notation when pairing split supermarket rows", () => {

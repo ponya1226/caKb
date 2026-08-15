@@ -41,6 +41,8 @@ describe("assessReceiptConfidence", () => {
       dateResolved: true,
       merchantResolved: true,
       categoryResolved: true,
+      lineItemConsistency: "consistent",
+      lineItemMatchBasis: "line_items_plus_tax_equal_total",
     });
   });
 
@@ -59,6 +61,24 @@ describe("assessReceiptConfidence", () => {
     `);
 
     expect(result.decision).toBe("autoSave");
+    expect(result.signals.lineItemMatchBasis).toBe("line_items_plus_tax_equal_total");
+  });
+
+  it("reconciles multiple printed tax amounts including tax below ten yen", () => {
+    const text = `
+      SAMPLE STORE
+      2026年08月08日
+      商品A ¥100
+      商品B ¥200
+      外税8% ¥8
+      外税10% ¥20
+      合計 ¥328
+    `;
+    const result = assess(text);
+
+    expect(result.signals.lineItemConsistency).toBe("consistent");
+    expect(result.signals.lineItemMatchBasis).toBe("line_items_plus_tax_equal_total");
+    expect(result.decision).toBe("autoSave");
   });
 
   it("allows a specialty-store receipt with a learned category to be saved automatically", () => {
@@ -72,6 +92,7 @@ describe("assessReceiptConfidence", () => {
     `);
 
     expect(result.decision).toBe("autoSave");
+    expect(result.signals.lineItemMatchBasis).toBe("line_items_equal_total");
   });
 
   it("requires review when an electronic-money balance differs from the total", () => {
@@ -129,7 +150,7 @@ describe("assessReceiptConfidence", () => {
     );
   });
 
-  it("does not block automatic save only because optional line items are inconsistent", () => {
+  it("requires review when extracted line items do not reconcile with the total", () => {
     const result = assess(`
       SAMPLE STORE
       2026年08月08日
@@ -138,10 +159,53 @@ describe("assessReceiptConfidence", () => {
     `);
 
     expect(result.signals.lineItemConsistency).toBe("inconsistent");
-    expect(result.decision).toBe("autoSave");
+    expect(result.signals.lineItemMatchBasis).toBe("mismatch");
+    expect(result.decision).toBe("needsReview");
     expect(result.reasons).toContainEqual(expect.objectContaining({
       code: "line_items_inconsistent",
-      severity: "warning",
+      severity: "blocking",
     }));
+  });
+
+  it("requires review for the anonymized supermarket receipt when extracted items are missing", () => {
+    const result = assess(`
+      SAMPLE MARKET
+      サンプル新田店
+      2026年08月08日 12:01
+      01 サニーレタス (カット) ¥99
+      01 トマト (パック) 特 ¥359
+      04 とうきび育ち牛肩ミス ¥470
+      05 THEベーシックカレ ¥299
+      05 ごろジュワ~ 大粒唐 ¥399
+      05 おむすびセット ¥199
+      06 ふんわり食パン ¥199
+      06 もみじまん ¥99
+      06 かけるチーズ ¥299
+      07 ウイルキンソン 特 ¥168
+      07 アンナマンマトマ 特 ¥299
+      07 アンパンマンミートソ ¥139
+      小計 17点 ¥5,195
+      税込金額合計 ¥5,610
+      8%税抜対象額 ¥5,195
+      8%税額 ¥415
+      お買上計 ¥5,610
+    `);
+
+    expect(result.signals.lineItemConsistency).toBe("inconsistent");
+    expect(result.signals.lineItemMatchBasis).toBe("mismatch");
+    expect(result.decision).toBe("needsReview");
+    expect(result.reasons.map((reason) => reason.code)).toContain("line_items_inconsistent");
+  });
+
+  it("keeps line item consistency unknown when no item was extracted", () => {
+    const result = assess(`
+      SAMPLE STORE
+      2026年08月08日
+      合計 ¥1,000
+    `);
+
+    expect(result.signals.lineItemConsistency).toBe("unknown");
+    expect(result.signals.lineItemMatchBasis).toBe("not_checked");
+    expect(result.decision).toBe("autoSave");
   });
 });

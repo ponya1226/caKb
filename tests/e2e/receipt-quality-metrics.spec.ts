@@ -40,14 +40,14 @@ test("個人情報を含まない自動登録集計を月別・判定ルール�
   await expect(page.getByText("複数枚のため確認").locator("..")).toContainText("1件");
 
   await page.getByText("判定ルール別の内訳").click();
-  await expect(page.getByText("receipt-confidence-v1", { exact: true })).toBeVisible();
+  await expect(page.getByText("receipt-confidence-v2", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "集計をコピー" }).click();
   await expect(page.getByText("コピーしました", { exact: true })).toBeVisible();
   const copiedReport = await page.evaluate(() => navigator.clipboard.readText());
   expect(copiedReport).toContain("caKb 自動登録状況");
   expect(copiedReport).toContain("読み取ったレシート: 4件");
-  expect(copiedReport).toContain("receipt-confidence-v1");
+  expect(copiedReport).toContain("receipt-confidence-v2");
   expect(copiedReport).not.toContain("household:e2e");
 
   await page.evaluate(({ key, scopeKey, priorMonthKey }) => {
