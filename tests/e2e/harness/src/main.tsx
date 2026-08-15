@@ -71,6 +71,7 @@ const autoSaveAssessment: ReceiptConfidenceAssessment = {
     conflictingMerchants: false,
     suspiciousBalanceCandidate: false,
     lineItemConsistency: "consistent",
+    lineItemMatchBasis: "line_items_equal_total",
   },
   reasons: [],
 };
@@ -349,6 +350,50 @@ function BudgetCrudHarness() {
   );
 }
 
+function LongExpenseEditHarness() {
+  const [expenses, setExpenses] = useState<Expense[]>([
+    {
+      id: "fixture-long-expense",
+      date: "2026-08-15",
+      shopName: "サンプル食品店",
+      amount: 5610,
+      categoryId: "food",
+      memo: "",
+      source: "receipt",
+      lineItems: Array.from({ length: 18 }, (_, index) => ({
+        id: `fixture-long-item-${index + 1}`,
+        name: `サンプル品目${index + 1}`,
+        amount: 100 + index,
+        source: "ocr" as const,
+      })),
+      createdAt: "2026-08-15T00:00:00.000Z",
+      updatedAt: "2026-08-15T00:00:00.000Z",
+    },
+  ]);
+
+  return (
+    <div className="app-shell">
+      <main className="app-main">
+        <ExpenseListScreen
+          expenses={expenses}
+          categories={categories}
+          categoryMap={new Map(categories.map((category) => [category.id, category]))}
+          memberNameMap={new Map()}
+          onAddExpense={async () => undefined}
+          onUpdateExpense={async (expense, values) => {
+            setExpenses((current) => current.map((item) => (
+              item.id === expense.id
+                ? { ...item, ...values, updatedAt: "2026-08-15T00:01:00.000Z" }
+                : item
+            )));
+          }}
+          onDeleteExpense={async () => undefined}
+        />
+      </main>
+    </div>
+  );
+}
+
 function CloudAccessHarness({ creationAuthorized }: { creationAuthorized: boolean }) {
   const [result, setResult] = useState<string | null>(null);
   const firebaseAuth: FirebaseAuthState = {
@@ -408,6 +453,8 @@ createRoot(document.getElementById("root")!).render(
           ? <ReceiptQualityMetricsHarness />
           : screen === "budget-crud"
             ? <BudgetCrudHarness />
+            : screen === "long-expense-edit"
+              ? <LongExpenseEditHarness />
             : screen === "family-access"
               ? <CloudAccessHarness creationAuthorized={false} />
               : screen === "family-bootstrap"

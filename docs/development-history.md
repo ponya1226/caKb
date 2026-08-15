@@ -1,5 +1,50 @@
 # Development History
 
+## 2026-08-15 Default Publish And Deploy Behavior
+
+目的: 完了した変更をローカルcommitで止めず、通常は既存の安全なリリース工程を通して家族の利用環境まで反映する。
+
+主な変更:
+
+- 利用者が停止、保留、またはローカル確認を指定しない限り、commit、push、Pull Request、必須CI、merge、該当deployまで進める運用へ変更
+- production required reviewer、protected branch、必須CIを維持し、承認が必要な場合は迂回せず利用者へ案内
+- Firebase HostingはfrontendまたはRules変更時、Cloud RunはProxy関連変更時だけdeployする対象判定を明文化
+
+検証結果:
+
+- `git diff --check`: 成功
+
+残課題:
+
+- production required reviewerが必要なrunは、家族管理者によるGitHub上の承認が引き続き必要
+
+## 2026-08-15 Line-item Reconciliation Review Gate
+
+目的: 支払総額が正しくても品目候補が欠落するレシートを自動保存せず、長い品目をスマホで再編集できるようにする。
+
+主な変更:
+
+- ADR 0020を追加し、品目合計、印字税額、支払総額の完全一致をConfidence判定へ追加
+- 消費税額を品目候補と分離して抽出し、税抜品目合計と総額を照合
+- 品目不一致をblocking理由へ変更し、判定ルールを `receipt-confidence-v2` へ更新
+- 品目が0件の場合は `unknown` として従来の操作削減方針を維持
+- 長い再編集モーダルを動的viewport、縦スクロール、スマホ慣性スクロールへ対応
+- 匿名化した食品スーパーfixtureとモバイルE2Eを追加
+- 週1回などのサーバー側上限を持つ任意AI品目確認を、別ADRと明示承認が必要な将来候補として記録
+
+検証結果:
+
+- `npm run lint`: 成功
+- `npm run test`: 27ファイル、130件成功
+- `npm run build`: 成功。Firebase import構成と約1,017KBのmain chunkに関する既知警告のみ
+- `npm run test:e2e`: mobile Chromium 12件成功
+- `git diff --check`: 成功
+
+残課題:
+
+- 家族の実レシートでv2の不要な要確認率を確認する
+- AI品目確認は未実装。外部サービス、送信範囲、費用、認可、保持、結果確定を先に決定する
+
 ## 2026-08-11 Family-only Product Scope
 
 目的: 商用リリースと不特定世帯への提供を目標から外し、caKbを管理者が招待した特定家族だけに閉じた運用へ変更する。

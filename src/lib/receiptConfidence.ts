@@ -3,6 +3,7 @@ import type {
   ReceiptConfidenceAssessment,
   ReceiptConfidenceReason,
   ReceiptLineItemConsistency,
+  ReceiptLineItemMatchBasis,
   ReceiptParseResult,
 } from "../types";
 import { normalizeShopNameForCategory } from "./categorySuggestion";
@@ -13,7 +14,7 @@ const MAX_AUTOMATIC_TOTAL = 1_000_000;
 const MAX_RECEIPT_AGE_YEARS = 10;
 const MAX_FUTURE_DAYS = 1;
 
-export const RECEIPT_CONFIDENCE_POLICY_VERSION = "receipt-confidence-v1";
+export const RECEIPT_CONFIDENCE_POLICY_VERSION = "receipt-confidence-v2";
 
 type ReceiptConfidenceInput = {
   ocrText: string;
@@ -69,15 +70,40 @@ function hasConflictingMerchants(result: ReceiptParseResult): boolean {
   return normalizeShopNameForCategory(primaryMerchant.value) !== normalizeShopNameForCategory(nextMerchant.value);
 }
 
-function getLineItemConsistency(result: ReceiptParseResult): ReceiptLineItemConsistency {
+type LineItemReconciliation = {
+  consistency: ReceiptLineItemConsistency;
+  matchBasis: ReceiptLineItemMatchBasis;
+};
+
+function getTaxTotal(taxAmounts: number[]): number | null {
+  const positiveTaxAmounts = taxAmounts.filter((amount) => Number.isInteger(amount) && amount > 0);
+  if (positiveTaxAmounts.length === 0) {
+    return null;
+  }
+
+  const uniqueTaxAmounts = positiveTaxAmounts.filter(
+    (amount, index) => positiveTaxAmounts.indexOf(amount) === index,
+  );
+  return uniqueTaxAmounts.reduce((sum, amount) => sum + amount, 0);
+}
+
+function reconcileLineItems(result: ReceiptParseResult): LineItemReconciliation {
   const total = result.amountCandidates[0]?.value;
   if (!total || result.lineItemCandidates.length === 0) {
-    return "unknown";
+    return { consistency: "unknown", matchBasis: "not_checked" };
   }
 
   const lineItemTotal = result.lineItemCandidates.reduce((sum, item) => sum + item.amount, 0);
-  const allowedDifference = Math.max(100, Math.round(total * 0.15));
-  return Math.abs(lineItemTotal - total) <= allowedDifference ? "consistent" : "inconsistent";
+  if (lineItemTotal === total) {
+    return { consistency: "consistent", matchBasis: "line_items_equal_total" };
+  }
+
+  const taxTotal = getTaxTotal(result.riskSignals.taxAmounts ?? []);
+  if (taxTotal !== null && lineItemTotal + taxTotal === total) {
+    return { consistency: "consistent", matchBasis: "line_items_plus_tax_equal_total" };
+  }
+
+  return { consistency: "inconsistent", matchBasis: "mismatch" };
 }
 
 function addReason(
@@ -124,7 +150,8 @@ export function assessReceiptConfidence({
       !conflictingMerchants,
   );
   const categoryResolved = Boolean(categorySuggestion?.categoryId && categorySuggestion.source);
-  const lineItemConsistency = getLineItemConsistency(parseResult);
+  const lineItemReconciliation = reconcileLineItems(parseResult);
+  const lineItemConsistency = lineItemReconciliation.consistency;
 
   if (!ocrSucceeded) {
     addReason(reasons, { code: "ocr_failed", message: "読み取れた文字が不足しています", severity: "blocking" });
@@ -162,8 +189,8 @@ export function assessReceiptConfidence({
   if (lineItemConsistency === "inconsistent") {
     addReason(reasons, {
       code: "line_items_inconsistent",
-      message: "品目合計と支払総額に差があります",
-      severity: "warning",
+      message: "品目に抜け漏れがないか確認してください",
+      severity: "blocking",
     });
   }
 
@@ -177,8 +204,15 @@ export function assessReceiptConfidence({
     conflictingMerchants,
     suspiciousBalanceCandidate,
     lineItemConsistency,
+    lineItemMatchBasis: lineItemReconciliation.matchBasis,
   };
-  const canAutoSave = ocrSucceeded && totalResolved && dateResolved && merchantResolved && categoryResolved;
+  const canAutoSave =
+    ocrSucceeded &&
+    totalResolved &&
+    dateResolved &&
+    merchantResolved &&
+    categoryResolved &&
+    lineItemConsistency !== "inconsistent";
 
   return {
     policyVersion: RECEIPT_CONFIDENCE_POLICY_VERSION,

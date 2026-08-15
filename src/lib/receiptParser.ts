@@ -19,7 +19,10 @@ const LINE_ITEM_NAME_EXCLUDE_PATTERN = /^[\s\-_=*※¥\d,.()（）[\]【】「�
 const AMOUNT_SECTION_LABEL_PATTERN =
   /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|残\s*高|利用\s*可能\s*額|お\s*買\s*上\s*計|交通\s*系\s*マネー|電子\s*マネー|クレジット|カード)/i;
 const LINE_ITEM_DISCOUNT_PATTERN = /(割\s*引|値\s*引)/i;
-const LINE_ITEM_TAX_SUMMARY_PATTERN = /\d+\s*%\s*税(?:\s|$)|\d+\s*%\s*(?:内|外)?税\s*対象|税込金額|税抜対象額/i;
+const LINE_ITEM_TAX_SUMMARY_PATTERN =
+  /\d+\s*%\s*(?:内|外)?税(?:額)?(?:\s|$)|\d+\s*%\s*(?:内|外)?税\s*対象|税込金額|税抜対象額/i;
+const TAX_AMOUNT_KEYWORD_PATTERN =
+  /(消\s*費\s*税(?:等|額)?|内\s*消\s*費\s*税(?:等|額)?|外\s*税(?:額)?|\d+\s*%\s*(?:内|外)?税(?:額)?(?!抜|込|対象))/i;
 const QUANTITY_AMOUNT_CONTEXT_PATTERN = /(g|ｇ|kg|㎏|ml|mL|ＭＬ|枚|個|本|点|袋|パック|連|P|ｐ)$/i;
 const MAX_LINE_ITEM_CANDIDATES = 50;
 
@@ -292,7 +295,7 @@ function uniqueAmountMatches(matches: AmountMatch[]): AmountMatch[] {
   });
 }
 
-function extractAmountMatchesFromLine(line: string): AmountMatch[] {
+function extractAmountMatchesFromLine(line: string, minimumAmount = 10): AmountMatch[] {
   const normalizedLine = normalizeText(line);
   const moneyMatches = Array.from(normalizedLine.matchAll(MONEY_AMOUNT_PATTERN)).map((match) => ({
     match,
@@ -322,7 +325,7 @@ function extractAmountMatchesFromLine(line: string): AmountMatch[] {
       })
       .filter((match): match is AmountMatch => match !== null)
       .sort((a, b) => a.index - b.index),
-  ).filter((match) => match.amount >= 10);
+  ).filter((match) => match.amount >= minimumAmount);
 }
 
 function extractLineItemAmountMatchesFromLine(line: string): AmountMatch[] {
@@ -352,10 +355,10 @@ function extractLineItemAmountMatchesFromLine(line: string): AmountMatch[] {
   );
 }
 
-function extractAmountsFromLine(line: string): number[] {
-  return extractAmountMatchesFromLine(line)
+function extractAmountsFromLine(line: string, minimumAmount = 10): number[] {
+  return extractAmountMatchesFromLine(line, minimumAmount)
     .map((match) => match.amount)
-    .filter((amount) => amount >= 10)
+    .filter((amount) => amount >= minimumAmount)
     .filter((amount, index, amounts) => amounts.indexOf(amount) === index);
 }
 
@@ -469,6 +472,22 @@ function extractBalanceAmounts(lines: string[]): number[] {
   });
 
   return amounts.filter((amount, index) => amounts.indexOf(amount) === index);
+}
+
+function extractTaxAmounts(lines: string[]): number[] {
+  return lines.flatMap((line, index) => {
+    const normalizedLine = normalizeText(line);
+    if (!TAX_AMOUNT_KEYWORD_PATTERN.test(normalizedLine)) {
+      return [];
+    }
+
+    const currentLineAmounts = extractAmountsFromLine(normalizedLine, 1);
+    if (currentLineAmounts.length > 0) {
+      return currentLineAmounts;
+    }
+
+    return extractAmountsFromLine(normalizeText(lines[index + 1] ?? ""), 1);
+  });
 }
 
 function removeAmountToken(line: string, match: AmountMatch): string {
@@ -1084,6 +1103,7 @@ export function parseReceiptText(text: string, blocks?: OcrTextBlock[]): Receipt
       spatialLineItemCandidates.length > 0 ? spatialLineItemCandidates : extractLineItemCandidates(lines),
     riskSignals: {
       balanceAmounts: extractBalanceAmounts(lines),
+      taxAmounts: extractTaxAmounts(lines),
     },
   };
 }

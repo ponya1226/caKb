@@ -17,6 +17,7 @@ caKbは「家計簿をつけなくていい家計簿」を目指す、特定の�
 - Google Visionによるレシート文字読み取り
 - 読み取り結果からの日付、店舗名、金額候補抽出
 - Confidence判定による単体レシートの自動保存
+- 品目合計と総額、または品目合計と税額を加えた金額の一致確認
 - 自動保存直後の「元に戻す」
 - 判断が曖昧なレシートだけを確認・修正して保存
 - 要確認レシートの端末内一時Inboxとホームの件数表示
@@ -82,7 +83,7 @@ npm run test:e2e
 
 利用者向けのレシート読み取りはGoogle Visionに固定しています。単体レシートは撮影後に自動で読み取り、安全に判断できた場合は確認操作なしで保存します。判断できない場合だけ既存確認画面を表示します。フロントエンドからGoogle Cloudへ直接接続せず、自前Proxyを経由します。Proxy URLが未設定の場合はレシート読み取りを無効にします。オンライン認証とhousehold接続が成立していれば手入力は利用できます。
 
-自動保存と要確認の方針は `docs/decisions/0014-capture-first-auto-save-direction.md`、端末内一時Inboxは `docs/decisions/0015-device-local-pending-receipt-inbox.md`、個人情報を持たない品質集計は `docs/decisions/0016-device-local-receipt-quality-metrics.md`、月別・判定ルール別表示は `docs/decisions/0017-versioned-device-quality-reporting.md`、クラウド必須化は `docs/decisions/0018-cloud-only-authenticated-ledger.md` を参照してください。
+自動保存と要確認の方針は `docs/decisions/0014-capture-first-auto-save-direction.md`、品目合計の確認は `docs/decisions/0020-line-item-reconciliation-review-gate.md`、端末内一時Inboxは `docs/decisions/0015-device-local-pending-receipt-inbox.md`、個人情報を持たない品質集計は `docs/decisions/0016-device-local-receipt-quality-metrics.md`、月別・判定ルール別表示は `docs/decisions/0017-versioned-device-quality-reporting.md`、クラウド必須化は `docs/decisions/0018-cloud-only-authenticated-ledger.md` を参照してください。
 
 ```env
 VITE_GOOGLE_VISION_PROXY_URL=

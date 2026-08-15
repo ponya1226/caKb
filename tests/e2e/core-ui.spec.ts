@@ -50,3 +50,33 @@ test("専用test harnessで支出を登録・編集・削除できる", async ({
   await expect(page.getByText("この月の支出はありません", { exact: true })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
+
+test("長い品目明細の再編集で入力欄までスクロールできる", async ({ page }) => {
+  await page.goto("http://127.0.0.1:4174/tests/e2e/harness/?screen=long-expense-edit");
+  await page.getByRole("button", { name: "編集" }).click();
+
+  const editDialog = page.getByRole("dialog", { name: "支出の編集" });
+  const modalPanel = editDialog.locator("xpath=.");
+  await editDialog.locator("details.line-item-editor > summary").click();
+  const lastItemInput = editDialog.getByLabel("品目名", { exact: true }).last();
+
+  await expect.poll(async () => modalPanel.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+  await lastItemInput.scrollIntoViewIfNeeded();
+  await lastItemInput.focus();
+
+  const visibility = await lastItemInput.evaluate((element) => {
+    const fieldRect = element.getBoundingClientRect();
+    const panel = element.closest(".modal-panel");
+    const panelRect = panel?.getBoundingClientRect();
+    return {
+      panelScrollTop: panel?.scrollTop ?? 0,
+      insidePanel: Boolean(panelRect && fieldRect.top >= panelRect.top && fieldRect.bottom <= panelRect.bottom),
+      insideViewport: fieldRect.top >= 0 && fieldRect.bottom <= window.innerHeight,
+    };
+  });
+
+  expect(visibility.panelScrollTop).toBeGreaterThan(0);
+  expect(visibility.insidePanel).toBe(true);
+  expect(visibility.insideViewport).toBe(true);
+  await expectNoHorizontalOverflow(page);
+});

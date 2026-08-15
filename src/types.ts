@@ -204,6 +204,7 @@ export type ReceiptParseResult = {
 
 export type ReceiptParseRiskSignals = {
   balanceAmounts: number[];
+  taxAmounts?: number[];
 };
 
 export type ReceiptLineItemCandidate = {
@@ -222,6 +223,12 @@ export type ReceiptCategorySuggestion = {
 
 export type ReceiptLineItemConsistency = "consistent" | "unknown" | "inconsistent";
 
+export type ReceiptLineItemMatchBasis =
+  | "line_items_equal_total"
+  | "line_items_plus_tax_equal_total"
+  | "not_checked"
+  | "mismatch";
+
 export type ReceiptConfidenceSignals = {
   ocrSucceeded: boolean;
   totalResolved: boolean;
@@ -232,6 +239,7 @@ export type ReceiptConfidenceSignals = {
   conflictingMerchants: boolean;
   suspiciousBalanceCandidate: boolean;
   lineItemConsistency: ReceiptLineItemConsistency;
+  lineItemMatchBasis?: ReceiptLineItemMatchBasis;
 };
 
 export type ReceiptConfidenceReasonCode =
