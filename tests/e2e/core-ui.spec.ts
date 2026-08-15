@@ -57,7 +57,7 @@ test("長い品目明細の再編集で入力欄までスクロールできる",
 
   const editDialog = page.getByRole("dialog", { name: "支出の編集" });
   const modalPanel = editDialog.locator("xpath=.");
-  await editDialog.locator("details.line-item-editor > summary").click();
+  await expect(editDialog.locator("details.line-item-editor")).toHaveAttribute("open", "");
   const lastItemInput = editDialog.getByLabel("品目名", { exact: true }).last();
 
   await expect.poll(async () => modalPanel.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);

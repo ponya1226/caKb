@@ -9,12 +9,20 @@ import type { Category, ExpenseFormValues } from "../types";
 type ExpenseEditorProps = {
   categories: Category[];
   initialValues?: Partial<ExpenseFormValues>;
+  defaultLineItemsOpen?: boolean;
   submitLabel: string;
   onSubmit: (values: ExpenseFormValues) => Promise<void> | void;
   onCancel?: () => void;
 };
 
-export function ExpenseEditor({ categories, initialValues, submitLabel, onSubmit, onCancel }: ExpenseEditorProps) {
+export function ExpenseEditor({
+  categories,
+  initialValues,
+  defaultLineItemsOpen = false,
+  submitLabel,
+  onSubmit,
+  onCancel,
+}: ExpenseEditorProps) {
   const defaultValues = useMemo<ExpenseFormValues>(
     () => ({
       date: initialValues?.date ?? toDateInputValue(new Date()),
@@ -29,6 +37,7 @@ export function ExpenseEditor({ categories, initialValues, submitLabel, onSubmit
   const [values, setValues] = useState<ExpenseFormValues>(defaultValues);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLineItemsOpen, setIsLineItemsOpen] = useState(defaultLineItemsOpen);
   const lineItems = values.lineItems ?? [];
   const lineItemTotal = useMemo(() => sumExpenseLineItems(lineItems), [lineItems]);
   const lineItemDiff = lineItemTotal - values.amount;
@@ -152,7 +161,11 @@ export function ExpenseEditor({ categories, initialValues, submitLabel, onSubmit
         />
       </label>
 
-      <details className="line-item-editor">
+      <details
+        className="line-item-editor"
+        open={isLineItemsOpen}
+        onToggle={(event) => setIsLineItemsOpen(event.currentTarget.open)}
+      >
         <summary>
           <span>品目明細</span>
           <small>

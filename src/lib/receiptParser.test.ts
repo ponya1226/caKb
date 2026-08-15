@@ -505,6 +505,67 @@ describe("parseReceiptText", () => {
     expect(result.riskSignals.taxAmounts).toEqual([37]);
   });
 
+  it("keeps split discounts and marker-prefixed amounts aligned with their supermarket items", () => {
+    const result = parseReceiptText(`
+      SAMPLE MARKET
+      サンプル新田店
+      2026年08月15日 (土) 12:01
+      01 *商品A (カット) ¥99
+      01 商品B (パック) 特 ¥359
+      04 *商品C ¥470
+      ★*05|(10%)
+      04 商品D (メガ)
+      -47
+      ¥857
+      05 商品E ¥299
+      05 *商品F ¥399
+      05 商品G ¥199
+      06 商品H
+      ¥199
+      06 商品I
+      ¥99
+      ¥299
+      06 * {} 商品J
+      07 商品K 特 ¥168
+      (084 x 2個)
+      07 商品L
+      07 *] 商品M
+      特 ¥659
+      ¥399
+      07 *] 商品N 特 ¥299
+      07 *] 商品N 特 ¥299
+      07 *商品O ¥139
+      小計
+      17点 ¥5,195
+      税込金額合計 ¥5,610
+      8%税抜対象額 ¥5,195
+      8%税額 ¥415
+      お買上計 ¥5,610
+    `);
+
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["商品A (カット)", 99],
+      ["商品B (パック) 特", 359],
+      ["商品C", 470],
+      ["割引(10%)", -47],
+      ["商品D (メガ)", 857],
+      ["商品E", 299],
+      ["商品F", 399],
+      ["商品G", 199],
+      ["商品H", 199],
+      ["商品I", 99],
+      ["商品J", 299],
+      ["商品K 特", 168],
+      ["商品L", 659],
+      ["商品M", 399],
+      ["商品N 特", 299],
+      ["商品N 特", 299],
+      ["商品O", 139],
+    ]);
+    expect(result.lineItemCandidates.reduce((sum, candidate) => sum + candidate.amount, 0)).toBe(5195);
+    expect(result.riskSignals.taxAmounts).toEqual([415]);
+  });
+
   it("ignores department codes and gram notation when pairing split supermarket rows", () => {
     const result = parseReceiptText(`
       SAMPLE MARKET
