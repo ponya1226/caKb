@@ -74,6 +74,8 @@ const REVIEW_REASON_CODES = [
   "merchant_conflict",
   "category_unresolved",
   "line_items_inconsistent",
+  "line_items_inferred",
+  "line_items_ambiguous",
   "batch_flow",
   "unknown",
 ] as const satisfies readonly ReceiptQualityReviewReasonCode[];
@@ -94,6 +96,8 @@ export const RECEIPT_QUALITY_REVIEW_REASON_LABELS = {
   merchant_conflict: "店舗名の候補が競合",
   category_unresolved: "カテゴリを判断できない",
   line_items_inconsistent: "品目合計に差がある",
+  line_items_inferred: "小計から品目金額を推定",
+  line_items_ambiguous: "品目と金額の対応が曖昧",
   batch_flow: "複数枚のため確認",
   unknown: "判定情報が不足",
 } satisfies Record<ReceiptQualityReviewReasonCode, string>;

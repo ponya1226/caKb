@@ -14,7 +14,7 @@ const MAX_AUTOMATIC_TOTAL = 1_000_000;
 const MAX_RECEIPT_AGE_YEARS = 10;
 const MAX_FUTURE_DAYS = 1;
 
-export const RECEIPT_CONFIDENCE_POLICY_VERSION = "receipt-confidence-v2";
+export const RECEIPT_CONFIDENCE_POLICY_VERSION = "receipt-confidence-v3";
 
 type ReceiptConfidenceInput = {
   ocrText: string;
@@ -152,6 +152,12 @@ export function assessReceiptConfidence({
   const categoryResolved = Boolean(categorySuggestion?.categoryId && categorySuggestion.source);
   const lineItemReconciliation = reconcileLineItems(parseResult);
   const lineItemConsistency = lineItemReconciliation.consistency;
+  const inferredLineItems = parseResult.lineItemCandidates.some(
+    (candidate) => candidate.extractionMethod === "subtotal_residual",
+  );
+  const ambiguousLineItems = parseResult.lineItemCandidates.some(
+    (candidate) => candidate.extractionMethod === "ambiguous_pair",
+  );
 
   if (!ocrSucceeded) {
     addReason(reasons, { code: "ocr_failed", message: "読み取れた文字が不足しています", severity: "blocking" });
@@ -193,6 +199,20 @@ export function assessReceiptConfidence({
       severity: "blocking",
     });
   }
+  if (inferredLineItems) {
+    addReason(reasons, {
+      code: "line_items_inferred",
+      message: "小計から推定した品目を確認してください",
+      severity: "blocking",
+    });
+  }
+  if (ambiguousLineItems) {
+    addReason(reasons, {
+      code: "line_items_ambiguous",
+      message: "品目と金額の対応を確認してください",
+      severity: "blocking",
+    });
+  }
 
   const signals = {
     ocrSucceeded,
@@ -205,6 +225,8 @@ export function assessReceiptConfidence({
     suspiciousBalanceCandidate,
     lineItemConsistency,
     lineItemMatchBasis: lineItemReconciliation.matchBasis,
+    inferredLineItems,
+    ambiguousLineItems,
   };
   const canAutoSave =
     ocrSucceeded &&
@@ -212,7 +234,9 @@ export function assessReceiptConfidence({
     dateResolved &&
     merchantResolved &&
     categoryResolved &&
-    lineItemConsistency !== "inconsistent";
+    lineItemConsistency !== "inconsistent" &&
+    !inferredLineItems &&
+    !ambiguousLineItems;
 
   return {
     policyVersion: RECEIPT_CONFIDENCE_POLICY_VERSION,

@@ -14,6 +14,7 @@ import {
 
 const POLICY_V1 = "receipt-confidence-v1";
 const POLICY_V2 = "receipt-confidence-v2";
+const POLICY_V3 = "receipt-confidence-v3";
 
 class MemoryStorage implements ReceiptQualityMetricsStorage {
   private readonly values = new Map<string, string>();
@@ -121,14 +122,29 @@ describe("receiptQualityMetrics", () => {
       policyVersion: POLICY_V2,
       reasonCodes: ["total_uncertain"],
     }, "2026-08");
+    recordReceiptQualityEvent(storage, scopeKey, {
+      type: "decision",
+      decision: "needsReview",
+      policyVersion: POLICY_V3,
+      reasonCodes: ["line_items_inferred", "line_items_ambiguous"],
+    }, "2026-08");
 
     const summary = getReceiptQualitySummary(storage, scopeKey, "2026-08");
-    expect(summary.processed).toBe(2);
-    expect(summary.autoSaveRate).toBe(0.5);
+    expect(summary.processed).toBe(3);
+    expect(summary.autoSaveRate).toBe(1 / 3);
+    expect(summary.reviewReasons).toMatchObject({
+      line_items_inferred: 1,
+      line_items_ambiguous: 1,
+    });
     expect(summary.policySummaries).toEqual([
       expect.objectContaining({ policyVersion: POLICY_V1, processed: 1, autoSaved: 1 }),
       expect.objectContaining({ policyVersion: POLICY_V2, processed: 1, needsReview: 1 }),
+      expect.objectContaining({ policyVersion: POLICY_V3, processed: 1, needsReview: 1 }),
     ]);
+
+    const report = formatReceiptQualityReport(summary);
+    expect(report).toContain("小計から品目金額を推定: 1件");
+    expect(report).toContain("品目と金額の対応が曖昧: 1件");
   });
 
   it("reads version one counters as legacy and migrates them on the next write", () => {

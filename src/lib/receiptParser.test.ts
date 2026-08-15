@@ -479,6 +479,9 @@ describe("parseReceiptText", () => {
     expect(lineItemMap.get("割引(20%)")).toBe(-60);
     expect(lineItemMap.get("生椎茸得用 (菌床)")).toBe(299);
     expect(result.lineItemCandidates.reduce((sum, candidate) => sum + candidate.amount, 0)).toBe(5699);
+    expect(result.lineItemCandidates.filter(
+      (candidate) => candidate.extractionMethod === "subtotal_residual",
+    )).toHaveLength(1);
     expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toEqual(
       expect.arrayContaining([455, 6154, 10000, 3846]),
     );
@@ -501,6 +504,10 @@ describe("parseReceiptText", () => {
     expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
       ["サンプル商品A", 99],
       ["サンプル商品B", 359],
+    ]);
+    expect(result.lineItemCandidates.map((candidate) => candidate.extractionMethod)).toEqual([
+      "same_line",
+      "same_line",
     ]);
     expect(result.riskSignals.taxAmounts).toEqual([37]);
   });

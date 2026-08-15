@@ -716,6 +716,7 @@ function reconcileUnmatchedLineItem(
       amount: residual,
       line: `${unmatchedProducts[0].line} / 小計差分`,
       confidence: 0.52,
+      extractionMethod: "subtotal_residual",
     },
   ];
 }
@@ -789,6 +790,7 @@ function inferSingleReceiptLineItem(
       amount: totalAmount,
       line: `${product.line} / 1点・合計から補完`,
       confidence: 0.58,
+      extractionMethod: "single_item_total",
     },
   ];
 }
@@ -839,6 +841,7 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
       suppressNextAmountOnlyLine = false;
       const pendingName = isPotentialSplitLineItemNameLine(line) ? createPendingLineItemName(line) : null;
       if (pendingName) {
+        const hasMultiplePendingAmounts = pendingAmounts.length > 1;
         const pendingAmount = pendingAmounts.shift();
         if (pendingAmount && pendingName.hasItemCode) {
           candidates.push({
@@ -846,6 +849,7 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
             amount: pendingAmount.amount,
             line: `${pendingAmount.line} / ${pendingName.line}`,
             confidence: pendingAmount.confidence,
+            extractionMethod: hasMultiplePendingAmounts ? "ambiguous_pair" : "amount_before_name",
           });
           return;
         }
@@ -883,6 +887,7 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
         amount: match.amount,
         line: `${discountName.line} / ${normalizeText(line).trim()}`,
         confidence: Math.max(0.72, getLineItemConfidence(line, match) - 0.04),
+        extractionMethod: "discount_pair",
       });
       pendingDiscountName = null;
       return;
@@ -892,6 +897,7 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
       pendingNames.length > 0 &&
       isLineItemAmountOnlyLine(line, match)
     ) {
+      const hasMultiplePendingNames = pendingNames.length > 1;
       const pendingName = pendingNames.shift();
       if (!pendingName) {
         return;
@@ -902,6 +908,7 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
         amount: match.amount,
         line: `${pendingName.line} / ${normalizeText(line).trim()}`,
         confidence: Math.max(0.72, getLineItemConfidence(line, match) - 0.04),
+        extractionMethod: hasMultiplePendingNames ? "ambiguous_pair" : "name_before_amount",
       });
       return;
     }
@@ -931,6 +938,7 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
       amount: match.amount,
       line: normalizeText(line).trim(),
       confidence: getLineItemConfidence(line, match),
+      extractionMethod: "same_line",
     });
   });
 
