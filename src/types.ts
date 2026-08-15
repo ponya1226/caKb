@@ -207,11 +207,21 @@ export type ReceiptParseRiskSignals = {
   taxAmounts?: number[];
 };
 
+export type ReceiptLineItemExtractionMethod =
+  | "same_line"
+  | "name_before_amount"
+  | "amount_before_name"
+  | "discount_pair"
+  | "subtotal_residual"
+  | "single_item_total"
+  | "ambiguous_pair";
+
 export type ReceiptLineItemCandidate = {
   name: string;
   amount: number;
   line: string;
   confidence: number;
+  extractionMethod?: ReceiptLineItemExtractionMethod;
 };
 
 export type ReceiptCategorySuggestion = {
@@ -240,6 +250,8 @@ export type ReceiptConfidenceSignals = {
   suspiciousBalanceCandidate: boolean;
   lineItemConsistency: ReceiptLineItemConsistency;
   lineItemMatchBasis?: ReceiptLineItemMatchBasis;
+  inferredLineItems?: boolean;
+  ambiguousLineItems?: boolean;
 };
 
 export type ReceiptConfidenceReasonCode =
@@ -255,7 +267,9 @@ export type ReceiptConfidenceReasonCode =
   | "merchant_uncertain"
   | "merchant_conflict"
   | "category_unresolved"
-  | "line_items_inconsistent";
+  | "line_items_inconsistent"
+  | "line_items_inferred"
+  | "line_items_ambiguous";
 
 export type ReceiptConfidenceReason = {
   code: ReceiptConfidenceReasonCode;

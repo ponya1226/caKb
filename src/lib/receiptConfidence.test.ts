@@ -43,6 +43,8 @@ describe("assessReceiptConfidence", () => {
       categoryResolved: true,
       lineItemConsistency: "consistent",
       lineItemMatchBasis: "line_items_plus_tax_equal_total",
+      inferredLineItems: false,
+      ambiguousLineItems: false,
     });
   });
 
@@ -195,6 +197,51 @@ describe("assessReceiptConfidence", () => {
     expect(result.signals.lineItemMatchBasis).toBe("mismatch");
     expect(result.decision).toBe("needsReview");
     expect(result.reasons.map((reason) => reason.code)).toContain("line_items_inconsistent");
+  });
+
+  it("requires review when a subtotal residual was used even if the totals reconcile", () => {
+    const result = assess(`
+      SAMPLE MARKET
+      サンプル新田店
+      2026年08月08日 12:01
+      01 商品A ¥100
+      01 商品B
+      小計 2点 ¥300
+      外税8% ¥24
+      合計 ¥324
+    `);
+
+    expect(result.signals.lineItemConsistency).toBe("consistent");
+    expect(result.signals.lineItemMatchBasis).toBe("line_items_plus_tax_equal_total");
+    expect(result.signals.inferredLineItems).toBe(true);
+    expect(result.decision).toBe("needsReview");
+    expect(result.reasons).toContainEqual(expect.objectContaining({
+      code: "line_items_inferred",
+      severity: "blocking",
+    }));
+  });
+
+  it("requires review when multiple pending names make amount pairing ambiguous", () => {
+    const result = assess(`
+      SAMPLE MARKET
+      サンプル新田店
+      2026年08月08日 12:01
+      01 商品A
+      01 商品B
+      ¥100
+      ¥200
+      小計 2点 ¥300
+      外税8% ¥24
+      合計 ¥324
+    `);
+
+    expect(result.signals.lineItemConsistency).toBe("consistent");
+    expect(result.signals.ambiguousLineItems).toBe(true);
+    expect(result.decision).toBe("needsReview");
+    expect(result.reasons).toContainEqual(expect.objectContaining({
+      code: "line_items_ambiguous",
+      severity: "blocking",
+    }));
   });
 
   it("keeps line item consistency unknown when no item was extracted", () => {

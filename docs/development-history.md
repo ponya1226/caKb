@@ -1,5 +1,31 @@
 # Development History
 
+## 2026-08-15 Line-item Extraction Evidence Gate
+
+目的: 品目合計が算術的に一致していても、小計差分による補完や複数候補の曖昧な対応をHigh confidenceとして自動保存しない。
+
+主な変更:
+
+- ADR 0021を追加し、品目候補へ同一行、前後行、割引、小計差分、単品補完、曖昧対応の `extractionMethod` を追加
+- 小計差分補完と複数候補の曖昧対応を別々のblocking理由として要確認へ送る `receipt-confidence-v3` を導入
+- 品目合計と税額が総額に一致する場合でも、危険な取得根拠があれば自動保存しない回帰テストを追加
+- 匿名品質集計へ小計差分補完と曖昧対応の理由コード・表示名を追加し、v1、v2、v3を分離
+- Firestore、確定済み支出、CSV、バックアップ、Google Sheetsの保存schemaは変更せず、旧要確認データとの互換性を維持
+
+検証結果:
+
+- `npm run lint`: 成功
+- `npm run test`: 27ファイル、133件成功
+- `npm run build`: 成功。Firebase import構成と約1,018KBのmain chunkに関する既知警告のみ
+- `npm.cmd run test:e2e`: mobile Chromium 12件成功
+- `git diff --check`: 成功
+
+残課題:
+
+- `receipt-confidence-v3` の理由別件数を家族端末で確認し、曖昧対応の不要な要確認率を評価する
+- `receiptParser.ts` を正規化、領域分類、行対応、整合性判定へ分割し、利用頻度の高いPOS形式からプロファイル化する
+- POS形式ごとの正解fixture群と品目完全一致率、適合率、再現率、誤High件数を計測する仕組みは未実装
+
 ## 2026-08-15 Split Discount And Duplicate Line Items
 
 目的: 食品スーパーのOCRで割引と商品価格が別行になり、同一商品を複数購入した場合でも、印字された品目合計を欠落なく復元する。
