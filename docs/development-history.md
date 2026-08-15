@@ -1,5 +1,34 @@
 # Development History
 
+## 2026-08-16 Shared Receipt Quality Corpus
+
+目的: レシートごとの例外修正から、主要形式を同じ正解データと指標で継続評価する開発方式へ移行する。
+
+主な変更:
+
+- コンビニ、スーパー、専門店、食品スーパー、部分失敗を含む11件の匿名共有コーパスを追加
+- 総額一致率、品目完全一致率、品目適合率・再現率、誤High件数、不要な要確認件数を集計する純粋関数を追加
+- `npm run test:receipt-quality` を追加し、全fixtureの総額・品目・Confidence判定と誤High 0件をリリースゲート化
+- 個別の回帰テストを共有コーパス参照へ統合し、新しい修正で既存レイアウト群をまとめて検証できる構成へ変更
+- コーパスから、外税の課税対象額を税額として重複加算する不要な要確認を検出し、課税対象額と税込金額を税額抽出から除外
+- 判定ルールを `receipt-confidence-v4` へ更新し、端末内品質集計で旧versionと分離
+- Firestore、IndexedDB、支出、要確認Inbox、バックアップ、CSV、Google Sheetsの保存schemaは変更なし
+
+検証結果:
+
+- 共有コーパス11件: 総額一致率100%、品目完全一致率100%、品目適合率100%、品目再現率100%、誤High 0件、不要な要確認0件
+- `npm run lint`: 成功
+- `npm run test`: 28ファイル、140件成功
+- `npm run test:receipt-quality`: 2件成功
+- `npm run build`: 成功。Firebase import構成と約1,018KBのmain chunkに関する既知警告のみ
+- `npm.cmd run test:e2e`: mobile Chromium 12件成功
+
+残課題:
+
+- 共有コーパスは11件から開始しており、家族が利用するPOS形式とOCR崩れを継続追加する必要がある
+- `receiptParser.ts` の正規化、領域分類、行対応、整合性判定を段階分割し、食品スーパー形式を最初のレイアウトプロファイルとして切り出す
+- `receipt-confidence-v4` の要確認率と理由別件数を家族端末で確認し、テストコーパスとの乖離を評価する
+
 ## 2026-08-15 Line-item Extraction Evidence Gate
 
 目的: 品目合計が算術的に一致していても、小計差分による補完や複数候補の曖昧な対応をHigh confidenceとして自動保存しない。

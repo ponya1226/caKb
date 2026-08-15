@@ -103,7 +103,9 @@ Firebase client configは `VITE_FIREBASE_*` 環境変数から読み取ります
 - `receiptOcr.ts`: 利用画面向けの単一入口、進捗表示、設定有無の判定
 - `googleVisionOcr.ts`: 自前Proxyへの画像送信、レスポンス検証、安全なエラー変換
 
-OCR全文を取得した後は `receiptParser.ts` で日付、店舗名、金額候補、残高リスク、品目とは分離した税額を抽出し、`receiptConfidence.ts` が説明可能な信号から自動保存可否を決めます。品目候補には同一行、前後行、割引、小計差分、単品補完、曖昧対応の取得方式を付けます。品目合計が総額、または品目合計と印字税額の合算が総額と完全一致しない場合に加え、小計差分補完または曖昧対応を含む場合も要確認にします。High confidenceの単体レシートは `useBudgetData` 経由で自動保存し、Lowまたはuncertainだけを既存確認画面へ送ります。Lowまたはuncertainは `usePendingReceiptReviews` を通して撮影端末のInboxへ最大7日一時保存し、ホームから復元します。Proxyが返す単語と座標を使い、`receiptParser.ts` が同じ高さの単語を左から右へ並べ直して品目名と金額を対応付けます。単語座標がない場合はOCR全文による解析へ戻ります。Confidenceと理由は一時Inboxで保持し、支出・Firestoreの保存schemaは変更しません。
+OCR全文を取得した後は `receiptParser.ts` で日付、店舗名、金額候補、残高リスク、品目とは分離した税額を抽出し、`receiptConfidence.ts` が説明可能な信号から自動保存可否を決めます。課税対象額や税込金額は税額から除外します。品目候補には同一行、前後行、割引、小計差分、単品補完、曖昧対応の取得方式を付けます。品目合計が総額、または品目合計と印字税額の合算が総額と完全一致しない場合に加え、小計差分補完または曖昧対応を含む場合も要確認にします。High confidenceの単体レシートは `useBudgetData` 経由で自動保存し、Lowまたはuncertainだけを既存確認画面へ送ります。Lowまたはuncertainは `usePendingReceiptReviews` を通して撮影端末のInboxへ最大7日一時保存し、ホームから復元します。Proxyが返す単語と座標を使い、`receiptParser.ts` が同じ高さの単語を左から右へ並べ直して品目名と金額を対応付けます。単語座標がない場合はOCR全文による解析へ戻ります。Confidenceと理由は一時Inboxで保持し、支出・Firestoreの保存schemaは変更しません。
+
+解析品質は `receiptQualityFixtures.ts` の匿名共有コーパスを正本として、`receiptQualityEvaluation.ts` で総額一致率、品目完全一致率、品目適合率・再現率、誤High件数、不要な要確認件数を集計します。`npm run test:receipt-quality` は誤High 0件と現在サポートするfixtureの期待値をリリースゲートとして検証します。この評価はテスト時だけ実行し、実レシート、支出データ、利用者情報を保存または外部送信しません。
 
 実際の自動保存、要確認、Undo、要確認保存時の総額変更、破棄は `useReceiptQualityMetrics` を通してhousehold別・月別・Confidence判定ルール別の件数へ集計します。集計は最新12か月を `localStorage` に保持し、店舗名、日付、金額、品目、画像、OCR全文、支出ID、household ID、利用者識別子を表示・コピー対象に含めません。旧v1集計は `legacy` 判定ルールとして読み、次回記録時にv2へ移行します。アカウント画面ではmemberを含む利用者が撮影端末の過去月を閲覧して匿名集計文をコピーでき、household ownerだけが消去できます。Firestore、バックアップ、CSV、Google Sheets、外部ログへは自動送信しません。詳細はADR 0016と0017に従います。
 

@@ -16,6 +16,7 @@
     "lint": "tsc --noEmit",
     "lint:e2e": "tsc --noEmit -p tsconfig.e2e.json",
     "test": "vitest run src",
+    "test:receipt-quality": "vitest run src/lib/receiptQualityCorpus.test.ts",
     "test:deploy-scripts": "node --test tests/deploy/*.test.mjs",
     "test:e2e": "npm run lint:e2e && npm run build && playwright test",
     "test:e2e:deployed": "npm run lint:e2e && playwright test tests/e2e/app-smoke.spec.ts",

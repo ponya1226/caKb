@@ -23,6 +23,7 @@ const LINE_ITEM_TAX_SUMMARY_PATTERN =
   /\d+\s*%\s*(?:内|外)?税(?:額)?(?:\s|$)|\d+\s*%\s*(?:内|外)?税\s*対象|税込金額|税抜対象額/i;
 const TAX_AMOUNT_KEYWORD_PATTERN =
   /(消\s*費\s*税(?:等|額)?|内\s*消\s*費\s*税(?:等|額)?|外\s*税(?:額)?|\d+\s*%\s*(?:内|外)?税(?:額)?(?!抜|込|対象))/i;
+const TAX_BASE_AMOUNT_PATTERN = /(対\s*象\s*額|税\s*込\s*金\s*額|税\s*抜\s*金\s*額)/i;
 const QUANTITY_AMOUNT_CONTEXT_PATTERN = /(g|ｇ|kg|㎏|ml|mL|ＭＬ|枚|個|本|点|袋|パック|連|P|ｐ)$/i;
 const MAX_LINE_ITEM_CANDIDATES = 50;
 
@@ -477,7 +478,7 @@ function extractBalanceAmounts(lines: string[]): number[] {
 function extractTaxAmounts(lines: string[]): number[] {
   return lines.flatMap((line, index) => {
     const normalizedLine = normalizeText(line);
-    if (!TAX_AMOUNT_KEYWORD_PATTERN.test(normalizedLine)) {
+    if (!TAX_AMOUNT_KEYWORD_PATTERN.test(normalizedLine) || TAX_BASE_AMOUNT_PATTERN.test(normalizedLine)) {
       return [];
     }
 

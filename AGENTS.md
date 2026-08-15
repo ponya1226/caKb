@@ -48,6 +48,7 @@ npm run dev
 ```powershell
 npm run lint
 npm run test
+npm run test:receipt-quality
 npm run build
 npm run test:e2e
 ```
@@ -74,6 +75,7 @@ npm run test:e2e
 - 既存の型、Repository、UIパターンに合わせる。
 - OCR精度を断定しない。High confidenceだけを自動保存し、Lowまたはuncertainは必ず確認画面へ送る。無条件自動保存は禁止する。
 - Confidenceは不透明な数値だけにせず、総額、日付、店舗、カテゴリ、競合金額、残高、品目整合性などの根拠を型で説明可能にする。
+- レシート解析またはConfidence判定を変更する場合は、匿名の共有コーパスへ正解値を追加または更新し、総額、品目、判定を全fixtureで評価する。誤った自動保存件数0を必須条件とする。
 - 品目明細は付加情報とする。ただし品目候補が1件以上ある場合は、品目合計が総額または印字税額加算後の総額と完全一致しなければ要確認へ送る。小計差分から補完した品目、または複数候補を印字順だけで対応付けた品目がある場合は、算術一致しても要確認へ送る。品目候補が0件の場合は `unknown` とし、それだけで一律に要確認へ落とさない。
 - 要確認レシートはADR 0015に従い、この端末だけに最大7日一時保存する。Firestore、バックアップ、ログへ含めない。
 - 自動保存品質の評価はADR 0016と0017に従い、月別・判定ルール別の件数と理由コードだけを端末内に保存する。レシート内容、金額、支出ID、利用者識別子を集計処理へ渡さず、利用者が明示的にコピーした匿名集計以外は外部へ送らない。
@@ -102,6 +104,7 @@ npm run test:e2e
 ```powershell
 npm run lint
 npm run test
+npm run test:receipt-quality
 npm run build
 npm run test:e2e
 ```
