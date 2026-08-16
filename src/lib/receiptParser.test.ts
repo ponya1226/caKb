@@ -193,7 +193,7 @@ describe("parseReceiptText", () => {
     expect(result.amountCandidates[0]?.value).toBe(481);
   });
 
-  it("prioritizes total over cash tendered and excludes change amounts", () => {
+  it("excludes cash tendered and change amounts after an explicit total", () => {
     const result = parseReceiptText(`
       SAMPLE MARKET
       サンプル団地店
@@ -223,9 +223,7 @@ describe("parseReceiptText", () => {
     expect(result.dateCandidates[0]?.value).toBe("2026-07-05");
     expect(result.amountCandidates[0]?.value).toBe(170);
     expect(result.amountCandidates.map((candidate) => candidate.value)).not.toContain(850);
-    expect(result.amountCandidates.find((candidate) => candidate.value === 1020)?.confidence).toBeLessThan(
-      result.amountCandidates[0]?.confidence ?? 0,
-    );
+    expect(result.amountCandidates.map((candidate) => candidate.value)).not.toContain(1020);
   });
 
   it("excludes electronic money balance when total label and amount are split by tax lines", () => {
