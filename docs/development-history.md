@@ -1,5 +1,34 @@
 # Development History
 
+## 2026-08-16 Grocery POS Profile And Line Item Association
+
+目的: 家族が利用する食品スーパーの長い品目列を店舗別例外なしで安定して対応付け、品目解析を段階的に改善できる責務へ分割する。
+
+主な変更:
+
+- 2桁部門コード付き商品行が3件以上あり、`小計 N点`が明示された形式を選ぶ `department-coded-grocery` profileを追加
+- profileは店舗名・支店名を参照せず、非該当形式は既存のgeneric解析へfallback
+- profileの品目名待機数を印字された小計点数に合わせて4〜30件へ調整し、長い名前列の後に金額列が続く形式を順序どおり対応
+- 品目名・金額の待機と対応を `receiptLineItemAssociation.ts`、OCR全文候補と座標候補の整合性選択を `receiptLineItemSelection.ts` へ分離
+- 5品目の名前列と金額列が分離した匿名fixtureを追加し、共有品質コーパスを17件へ拡張
+- 対応キューの順序と上限、候補選択の小計・点数比較、profile検出を独立した単体テストで固定
+- Firestore、IndexedDB、支出、要確認Inbox、バックアップ、CSV、Google Sheetsの保存schemaは変更なし。既存方針内の内部分割のためADR追加なし
+
+検証結果:
+
+- `npm.cmd run lint`: 成功
+- `npm.cmd run test`: 33ファイル、162件成功
+- `npm.cmd run test:receipt-quality`: 匿名コーパス17件、構造特徴10種、各精度指標100%、決済後数値混入0件、誤High 0件
+- `npm.cmd run build`: 成功。Firebase import構成と約1,020KBのmain chunkに関する既知警告のみ
+- `npm.cmd run test:e2e`: mobile Chromium 12件成功
+- `git diff --check`: 成功
+
+残課題:
+
+- `receiptParser.ts` に品目行分類、小計差分補完、列順補完が残っている
+- 家族端末で食品スーパーprofileの品目順と要確認率を確認し、profile適用根拠を個人情報なしの診断情報へ追加する
+- 次のPOS profileは実際の家族利用fixtureが複数集まった形式に限定する
+
 ## 2026-08-16 Receipt Structure Module Extraction
 
 目的: レシート構造の判定根拠を単一fixtureや巨大なparser実装へ依存させず、一般的な構造境界を独立して検証・改善できるようにする。
