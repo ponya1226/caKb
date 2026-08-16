@@ -20,6 +20,8 @@ const RECEIPT_MARKER_PATTERN = /(領\s*収\s*[証書]|レシート)/i;
 const LINE_ITEM_NAME_EXCLUDE_PATTERN = /^[\s\-_=*※¥\d,.()（）[\]【】「」'"#]+$/;
 const AMOUNT_SECTION_LABEL_PATTERN =
   /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|残\s*高|利用\s*可能\s*額|お\s*買\s*上\s*計|交通\s*系\s*マネー|電子\s*マネー|クレジット|カード)/i;
+const LINE_ITEM_SUMMARY_BOUNDARY_PATTERN =
+  /^\s*(?:小\s*計|合\s*計|現\s*計|総\s*合\s*計|税\s*込\s*金\s*額\s*合\s*計|お\s*買\s*上\s*計)(?:\s|¥|$)/i;
 const LINE_ITEM_DISCOUNT_PATTERN = /(割\s*引|値\s*引)/i;
 const LINE_ITEM_TAX_SUMMARY_PATTERN =
   /\d+\s*%\s*(?:内|外)?税(?:額)?(?:\s|$)|\d+\s*%\s*(?:内|外)?税\s*対象|税込金額|税抜対象額/i;
@@ -279,6 +281,7 @@ function isPlainAmountMatchSkippable(line: string, match: RegExpMatchArray): boo
   const before = line[index - 1] ?? "";
   const after = line[index + token.length] ?? "";
   const beforeToken = line.slice(0, index).trim();
+  const isLeadingItemCode = /^#?\d{1,4}\s+\S/.test(line) && /^#?$/.test(beforeToken);
 
   return (
     after === "%" ||
@@ -286,7 +289,7 @@ function isPlainAmountMatchSkippable(line: string, match: RegExpMatchArray): boo
     /[A-Za-z]/.test(after) ||
     QUANTITY_AMOUNT_CONTEXT_PATTERN.test(beforeToken) ||
     QUANTITY_AMOUNT_CONTEXT_PATTERN.test(after.trimStart().slice(0, 2)) ||
-    (index === 0 && /^\d{1,4}\s+\S/.test(line))
+    isLeadingItemCode
   );
 }
 
@@ -887,6 +890,7 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
   const unmatchedNames: PendingLineItemName[] = [];
   let pendingDiscountName: PendingLineItemName | null = null;
   let suppressNextAmountOnlyLine = false;
+  let reachedSummaryBoundary = false;
 
   function clearPendingNamesAsUnmatched() {
     pendingNames
@@ -896,6 +900,20 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
   }
 
   lines.forEach((line) => {
+    const normalizedLine = normalizeText(line);
+    if (reachedSummaryBoundary) {
+      return;
+    }
+
+    if (LINE_ITEM_SUMMARY_BOUNDARY_PATTERN.test(normalizedLine)) {
+      clearPendingNamesAsUnmatched();
+      pendingAmounts.length = 0;
+      pendingDiscountName = null;
+      suppressNextAmountOnlyLine = false;
+      reachedSummaryBoundary = true;
+      return;
+    }
+
     if (shouldSkipLineItemLine(line)) {
       clearPendingNamesAsUnmatched();
       pendingAmounts.length = 0;
@@ -904,7 +922,6 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
       return;
     }
 
-    const normalizedLine = normalizeText(line);
     if (isDiscountMarkerLine(normalizedLine)) {
       pendingDiscountName = createPendingDiscountName(line);
       suppressNextAmountOnlyLine = false;
@@ -1030,6 +1047,77 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
   const columnReconciledCandidates = reconcileColumnOrderedLineItems(candidates, unmatchedNames, lines);
   const reconciledCandidates = reconcileUnmatchedLineItem(columnReconciledCandidates, unmatchedNames, lines);
   return inferSingleReceiptLineItem(reconciledCandidates, lines).slice(0, MAX_LINE_ITEM_CANDIDATES);
+}
+
+type LineItemCandidateEvidence = {
+  declaredCountDistance: number | null;
+  subtotalDifference: number | null;
+  matchedSignalCount: number;
+};
+
+function getLineItemCandidateEvidence(
+  candidates: ReceiptLineItemCandidate[],
+  declaredItemCount: number | null,
+  subtotal: number | null,
+): LineItemCandidateEvidence {
+  const productCount = candidates.filter(
+    (candidate) => candidate.amount > 0 && !isDiscountLineItemName(candidate.name),
+  ).length;
+  const itemTotal = candidates.reduce((sum, candidate) => sum + candidate.amount, 0);
+  const declaredCountDistance = declaredItemCount === null ? null : Math.abs(productCount - declaredItemCount);
+  const subtotalDifference = subtotal === null ? null : Math.abs(itemTotal - subtotal);
+
+  return {
+    declaredCountDistance,
+    subtotalDifference,
+    matchedSignalCount:
+      Number(declaredCountDistance === 0) + Number(subtotalDifference === 0),
+  };
+}
+
+function isLineItemEvidenceBetter(
+  candidate: LineItemCandidateEvidence,
+  current: LineItemCandidateEvidence,
+): boolean {
+  if (candidate.matchedSignalCount !== current.matchedSignalCount) {
+    return candidate.matchedSignalCount > current.matchedSignalCount;
+  }
+
+  if (
+    candidate.subtotalDifference !== null &&
+    current.subtotalDifference !== null &&
+    candidate.subtotalDifference !== current.subtotalDifference
+  ) {
+    return candidate.subtotalDifference < current.subtotalDifference;
+  }
+
+  if (
+    candidate.declaredCountDistance !== null &&
+    current.declaredCountDistance !== null &&
+    candidate.declaredCountDistance !== current.declaredCountDistance
+  ) {
+    return candidate.declaredCountDistance < current.declaredCountDistance;
+  }
+
+  return false;
+}
+
+function selectLineItemCandidates(
+  textCandidates: ReceiptLineItemCandidate[],
+  spatialCandidates: ReceiptLineItemCandidate[],
+  textLines: string[],
+  spatialLines: string[],
+): ReceiptLineItemCandidate[] {
+  if (spatialCandidates.length === 0) {
+    return textCandidates;
+  }
+
+  const declaredItemCount = findReceiptItemCount(spatialLines) ?? findReceiptItemCount(textLines);
+  const subtotal = findLineItemSubtotal(spatialLines) ?? findLineItemSubtotal(textLines);
+  const textEvidence = getLineItemCandidateEvidence(textCandidates, declaredItemCount, subtotal);
+  const spatialEvidence = getLineItemCandidateEvidence(spatialCandidates, declaredItemCount, subtotal);
+
+  return isLineItemEvidenceBetter(textEvidence, spatialEvidence) ? textCandidates : spatialCandidates;
 }
 
 function normalizeShopNameCandidate(line: string): { value: string; confidenceBoost: number } {
@@ -1216,6 +1304,7 @@ export function parseReceiptText(text: string, blocks?: OcrTextBlock[]): Receipt
       ? uniqueCandidates([...spatialAmountCandidates, ...textAmountCandidates]).slice(0, 6)
       : spatialAmountCandidates
     : textAmountCandidates;
+  const textLineItemCandidates = extractLineItemCandidates(lines);
   const spatialLineItemCandidates = spatialLines.length > 0 ? extractLineItemCandidates(spatialLines) : [];
   const spatialTaxAmounts = spatialLines.length > 0 ? extractTaxAmounts(spatialLines) : [];
   const balanceAmounts = [
@@ -1227,8 +1316,12 @@ export function parseReceiptText(text: string, blocks?: OcrTextBlock[]): Receipt
     dateCandidates: extractDateCandidates(lines),
     shopNameCandidates: extractShopNameCandidates(lines),
     amountCandidates,
-    lineItemCandidates:
-      spatialLineItemCandidates.length > 0 ? spatialLineItemCandidates : extractLineItemCandidates(lines),
+    lineItemCandidates: selectLineItemCandidates(
+      textLineItemCandidates,
+      spatialLineItemCandidates,
+      lines,
+      spatialLines,
+    ),
     riskSignals: {
       balanceAmounts,
       taxAmounts: spatialTaxAmounts.length > 0 ? spatialTaxAmounts : extractTaxAmounts(lines),
