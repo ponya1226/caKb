@@ -52,7 +52,20 @@ test("専用test harnessで支出を登録・編集・削除できる", async ({
 });
 
 test("長い品目明細の再編集で入力欄までスクロールできる", async ({ page }) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: "http://127.0.0.1:4174",
+  });
   await page.goto("http://127.0.0.1:4174/tests/e2e/harness/?screen=long-expense-edit");
+
+  const expenseDetails = page.locator("details.expense-details");
+  await expenseDetails.locator("summary").click();
+  await expenseDetails.getByRole("button", { name: "品目・合計をコピー" }).click();
+  const recognitionReport = await page.evaluate(() => navigator.clipboard.readText());
+  expect(recognitionReport).toContain("合計金額: ￥5,610");
+  expect(recognitionReport).toContain("品目: 18件");
+  expect(recognitionReport).toContain("18. サンプル品目18 / ￥117");
+  expect(recognitionReport).toContain("総額との差額: ￥3,657");
+
   await page.getByRole("button", { name: "編集" }).click();
 
   const editDialog = page.getByRole("dialog", { name: "支出の編集" });

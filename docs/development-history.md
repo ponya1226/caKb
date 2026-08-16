@@ -1,5 +1,29 @@
 # Development History
 
+## 2026-08-16 Receipt Recognition Report Copy
+
+目的: OCR全文とは別に、アプリが支出総額と品目明細として解釈した内容を簡単に共有し、品目抽出の不具合を再現・調査しやすくする。
+
+主な変更:
+
+- 合計金額、品目件数、各品目、品目合計、総額との差額を一定形式に整えるコピー用レポートを追加
+- 要確認画面、自動登録直後の通知、保存済み支出の品目詳細へ「品目・合計をコピー」を追加
+- 品目が認識されなかった場合も、合計金額と0件であることをコピーできるように対応
+- Firestore、IndexedDB、支出、要確認Inbox、バックアップ、CSV、Google Sheetsの保存schemaは変更なし。ADR追加対象となる方針変更なし
+
+検証結果:
+
+- `npm run lint`: 成功
+- `npm run test`: 29ファイル、144件成功
+- `npm run build`: 成功。Firebase import構成と約1,020KBのmain chunkに関する既知警告のみ
+- `npm run test:e2e`: mobile Chromium 12件成功
+- スマホ幅の目視確認: 要確認画面、自動登録完了通知、支出一覧のコピー導線に重なり・横overflowなし
+- `git diff --check`: 成功
+
+残課題:
+
+- 実レシートでコピー内容が報告用途に十分か確認し、必要な場合だけ判定理由や取得根拠の追加を検討する
+
 ## 2026-08-16 Home-center Column-order Receipt Parsing
 
 目的: 商品金額列、税欄、会員情報の読み取り順が崩れたホームセンター形式で、支払総額と品目金額を取り違えずに取得する。

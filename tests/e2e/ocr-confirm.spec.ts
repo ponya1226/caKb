@@ -2,6 +2,9 @@ import { expect, test } from "@playwright/test";
 import { expectNoHorizontalOverflow } from "./testUtils";
 
 test("OCR確認画面で候補を修正して保存できる", async ({ page }) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: "http://127.0.0.1:4174",
+  });
   await page.goto("http://127.0.0.1:4174/tests/e2e/harness/");
 
   await expect(page.getByRole("heading", { name: "読み取り結果の確認", level: 1 })).toBeVisible();
@@ -12,6 +15,13 @@ test("OCR確認画面で候補を修正して保存できる", async ({ page }) 
   await expect(shopNameInput).toHaveValue("サンプルストア");
   await expect(amountInputs.first()).toHaveValue("500");
   await expect(page.locator("pre.ocr-text")).toContainText("サンプル商品A 300");
+
+  await page.getByRole("button", { name: "品目・合計をコピー" }).click();
+  const recognitionReport = await page.evaluate(() => navigator.clipboard.readText());
+  expect(recognitionReport).toContain("合計金額: ￥500");
+  expect(recognitionReport).toContain("サンプル商品A / ￥300");
+  expect(recognitionReport).toContain("サンプル商品B / ￥200");
+  expect(recognitionReport).toContain("総額との差額: ￥0");
 
   await shopNameInput.fill("サンプルストア本店");
   await amountInputs.first().fill("550");
