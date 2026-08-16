@@ -31,6 +31,33 @@ describe("parseReceiptText", () => {
     )).toBe(true);
   });
 
+  it("uses the complete text layout when positioned home-center lines omit split prices", () => {
+    const fixture = RECEIPT_QUALITY_FIXTURES.find(
+      ({ id }) => id === "home-center-split-prices-partial-layout",
+    );
+    expect(fixture).toBeDefined();
+    if (!fixture) {
+      return;
+    }
+
+    const result = parseReceiptText(fixture.ocrText, fixture.ocrBlocks);
+
+    expect(result.amountCandidates[0]?.value).toBe(6027);
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual(
+      fixture.expectedLineItems,
+    );
+    expect(result.lineItemCandidates).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "レギュラー" }),
+      ]),
+    );
+
+    const textOnlyResult = parseReceiptText(fixture.ocrText);
+    expect(textOnlyResult.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual(
+      fixture.expectedLineItems,
+    );
+  });
+
   it("extracts date, shop name, and total amount near keywords", () => {
     const result = parseReceiptText(`
       サンプルスーパー

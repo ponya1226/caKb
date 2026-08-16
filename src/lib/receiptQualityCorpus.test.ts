@@ -14,7 +14,7 @@ describe("receipt quality corpus", () => {
 
     expect(decisionMismatches).toEqual([]);
     expect(report.overall).toMatchObject({
-      receiptCount: 12,
+      receiptCount: 13,
       totalAccuracy: 1,
       exactLineItemRate: 1,
       lineItemPrecision: 1,
@@ -37,7 +37,7 @@ describe("receipt quality corpus", () => {
     const report = formatReceiptQualityCorpusReport(evaluateReceiptQualityCorpus(RECEIPT_QUALITY_FIXTURES));
 
     expect(report).toBe([
-      "レシート数: 12",
+      "レシート数: 13",
       "総額一致率: 100.0%",
       "品目完全一致率: 100.0%",
       "品目適合率: 100.0%",
