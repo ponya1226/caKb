@@ -71,6 +71,9 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
       ¥1,494
       カードNo
       SAMPLE-****-****-2760
+      会員ランク
+      レギュラー
+      ¥999
     `,
     expectedTotal: 348,
     expectedLineItems: [["やわらかロングタオルブルー", 348]],
