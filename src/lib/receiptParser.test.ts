@@ -895,6 +895,23 @@ describe("parseReceiptText", () => {
     expect(result.amountCandidates[0]?.value).toBe(1000);
   });
 
+  it("excludes receipt greetings and combines a brand with a phone-suffixed branch line", () => {
+    const result = parseReceiptText(`
+      毎度ありがとうございます。
+      フレッシュフードストア
+      1 文化サンプル
+      架空店 00(0000)9876
+      登録番号 T0000000000000
+      2026年08月16日 18:17
+      合計 ¥2,393
+    `);
+
+    expect(result.shopNameCandidates[0]?.value).toBe("文化サンプル 架空店");
+    expect(result.shopNameCandidates.map((candidate) => candidate.value)).not.toContain(
+      "毎度ありがとうございます。",
+    );
+  });
+
   it("prefers a Japanese brand line over an English logo when building shop candidates", () => {
     const result = parseReceiptText(`
       SAMPLE CONVENIENCE

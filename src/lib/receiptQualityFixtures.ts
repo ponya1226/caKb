@@ -339,6 +339,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     layoutFamily: "grocery",
     structureFeatures: ["item-same-line", "subtotal-tax", "payment", "change"],
     ocrText: `
+      毎度ありがとうございます。
       SAMPLE FOOD STORE
       文化サンプル
       架空店 00(0000)9876
