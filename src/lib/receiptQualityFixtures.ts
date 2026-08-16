@@ -334,6 +334,61 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     expectedDecision: "needsReview",
   },
   {
+    id: "tax-prefixed-grocery-ticket-time",
+    name: "会計券時刻と税区分前置の商品コードを含む食品スーパー",
+    layoutFamily: "grocery",
+    structureFeatures: ["item-same-line", "subtotal-tax", "payment", "change"],
+    ocrText: `
+      SAMPLE FOOD STORE
+      文化サンプル
+      架空店 00(0000)9876
+      登録番号 T0000000000000
+      2026年8月16日 (日) 18:17 #000006
+      005756精算機6
+      2175
+      お会計券 #000104 R4037 18:16
+      005778 担当者
+      外8 0012* 商品A* ¥498
+      外8 0012 商品B ¥298
+      外8 0015 商品C ¥448
+      外8 0021 商品D ¥350
+      外8 0022 商品E ¥320
+      外8 0024 商品F ¥298
+      外10 0041 商品G ¥5
+      小計
+      ¥2,217
+      外税額 8% ¥176
+      外税額 10% ¥0
+      買上点数 7点
+      合計
+      (税率 8%対象額
+      (内消費税等 8%
+      (税率10%対象額
+      ¥2,393
+      ¥2,388)
+      ¥176)
+      ¥5)
+      (内消費税等10%
+      お預り
+      ¥0)
+      ¥2,824
+      お釣り
+      ¥431
+    `,
+    expectedTotal: 2393,
+    expectedLineItems: [
+      ["商品A", 498],
+      ["商品B", 298],
+      ["商品C", 448],
+      ["商品D", 350],
+      ["商品E", 320],
+      ["商品F", 298],
+      ["商品G", 5],
+    ],
+    expectedExcludedAmounts: [16, 9876, 100041, 2824, 431],
+    expectedDecision: "needsReview",
+  },
+  {
     id: "home-center-column-order",
     name: "商品金額列と会員情報が本文末尾へ移動したホームセンター",
     layoutFamily: "home-center",
