@@ -58,6 +58,58 @@ describe("parseReceiptText", () => {
     );
   });
 
+  it("does not resume line item extraction after split totals, payment, or change", () => {
+    const result = parseReceiptText(`
+      SAMPLE STORE
+      サンプル店
+      2026年08月16日 12:00
+      商品A ¥300
+      合
+      計 ¥300
+      現金
+      ¥1,000
+      お釣り
+      ¥700
+      会員ランク
+      レギュラー
+      ¥300
+      次ランクまであと
+      ゴールド
+      ¥10,000
+    `);
+
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["商品A", 300],
+    ]);
+    expect(result.amountCandidates[0]?.value).toBe(300);
+    expect(result.amountCandidates.map((candidate) => candidate.value)).not.toContain(10000);
+  });
+
+  it("does not use amounts after the payable total to reconcile missing line items", () => {
+    const result = parseReceiptText(`
+      SAMPLE STORE
+      サンプル店
+      2026年08月16日 12:00
+      001 商品A ¥100
+      002 商品B
+      0000000000001
+      003 商品C
+      0000000000002
+      小計
+      3点
+      合計 ¥600
+      お釣り ¥400
+      会員ランク
+      ¥200
+      ¥300
+      ¥600
+    `);
+
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["商品A", 100],
+    ]);
+  });
+
   it("extracts date, shop name, and total amount near keywords", () => {
     const result = parseReceiptText(`
       サンプルスーパー

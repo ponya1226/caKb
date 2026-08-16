@@ -1,7 +1,7 @@
 import type { OcrTextBlock, ReceiptCandidate, ReceiptLineItemCandidate, ReceiptParseResult } from "../types";
 
 const FINAL_AMOUNT_KEYWORD_PATTERN =
-  /(合\s*計|現\s*計|お\s*買\s*上\s*計|お\s*買\s*い\s*上\s*げ\s*計|総\s*合\s*計|請\s*求|支\s*払|お\s*支\s*払|Pay\s*Pay|y\s*Pay|^\s*計\s*$)/i;
+  /(合\s*計|現\s*計|お\s*買\s*上\s*計|お\s*買\s*い\s*上\s*げ\s*計|総\s*合\s*計|総\s*計|総\s*額|お\s*会\s*計|ご?\s*請\s*求(?:\s*額)?|支\s*払(?:い)?(?:\s*額)?|お\s*支\s*払(?:い)?(?:\s*額)?|決\s*済\s*額|Pay\s*Pay|y\s*Pay|^\s*計(?:\s*¥?\s*[\d,.\s]+)?\s*$)/i;
 const SUPPORTING_AMOUNT_KEYWORD_PATTERN = /(税\s*込|小\s*計|消\s*費\s*税)/;
 const CASH_TENDERED_KEYWORD_PATTERN = /(現\s*金|お\s*預|預\s*り)/;
 const CHANGE_AMOUNT_KEYWORD_PATTERN = /(お\s*釣|おつり|釣\s*り|釣銭)/;
@@ -20,8 +20,15 @@ const RECEIPT_MARKER_PATTERN = /(領\s*収\s*[証書]|レシート)/i;
 const LINE_ITEM_NAME_EXCLUDE_PATTERN = /^[\s\-_=*※¥\d,.()（）[\]【】「」'"#]+$/;
 const AMOUNT_SECTION_LABEL_PATTERN =
   /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|残\s*高|利用\s*可能\s*額|お\s*買\s*上\s*計|交通\s*系\s*マネー|電子\s*マネー|クレジット|カード)/i;
-const LINE_ITEM_SUMMARY_BOUNDARY_PATTERN =
-  /^\s*(?:小\s*計|合\s*計|現\s*計|総\s*合\s*計|税\s*込\s*金\s*額\s*合\s*計|お\s*買\s*上\s*計)(?:\s|¥|$)/i;
+const RECEIPT_SUBTOTAL_BOUNDARY_PATTERN = /^\s*小\s*計(?:\s|¥|$)/i;
+const RECEIPT_PAYABLE_TOTAL_BOUNDARY_PATTERN =
+  /^\s*(?:合\s*計|総\s*合\s*計|総\s*計|総\s*額|現\s*計|税\s*込\s*金\s*額\s*合\s*計|お\s*買\s*(?:い\s*)?上\s*(?:げ\s*)?計|お\s*会\s*計|ご?\s*請\s*求\s*額|お?\s*支\s*払(?:い)?\s*額|決\s*済\s*額)(?:\s|[:：¥]|$)/i;
+const RECEIPT_PAYMENT_BOUNDARY_PATTERN =
+  /^\s*(?:支\s*払(?:\s*額)?|お\s*支\s*払(?:\s*額)?|現\s*金|お\s*預(?:かり|り)?(?:\s*計)?|預\s*り(?:\s*計)?|交通\s*系\s*マネー|電子\s*マネー|電子\s*決済|クレジット(?:\s*カード)?|カード\s*支払|Pay\s*Pay|QUIC\s*Pay|Suica|PASMO)(?:\s|[:：¥]|$)/i;
+const RECEIPT_POST_PAYMENT_BOUNDARY_PATTERN =
+  /^\s*(?:お\s*釣(?:り)?|おつり|釣\s*り|釣銭|支\s*払\s*後\s*残\s*高|残\s*高|利用\s*可能\s*額)(?:\s|[:：¥]|は|$)/i;
+const RECEIPT_FOOTER_BOUNDARY_PATTERN =
+  /^\s*(?:会員\s*(?:番号|ランク)|ポイント\s*(?:対象|明細|残高)|今回\s*獲得|累計\s*ポイント|次\s*ランク|ランク\s*保証|カード\s*No\.?|クーポン|登録番号|株式会社|上記\s*正に\s*領収|収いたしました)/i;
 const LINE_ITEM_DISCOUNT_PATTERN = /(割\s*引|値\s*引)/i;
 const LINE_ITEM_TAX_SUMMARY_PATTERN =
   /\d+\s*%\s*(?:内|外)?税(?:額)?(?:\s|$)|\d+\s*%\s*(?:内|外)?税\s*対象|税込金額|税抜対象額/i;
@@ -59,6 +66,14 @@ type PendingLineItemAmount = {
   confidence: number;
 };
 
+type ReceiptStructureBoundary =
+  | "subtotal"
+  | "tax"
+  | "payableTotal"
+  | "payment"
+  | "postPayment"
+  | "footer";
+
 type PositionedOcrWord = {
   text: string;
   x: number;
@@ -79,6 +94,63 @@ function normalizeText(value: string): string {
     .replace(/[０-９]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xfee0))
     .replace(/[，、]/g, ",")
     .replace(/[\\￥]/g, "¥");
+}
+
+function isSplitPayableTotal(lines: string[], index: number): boolean {
+  const previous = normalizeText(lines[index - 1] ?? "").replace(/\s/g, "");
+  const current = normalizeText(lines[index] ?? "").replace(/\s/g, "");
+  const next = normalizeText(lines[index + 1] ?? "").replace(/\s/g, "");
+  const splitTotalPattern = /^(?:合計|総合計|総計|現計|お買上計)(?:¥?\d[\d,.]*)?$/;
+  return splitTotalPattern.test(`${current}${next}`) || splitTotalPattern.test(`${previous}${current}`);
+}
+
+function getReceiptStructureBoundary(lines: string[], index: number): ReceiptStructureBoundary | null {
+  const line = normalizeText(lines[index] ?? "").trim();
+
+  if (isSplitPayableTotal(lines, index) || RECEIPT_PAYABLE_TOTAL_BOUNDARY_PATTERN.test(line)) {
+    return "payableTotal";
+  }
+
+  if (RECEIPT_SUBTOTAL_BOUNDARY_PATTERN.test(line)) {
+    return "subtotal";
+  }
+
+  if (
+    LINE_ITEM_TAX_SUMMARY_PATTERN.test(line) ||
+    TAX_AMOUNT_KEYWORD_PATTERN.test(line) ||
+    TAX_TOTAL_KEYWORD_PATTERN.test(line) ||
+    TAX_BASE_AMOUNT_PATTERN.test(line)
+  ) {
+    return "tax";
+  }
+
+  if (RECEIPT_POST_PAYMENT_BOUNDARY_PATTERN.test(line)) {
+    return "postPayment";
+  }
+
+  if (RECEIPT_PAYMENT_BOUNDARY_PATTERN.test(line)) {
+    return "payment";
+  }
+
+  return RECEIPT_FOOTER_BOUNDARY_PATTERN.test(line) ? "footer" : null;
+}
+
+function findAmountCandidateEndIndex(lines: string[]): number {
+  let transactionSummarySeen = false;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const boundary = getReceiptStructureBoundary(lines, index);
+    if (boundary === "subtotal" || boundary === "tax" || boundary === "payableTotal" || boundary === "payment") {
+      transactionSummarySeen = true;
+      continue;
+    }
+
+    if (boundary === "postPayment" || (boundary === "footer" && transactionSummarySeen)) {
+      return index;
+    }
+  }
+
+  return lines.length;
 }
 
 function median(values: number[]): number {
@@ -428,8 +500,9 @@ function getAmountContextLine(lines: string[], index: number): string {
 function extractAmountCandidates(lines: string[]): Array<ReceiptCandidate<number>> {
   const keywordCandidates: Array<ReceiptCandidate<number>> = [];
   const fallbackCandidates: Array<ReceiptCandidate<number>> = [];
+  const candidateLines = lines.slice(0, findAmountCandidateEndIndex(lines));
 
-  lines.forEach((line, index) => {
+  candidateLines.forEach((line, index) => {
     const amounts = extractAmountsFromLine(line);
     if (amounts.length === 0) {
       return;
@@ -738,8 +811,20 @@ function reconcileColumnOrderedLineItems(
     return candidates;
   }
 
-  const trailingAmounts = lines
-    .slice(subtotalIndex + 1)
+  const reconciliationEndIndex = lines.findIndex((line, index) => {
+    if (index <= subtotalIndex) {
+      return false;
+    }
+
+    const boundary = getReceiptStructureBoundary(lines, index);
+    return boundary === "payableTotal" || boundary === "payment" || boundary === "postPayment" || boundary === "footer";
+  });
+  const reconciliationLines = lines.slice(
+    subtotalIndex + 1,
+    reconciliationEndIndex < 0 ? lines.length : reconciliationEndIndex,
+  );
+
+  const trailingAmounts = reconciliationLines
     .flatMap((line): PendingLineItemAmount[] => {
       const matches = extractLineItemAmountMatchesFromLine(line).filter((match) => (
         match.amount > 0 && isLineItemAmountOnlyLine(line, match)
@@ -824,9 +909,7 @@ function findSingleReceiptProductName(lines: string[]): { name: string; line: st
 
   let summaryIndex = -1;
   for (let index = receiptMarkerIndex + 1; index < lines.length; index += 1) {
-    const line = normalizeText(lines[index]).trim();
-    const nextLine = normalizeText(lines[index + 1] ?? "").trim();
-    if ((/^合$/.test(line) && /^計$/.test(nextLine)) || AMOUNT_SECTION_LABEL_PATTERN.test(line)) {
+    if (getReceiptStructureBoundary(lines, index) !== null) {
       summaryIndex = index;
       break;
     }
@@ -899,13 +982,16 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
     pendingNames.length = 0;
   }
 
-  lines.forEach((line) => {
+  lines.forEach((line, index) => {
     const normalizedLine = normalizeText(line);
     if (reachedSummaryBoundary) {
       return;
     }
 
-    if (LINE_ITEM_SUMMARY_BOUNDARY_PATTERN.test(normalizedLine)) {
+    const structureBoundary = getReceiptStructureBoundary(lines, index);
+    const hasLineItemEvidence =
+      candidates.length > 0 || pendingNames.length > 0 || unmatchedNames.length > 0 || pendingDiscountName !== null;
+    if (structureBoundary !== null && (structureBoundary !== "footer" || hasLineItemEvidence)) {
       clearPendingNamesAsUnmatched();
       pendingAmounts.length = 0;
       pendingDiscountName = null;
