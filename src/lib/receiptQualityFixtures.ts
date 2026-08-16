@@ -1,10 +1,13 @@
+import type { OcrTextBlock } from "../types";
+
 export type ReceiptQualityFixtureLineItem = readonly [name: string, amount: number];
 
 export type ReceiptQualityFixture = {
   id: string;
   name: string;
-  layoutFamily: "convenience" | "supermarket" | "specialty" | "grocery" | "partial";
+  layoutFamily: "convenience" | "supermarket" | "specialty" | "grocery" | "home-center" | "partial";
   ocrText: string;
+  ocrBlocks?: OcrTextBlock[];
   expectedTotal: number | null;
   expectedLineItems: readonly ReceiptQualityFixtureLineItem[];
   expectedDecision: "autoSave" | "needsReview";
@@ -17,6 +20,19 @@ const longGroceryProducts = Array.from({ length: 25 }, (_, index) => {
     lineItem: [`商品${itemNumber}`, 100 + index] as const,
   };
 });
+
+function createPositionedReceiptLines(lines: readonly string[]): OcrTextBlock[] {
+  return lines.map((line, index) => ({
+    text: line,
+    granularity: "word",
+    boundingBox: {
+      x: 20,
+      y: 20 + index * 28,
+      width: Math.max(40, line.length * 12),
+      height: 20,
+    },
+  }));
+}
 
 export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
   {
@@ -243,6 +259,106 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     expectedLineItems: [
       ["商品A", 100],
       ["商品B", 200],
+    ],
+    expectedDecision: "needsReview",
+  },
+  {
+    id: "home-center-column-order",
+    name: "商品金額列と会員情報が本文末尾へ移動したホームセンター",
+    layoutFamily: "home-center",
+    ocrText: `
+      SAMPLE HOME
+      ホームセンター サンプル
+      サンプル株式会社
+      登録番号 T0000000000000
+      領収証
+      架空5丁目店 TEL 000-0000-0000
+      2026年 8月16日 (日) 11:12
+      0005 浴用肌洗い ¥698
+      0000000000001
+      #0012 有機むき甘栗 ¥98
+      0000000000002
+      0016 A糸ようじコンパクト ¥598
+      0000000000003
+      0005 足元BM 75IV
+      0000000000004
+      0016 エリエール18R
+      0000000000005
+      0016 リステリンCMO
+      0000000000006
+      小計
+      6点
+      (外税 10.0% 対象額
+      10.0% 消費税等
+      (外税 8.0%対象額
+      8.0% 消費税等
+      外税計
+      ¥1,980
+      ¥928
+      ¥1,180
+      ¥5,482
+      ¥5,384)
+      ¥538
+      ¥98)
+      ¥7
+      ¥545
+      現計
+      ¥6,027
+      お預り
+      ¥10,100
+      お釣り
+      ¥4,073
+      ポイント対象金額
+      今回獲得総ポイント
+      ¥5,482
+      27 P
+      次ランクまであと
+      ¥39,478
+      次ランク
+      ゴールド
+    `,
+    ocrBlocks: createPositionedReceiptLines([
+      "SAMPLE HOME",
+      "ホームセンター サンプル",
+      "サンプル株式会社",
+      "登録番号 T0000000000000",
+      "領収証",
+      "架空5丁目店 TEL 000-0000-0000",
+      "2026年 8月16日 (日) 11:12",
+      "0005 浴用肌洗い ¥698",
+      "0000000000001",
+      "#0012 有機むき甘栗 ¥98",
+      "0000000000002",
+      "0016 A糸ようじコンパクト ¥598",
+      "0000000000003",
+      "0005 足元BM 75IV ¥1,980",
+      "0000000000004",
+      "0016 エリエール18R ¥928",
+      "0000000000005",
+      "0016 リステリンCMO ¥1,180",
+      "0000000000006",
+      "小計 6点 ¥5,482",
+      "(外税 10.0% 対象額 ¥5,384)",
+      "10.0% 消費税等 ¥538",
+      "(外税 8.0%対象額 ¥98)",
+      "8.0% 消費税等 ¥7",
+      "外税計 ¥545",
+      "現計 ¥6,027",
+      "お預り ¥10,100",
+      "お釣り ¥4,073",
+      "ポイント対象金額 ¥5,482",
+      "今回獲得総ポイント 27 P",
+      "次ランクまであと ¥39,478",
+      "次ランク ゴールド",
+    ]),
+    expectedTotal: 6027,
+    expectedLineItems: [
+      ["浴用肌洗い", 698],
+      ["有機むき甘栗", 98],
+      ["A糸ようじコンパクト", 598],
+      ["足元BM 75IV", 1980],
+      ["エリエール18R", 928],
+      ["リステリンCMO", 1180],
     ],
     expectedDecision: "needsReview",
   },
