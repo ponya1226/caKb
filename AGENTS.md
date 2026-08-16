@@ -33,7 +33,7 @@ public/             PWA manifest、service worker、アイコン
 - UIは `hooks` と `lib` を使う。
 - `lib` はReactに依存しない。
 - IndexedDBの詳細は `src/lib/db.ts` に閉じ込める。
-- OCR文字正規化は `src/lib/receiptText.ts`、レシート構造境界は `src/lib/receiptStructure.ts`、候補抽出と品目対応付けは `src/lib/receiptParser.ts` に閉じ込め、画面に正規表現を散らさない。
+- OCR文字正規化は `src/lib/receiptText.ts`、レシート構造境界は `src/lib/receiptStructure.ts`、POS profileは `src/lib/receiptLineItemProfiles.ts`、品目名と金額の対応状態は `src/lib/receiptLineItemAssociation.ts`、候補選択は `src/lib/receiptLineItemSelection.ts`、残る候補抽出は `src/lib/receiptParser.ts` に閉じ込め、画面に正規表現を散らさない。
 - 自動保存可否はReactに依存しないConfidence判定へ閉じ込め、UIで独自判定しない。
 
 ## Setup Commands
@@ -73,6 +73,7 @@ npm run test:e2e
 - 家族限定を理由に認証、Rules、household membership、Proxy認可、deploy gateを緩和しない。
 - 1タスク1目的で、無関係なリファクタリングを混ぜない。
 - 既存の型、Repository、UIパターンに合わせる。
+- POS profileは店舗名や支店名ではなく複数の印字構造で限定し、非該当形式はgeneric解析へ戻す。
 - OCR精度を断定しない。High confidenceだけを自動保存し、Lowまたはuncertainは必ず確認画面へ送る。無条件自動保存は禁止する。
 - Confidenceは不透明な数値だけにせず、総額、日付、店舗、カテゴリ、競合金額、残高、品目整合性などの根拠を型で説明可能にする。
 - レシート解析またはConfidence判定を変更する場合は、匿名の共有コーパスへ正解値を追加または更新し、総額、品目、判定を全fixtureで評価する。誤った自動保存件数0を必須条件とする。

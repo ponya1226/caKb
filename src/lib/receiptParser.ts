@@ -1,5 +1,15 @@
 import type { OcrTextBlock, ReceiptCandidate, ReceiptLineItemCandidate, ReceiptParseResult } from "../types";
 import {
+  ReceiptLineItemAssociator,
+  type PendingReceiptLineItemName,
+} from "./receiptLineItemAssociation";
+import {
+  detectReceiptLineItemProfile,
+  hasReceiptLineItemCode,
+  type ReceiptLineItemProfile,
+} from "./receiptLineItemProfiles";
+import { selectReceiptLineItemCandidates } from "./receiptLineItemSelection";
+import {
   findAmountCandidateEndIndex,
   getReceiptStructureBoundary,
   isLineItemReconciliationBoundary,
@@ -32,7 +42,6 @@ const AMOUNT_SECTION_LABEL_PATTERN =
   /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|残\s*高|利用\s*可能\s*額|お\s*買\s*上\s*計|交通\s*系\s*マネー|電子\s*マネー|クレジット|カード)/i;
 const LINE_ITEM_DISCOUNT_PATTERN = /(割\s*引|値\s*引)/i;
 const QUANTITY_AMOUNT_CONTEXT_PATTERN = /(g|ｇ|kg|㎏|ml|mL|ＭＬ|枚|個|本|点|袋|パック|連|P|ｐ)$/i;
-const LINE_ITEM_CODE_PREFIX_PATTERN = /^\s*#?\d{1,4}\s+\S/;
 const MAX_LINE_ITEM_CANDIDATES = 50;
 
 type ShopLine = {
@@ -46,18 +55,6 @@ type AmountMatch = {
   raw: string;
   index: number;
   hasMoneySymbol: boolean;
-};
-
-type PendingLineItemName = {
-  name: string;
-  line: string;
-  hasItemCode: boolean;
-};
-
-type PendingLineItemAmount = {
-  amount: number;
-  line: string;
-  confidence: number;
 };
 
 type PositionedOcrWord = {
@@ -591,10 +588,10 @@ function isUsableLineItemName(name: string): boolean {
   return digitCount / name.length < 0.55;
 }
 
-function isPotentialSplitLineItemNameLine(line: string): boolean {
+function isPotentialSplitLineItemNameLine(line: string, profile: ReceiptLineItemProfile): boolean {
   const normalizedLine = normalizeText(line);
   const name = normalizeLineItemName(normalizedLine);
-  if (LINE_ITEM_CODE_PREFIX_PATTERN.test(normalizedLine)) {
+  if (hasReceiptLineItemCode(normalizedLine, profile)) {
     return isUsableLineItemName(name);
   }
 
@@ -605,7 +602,10 @@ function isPotentialSplitLineItemNameLine(line: string): boolean {
   return isUsableLineItemName(name);
 }
 
-function createPendingLineItemName(line: string): PendingLineItemName | null {
+function createPendingLineItemName(
+  line: string,
+  profile: ReceiptLineItemProfile,
+): PendingReceiptLineItemName | null {
   const normalizedLine = normalizeText(line);
   const name = normalizeLineItemName(line);
   if (!isUsableLineItemName(name)) {
@@ -615,7 +615,8 @@ function createPendingLineItemName(line: string): PendingLineItemName | null {
   return {
     name,
     line: normalizedLine.trim(),
-    hasItemCode: LINE_ITEM_CODE_PREFIX_PATTERN.test(normalizedLine),
+    hasItemCode: hasReceiptLineItemCode(normalizedLine, profile),
+    isDiscount: isDiscountLineItemName(name),
   };
 }
 
@@ -648,7 +649,7 @@ function isDiscountMarkerLine(line: string): boolean {
   );
 }
 
-function createPendingDiscountName(line: string): PendingLineItemName {
+function createPendingDiscountName(line: string): PendingReceiptLineItemName {
   const normalizedLine = normalizeText(line).trim();
   const normalizedName = normalizeLineItemName(normalizedLine);
   const rate = normalizedLine.match(/(\d{1,2})\s*%/)?.[1];
@@ -660,6 +661,7 @@ function createPendingDiscountName(line: string): PendingLineItemName {
     name,
     line: normalizedLine,
     hasItemCode: false,
+    isDiscount: true,
   };
 }
 
@@ -712,11 +714,15 @@ function findLineItemSubtotal(lines: string[]): number | null {
 
 function reconcileColumnOrderedLineItems(
   candidates: ReceiptLineItemCandidate[],
-  unmatchedNames: PendingLineItemName[],
+  unmatchedNames: PendingReceiptLineItemName[],
   lines: string[],
+  profile: ReceiptLineItemProfile,
 ): ReceiptLineItemCandidate[] {
-  const unmatchedProducts = unmatchedNames.filter((item) => item.hasItemCode && !isDiscountLineItemName(item.name));
-  if (unmatchedProducts.length < 2 || unmatchedProducts.length > 10) {
+  const unmatchedProducts = unmatchedNames.filter((item) => item.hasItemCode && !item.isDiscount);
+  if (
+    unmatchedProducts.length < profile.columnReconciliationMinItems ||
+    unmatchedProducts.length > profile.columnReconciliationMaxItems
+  ) {
     return candidates;
   }
 
@@ -746,7 +752,7 @@ function reconcileColumnOrderedLineItems(
   );
 
   const trailingAmounts = reconciliationLines
-    .flatMap((line): PendingLineItemAmount[] => {
+    .flatMap((line) => {
       const matches = extractLineItemAmountMatchesFromLine(line).filter((match) => (
         match.amount > 0 && isLineItemAmountOnlyLine(line, match)
       ));
@@ -788,11 +794,11 @@ function reconcileColumnOrderedLineItems(
 
 function reconcileUnmatchedLineItem(
   candidates: ReceiptLineItemCandidate[],
-  unmatchedNames: PendingLineItemName[],
+  unmatchedNames: PendingReceiptLineItemName[],
   lines: string[],
 ): ReceiptLineItemCandidate[] {
   const subtotal = findLineItemSubtotal(lines);
-  const unmatchedProducts = unmatchedNames.filter((item) => item.hasItemCode && !isDiscountLineItemName(item.name));
+  const unmatchedProducts = unmatchedNames.filter((item) => item.hasItemCode && !item.isDiscount);
   if (!subtotal || unmatchedProducts.length !== 1) {
     return candidates;
   }
@@ -822,7 +828,10 @@ function findReceiptItemCount(lines: string[]): number | null {
   return Number.isInteger(count) && count > 0 ? count : null;
 }
 
-function findSingleReceiptProductName(lines: string[]): { name: string; line: string } | null {
+function findSingleReceiptProductName(
+  lines: string[],
+  profile: ReceiptLineItemProfile,
+): { name: string; line: string } | null {
   const receiptMarkerIndex = lines.findIndex((line) => RECEIPT_MARKER_PATTERN.test(normalizeText(line)));
   if (receiptMarkerIndex < 0) {
     return null;
@@ -844,7 +853,7 @@ function findSingleReceiptProductName(lines: string[]): { name: string; line: st
     .slice(receiptMarkerIndex + 1, summaryIndex)
     .filter((line) => !shouldSkipLineItemLine(line))
     .filter((line) => extractLineItemAmountMatchesFromLine(line).length === 0)
-    .filter(isPotentialSplitLineItemNameLine)
+    .filter((line) => isPotentialSplitLineItemNameLine(line, profile))
     .map((line) => normalizeLineItemName(line));
 
   if (productLines.length === 0 || productLines.length > 2) {
@@ -865,13 +874,14 @@ function findSingleReceiptProductName(lines: string[]): { name: string; line: st
 function inferSingleReceiptLineItem(
   candidates: ReceiptLineItemCandidate[],
   lines: string[],
+  profile: ReceiptLineItemProfile,
+  totalAmount: number | undefined,
 ): ReceiptLineItemCandidate[] {
   if (candidates.length > 0 || findReceiptItemCount(lines) !== 1) {
     return candidates;
   }
 
-  const product = findSingleReceiptProductName(lines);
-  const totalAmount = extractAmountCandidates(lines)[0]?.value;
+  const product = findSingleReceiptProductName(lines, profile);
   if (!product || !totalAmount) {
     return candidates;
   }
@@ -887,21 +897,15 @@ function inferSingleReceiptLineItem(
   ];
 }
 
-function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] {
-  const candidates: ReceiptLineItemCandidate[] = [];
-  const pendingNames: PendingLineItemName[] = [];
-  const pendingAmounts: PendingLineItemAmount[] = [];
-  const unmatchedNames: PendingLineItemName[] = [];
-  let pendingDiscountName: PendingLineItemName | null = null;
+function extractLineItemCandidates(
+  lines: string[],
+  totalAmount: number | undefined,
+): ReceiptLineItemCandidate[] {
+  const profile = detectReceiptLineItemProfile(lines);
+  const association = new ReceiptLineItemAssociator(profile.maxPendingNames);
+  let pendingDiscountName: PendingReceiptLineItemName | null = null;
   let suppressNextAmountOnlyLine = false;
   let reachedSummaryBoundary = false;
-
-  function clearPendingNamesAsUnmatched() {
-    pendingNames
-      .filter((item) => item.hasItemCode && !isDiscountLineItemName(item.name))
-      .forEach((item) => unmatchedNames.push(item));
-    pendingNames.length = 0;
-  }
 
   lines.forEach((line, index) => {
     const normalizedLine = normalizeText(line);
@@ -910,11 +914,9 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
     }
 
     const structureBoundary = getReceiptStructureBoundary(lines, index);
-    const hasLineItemEvidence =
-      candidates.length > 0 || pendingNames.length > 0 || unmatchedNames.length > 0 || pendingDiscountName !== null;
+    const hasLineItemEvidence = association.hasEvidence() || pendingDiscountName !== null;
     if (structureBoundary !== null && (structureBoundary !== "footer" || hasLineItemEvidence)) {
-      clearPendingNamesAsUnmatched();
-      pendingAmounts.length = 0;
+      association.resetPending();
       pendingDiscountName = null;
       suppressNextAmountOnlyLine = false;
       reachedSummaryBoundary = true;
@@ -922,8 +924,7 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
     }
 
     if (shouldSkipLineItemLine(line)) {
-      clearPendingNamesAsUnmatched();
-      pendingAmounts.length = 0;
+      association.resetPending();
       pendingDiscountName = null;
       suppressNextAmountOnlyLine = shouldSuppressNextAmountOnlyLine(line);
       return;
@@ -948,34 +949,13 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
     }
     if (matches.length === 0) {
       suppressNextAmountOnlyLine = false;
-      const pendingName = isPotentialSplitLineItemNameLine(line) ? createPendingLineItemName(line) : null;
+      const pendingName = isPotentialSplitLineItemNameLine(line, profile)
+        ? createPendingLineItemName(line, profile)
+        : null;
       if (pendingName) {
-        const hasMultiplePendingAmounts = pendingAmounts.length > 1;
-        const pendingAmount = pendingAmounts.shift();
-        if (pendingAmount && pendingName.hasItemCode) {
-          candidates.push({
-            name: pendingName.name,
-            amount: pendingAmount.amount,
-            line: `${pendingAmount.line} / ${pendingName.line}`,
-            confidence: pendingAmount.confidence,
-            extractionMethod: hasMultiplePendingAmounts ? "ambiguous_pair" : "amount_before_name",
-          });
-          return;
-        }
-
-        if (pendingName.hasItemCode && pendingNames.some((item) => !item.hasItemCode)) {
-          clearPendingNamesAsUnmatched();
-        }
-        pendingNames.push(pendingName);
-        if (pendingNames.length > 4) {
-          const unmatchedName = pendingNames.shift();
-          if (unmatchedName?.hasItemCode && !isDiscountLineItemName(unmatchedName.name)) {
-            unmatchedNames.push(unmatchedName);
-          }
-        }
+        association.addName(pendingName);
       } else {
-        clearPendingNamesAsUnmatched();
-        pendingAmounts.length = 0;
+        association.resetPending();
       }
       return;
     }
@@ -983,15 +963,14 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
     const match = matches.find((candidate) => candidate.amount < 0) ?? matches[matches.length - 1];
     if (suppressNextAmountOnlyLine && shouldSkipSuppressedAmountLine(line, match)) {
       suppressNextAmountOnlyLine = false;
-      clearPendingNamesAsUnmatched();
-      pendingAmounts.length = 0;
+      association.resetPending();
       return;
     }
     suppressNextAmountOnlyLine = false;
 
     if (isDiscountAmountOnlyLine(line, match)) {
       const discountName = pendingDiscountName ?? createPendingDiscountName("割引");
-      candidates.push({
+      association.addCandidate({
         name: discountName.name,
         amount: match.amount,
         line: `${discountName.line} / ${normalizeText(line).trim()}`,
@@ -1002,47 +981,29 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
       return;
     }
 
-    if (
-      pendingNames.length > 0 &&
-      isLineItemAmountOnlyLine(line, match)
-    ) {
-      const hasMultiplePendingNames = pendingNames.length > 1;
-      const pendingName = pendingNames.shift();
-      if (!pendingName) {
-        return;
-      }
-
-      candidates.push({
-        name: pendingName.name,
-        amount: match.amount,
-        line: `${pendingName.line} / ${normalizeText(line).trim()}`,
-        confidence: Math.max(0.72, getLineItemConfidence(line, match) - 0.04),
-        extractionMethod: hasMultiplePendingNames ? "ambiguous_pair" : "name_before_amount",
-      });
+    const pendingAmount = {
+      amount: match.amount,
+      line: normalizeText(line).trim(),
+      confidence: Math.max(0.72, getLineItemConfidence(line, match) - 0.04),
+    };
+    if (association.hasPendingNames() && isLineItemAmountOnlyLine(line, match)) {
+      association.pairPendingNameWithAmount(pendingAmount);
       return;
     }
 
-    if (pendingNames.length === 0 && isLineItemAmountOnlyLine(line, match) && match.amount > 0) {
-      pendingAmounts.push({
-        amount: match.amount,
-        line: normalizeText(line).trim(),
-        confidence: Math.max(0.72, getLineItemConfidence(line, match) - 0.04),
-      });
-      if (pendingAmounts.length > 3) {
-        pendingAmounts.shift();
-      }
+    if (!association.hasPendingNames() && isLineItemAmountOnlyLine(line, match) && match.amount > 0) {
+      association.queueAmount(pendingAmount);
       return;
     }
 
-    clearPendingNamesAsUnmatched();
-    pendingAmounts.length = 0;
+    association.resetPending();
     pendingDiscountName = null;
     const name = cleanLineItemName(line, match);
     if (!isUsableLineItemName(name)) {
       return;
     }
 
-    candidates.push({
+    association.addCandidate({
       name,
       amount: match.amount,
       line: normalizeText(line).trim(),
@@ -1051,80 +1012,12 @@ function extractLineItemCandidates(lines: string[]): ReceiptLineItemCandidate[] 
     });
   });
 
-  const columnReconciledCandidates = reconcileColumnOrderedLineItems(candidates, unmatchedNames, lines);
+  const candidates = association.getCandidates();
+  const unmatchedNames = association.getUnmatchedNames();
+  const columnReconciledCandidates = reconcileColumnOrderedLineItems(candidates, unmatchedNames, lines, profile);
   const reconciledCandidates = reconcileUnmatchedLineItem(columnReconciledCandidates, unmatchedNames, lines);
-  return inferSingleReceiptLineItem(reconciledCandidates, lines).slice(0, MAX_LINE_ITEM_CANDIDATES);
-}
-
-type LineItemCandidateEvidence = {
-  declaredCountDistance: number | null;
-  subtotalDifference: number | null;
-  matchedSignalCount: number;
-};
-
-function getLineItemCandidateEvidence(
-  candidates: ReceiptLineItemCandidate[],
-  declaredItemCount: number | null,
-  subtotal: number | null,
-): LineItemCandidateEvidence {
-  const productCount = candidates.filter(
-    (candidate) => candidate.amount > 0 && !isDiscountLineItemName(candidate.name),
-  ).length;
-  const itemTotal = candidates.reduce((sum, candidate) => sum + candidate.amount, 0);
-  const declaredCountDistance = declaredItemCount === null ? null : Math.abs(productCount - declaredItemCount);
-  const subtotalDifference = subtotal === null ? null : Math.abs(itemTotal - subtotal);
-
-  return {
-    declaredCountDistance,
-    subtotalDifference,
-    matchedSignalCount:
-      Number(declaredCountDistance === 0) + Number(subtotalDifference === 0),
-  };
-}
-
-function isLineItemEvidenceBetter(
-  candidate: LineItemCandidateEvidence,
-  current: LineItemCandidateEvidence,
-): boolean {
-  if (candidate.matchedSignalCount !== current.matchedSignalCount) {
-    return candidate.matchedSignalCount > current.matchedSignalCount;
-  }
-
-  if (
-    candidate.subtotalDifference !== null &&
-    current.subtotalDifference !== null &&
-    candidate.subtotalDifference !== current.subtotalDifference
-  ) {
-    return candidate.subtotalDifference < current.subtotalDifference;
-  }
-
-  if (
-    candidate.declaredCountDistance !== null &&
-    current.declaredCountDistance !== null &&
-    candidate.declaredCountDistance !== current.declaredCountDistance
-  ) {
-    return candidate.declaredCountDistance < current.declaredCountDistance;
-  }
-
-  return false;
-}
-
-function selectLineItemCandidates(
-  textCandidates: ReceiptLineItemCandidate[],
-  spatialCandidates: ReceiptLineItemCandidate[],
-  textLines: string[],
-  spatialLines: string[],
-): ReceiptLineItemCandidate[] {
-  if (spatialCandidates.length === 0) {
-    return textCandidates;
-  }
-
-  const declaredItemCount = findReceiptItemCount(spatialLines) ?? findReceiptItemCount(textLines);
-  const subtotal = findLineItemSubtotal(spatialLines) ?? findLineItemSubtotal(textLines);
-  const textEvidence = getLineItemCandidateEvidence(textCandidates, declaredItemCount, subtotal);
-  const spatialEvidence = getLineItemCandidateEvidence(spatialCandidates, declaredItemCount, subtotal);
-
-  return isLineItemEvidenceBetter(textEvidence, spatialEvidence) ? textCandidates : spatialCandidates;
+  return inferSingleReceiptLineItem(reconciledCandidates, lines, profile, totalAmount)
+    .slice(0, MAX_LINE_ITEM_CANDIDATES);
 }
 
 function normalizeShopNameCandidate(line: string): { value: string; confidenceBoost: number } {
@@ -1311,8 +1204,10 @@ export function parseReceiptText(text: string, blocks?: OcrTextBlock[]): Receipt
       ? uniqueCandidates([...spatialAmountCandidates, ...textAmountCandidates]).slice(0, 6)
       : spatialAmountCandidates
     : textAmountCandidates;
-  const textLineItemCandidates = extractLineItemCandidates(lines);
-  const spatialLineItemCandidates = spatialLines.length > 0 ? extractLineItemCandidates(spatialLines) : [];
+  const textLineItemCandidates = extractLineItemCandidates(lines, textPrimaryAmount?.value);
+  const spatialLineItemCandidates = spatialLines.length > 0
+    ? extractLineItemCandidates(spatialLines, spatialPrimaryAmount?.value)
+    : [];
   const spatialTaxAmounts = spatialLines.length > 0 ? extractTaxAmounts(spatialLines) : [];
   const balanceAmounts = [
     ...extractBalanceAmounts(lines),
@@ -1323,12 +1218,12 @@ export function parseReceiptText(text: string, blocks?: OcrTextBlock[]): Receipt
     dateCandidates: extractDateCandidates(lines),
     shopNameCandidates: extractShopNameCandidates(lines),
     amountCandidates,
-    lineItemCandidates: selectLineItemCandidates(
-      textLineItemCandidates,
-      spatialLineItemCandidates,
-      lines,
-      spatialLines,
-    ),
+    lineItemCandidates: selectReceiptLineItemCandidates({
+      spatialCandidates: spatialLineItemCandidates,
+      textCandidates: textLineItemCandidates,
+      declaredItemCount: findReceiptItemCount(spatialLines) ?? findReceiptItemCount(lines),
+      subtotal: findLineItemSubtotal(spatialLines) ?? findLineItemSubtotal(lines),
+    }),
     riskSignals: {
       balanceAmounts,
       taxAmounts: spatialTaxAmounts.length > 0 ? spatialTaxAmounts : extractTaxAmounts(lines),

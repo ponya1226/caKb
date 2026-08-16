@@ -300,6 +300,40 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     expectedDecision: "needsReview",
   },
   {
+    id: "grocery-column-batch",
+    name: "5品目の名前列と金額列が分離した食品スーパー",
+    layoutFamily: "grocery",
+    structureFeatures: ["item-split-line", "subtotal-tax", "column-reordered"],
+    ocrText: `
+      SAMPLE GROCERY
+      架空店
+      2026年08月16日 12:00
+      01 商品A
+      04 商品B
+      05 商品C
+      06 商品D
+      07 商品E
+      ¥100
+      ¥200
+      ¥300
+      ¥400
+      ¥500
+      小計
+      5点 ¥1,500
+      外税8% ¥120
+      合計 ¥1,620
+    `,
+    expectedTotal: 1620,
+    expectedLineItems: [
+      ["商品A", 100],
+      ["商品B", 200],
+      ["商品C", 300],
+      ["商品D", 400],
+      ["商品E", 500],
+    ],
+    expectedDecision: "needsReview",
+  },
+  {
     id: "home-center-column-order",
     name: "商品金額列と会員情報が本文末尾へ移動したホームセンター",
     layoutFamily: "home-center",
