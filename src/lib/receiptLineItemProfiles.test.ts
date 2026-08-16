@@ -48,4 +48,24 @@ describe("receipt line item profiles", () => {
       "合計 ¥600",
     ]).id).toBe("generic");
   });
+
+  it("detects tax-prefixed grocery item codes without matching ordinary four-digit codes", () => {
+    expect(detectReceiptLineItemProfile([
+      "外8 0012 商品A ¥100",
+      "外8 0021 商品B ¥200",
+      "外10 0041 商品C ¥5",
+      "買上点数",
+      "3点",
+    ])).toMatchObject({
+      id: "department-coded-grocery",
+      maxPendingNames: 4,
+    });
+
+    expect(detectReceiptLineItemProfile([
+      "0005 商品A ¥100",
+      "0016 商品B ¥200",
+      "0041 商品C ¥300",
+      "買上点数 3点",
+    ]).id).toBe("generic");
+  });
 });

@@ -21,7 +21,7 @@ import {
 import { normalizeReceiptText as normalizeText } from "./receiptText";
 
 const FINAL_AMOUNT_KEYWORD_PATTERN =
-  /(合\s*計|現\s*計|お\s*買\s*上\s*計|お\s*買\s*い\s*上\s*げ\s*計|総\s*合\s*計|総\s*計|総\s*額|お\s*会\s*計|ご?\s*請\s*求(?:\s*額)?|支\s*払(?:い)?(?:\s*額)?|お\s*支\s*払(?:い)?(?:\s*額)?|決\s*済\s*額|Pay\s*Pay|y\s*Pay|^\s*計(?:\s*¥?\s*[\d,.\s]+)?\s*$)/i;
+  /(合\s*計|現\s*計|お\s*買\s*上\s*計|お\s*買\s*い\s*上\s*げ\s*計|総\s*合\s*計|総\s*計|総\s*額|お\s*会\s*計(?!\s*券)|ご?\s*請\s*求(?:\s*額)?|支\s*払(?:い)?(?:\s*額)?|お\s*支\s*払(?:い)?(?:\s*額)?|決\s*済\s*額|Pay\s*Pay|y\s*Pay|^\s*計(?:\s*¥?\s*[\d,.\s]+)?\s*$)/i;
 const SUPPORTING_AMOUNT_KEYWORD_PATTERN = /(税\s*込|小\s*計|消\s*費\s*税)/;
 const CASH_TENDERED_KEYWORD_PATTERN = /(現\s*金|お\s*預|預\s*り)/;
 const CHANGE_AMOUNT_KEYWORD_PATTERN = /(お\s*釣|おつり|釣\s*り|釣銭)/;
@@ -43,6 +43,7 @@ const AMOUNT_SECTION_LABEL_PATTERN =
 const LINE_ITEM_DISCOUNT_PATTERN = /(割\s*引|値\s*引)/i;
 const QUANTITY_AMOUNT_CONTEXT_PATTERN = /(g|ｇ|kg|㎏|ml|mL|ＭＬ|枚|個|本|点|袋|パック|連|P|ｐ)$/i;
 const MAX_LINE_ITEM_CANDIDATES = 50;
+const MIN_LINE_ITEM_AMOUNT = 1;
 
 type ShopLine = {
   value: string;
@@ -273,8 +274,21 @@ function isPlainAmountMatchSkippable(line: string, match: RegExpMatchArray): boo
   const after = line[index + token.length] ?? "";
   const beforeToken = line.slice(0, index).trim();
   const isLeadingItemCode = /^#?\d{1,4}\s+\S/.test(line) && /^#?$/.test(beforeToken);
+  const nearbyText = line
+    .slice(Math.max(0, index - 3), Math.min(line.length, index + token.length + 4))
+    .replace(/\s/g, "");
+  const compactToken = token.replace(/[,\s]/g, "");
+  const isTimeToken = /\d{1,2}:\d{2}(?::\d{2})?/.test(nearbyText);
+  const isTaxCategoryMarker = /^(?:外|内)$/.test(beforeToken) && /^\s*\d{2,4}/.test(line.slice(index + token.length));
+  const isTaxPrefixedItemCode = /^(?:外|内)\s*(?:8|10)$/.test(beforeToken);
+  const isCombinedTaxPrefixedItemCode =
+    /^(?:外|内)$/.test(beforeToken) && /^(?:8|10)\d{2,4}$/.test(compactToken);
 
   return (
+    isTimeToken ||
+    isTaxCategoryMarker ||
+    isTaxPrefixedItemCode ||
+    isCombinedTaxPrefixedItemCode ||
     after === "%" ||
     /[A-Za-z]/.test(before) ||
     /[A-Za-z]/.test(after) ||
@@ -330,7 +344,7 @@ function extractAmountMatchesFromLine(line: string, minimumAmount = 10): AmountM
 
 function extractLineItemAmountMatchesFromLine(line: string): AmountMatch[] {
   const normalizedLine = normalizeText(line);
-  const unsignedMatches = extractAmountMatchesFromLine(normalizedLine);
+  const unsignedMatches = extractAmountMatchesFromLine(normalizedLine, MIN_LINE_ITEM_AMOUNT);
   const discountMatches = LINE_ITEM_DISCOUNT_PATTERN.test(normalizedLine) || /^\s*-/.test(normalizedLine)
     ? Array.from(normalizedLine.matchAll(/-\s*[\dOo〇○Cc¢][\dOo〇○Cc¢,\s.．()[\]（）]{0,14}(?:円)?/g))
         .map((match) => {
@@ -351,7 +365,7 @@ function extractLineItemAmountMatchesFromLine(line: string): AmountMatch[] {
     : [];
 
   return uniqueAmountMatches([...unsignedMatches, ...discountMatches].sort((a, b) => a.index - b.index)).filter(
-    (match) => Math.abs(match.amount) >= 10,
+    (match) => Math.abs(match.amount) >= MIN_LINE_ITEM_AMOUNT,
   );
 }
 
@@ -513,6 +527,7 @@ function normalizeLineItemName(value: string): string {
     .replace(/[¥￥]/g, "")
     .replace(/[*※★]/g, "")
     .replace(/[|｜{}]/g, " ")
+    .replace(/^\s*(?:外|内)\s*(?:8|10)\s+#?\d{1,4}\s+/, "")
     .replace(/^\s*\d{1,2}\s+/, "")
     .replace(/^[\s\-_=・:：,.、。()（）[\]【】「」'"#]+/, "")
     .replace(/^\s*\d{1,4}\s+/, "")
@@ -531,6 +546,13 @@ function isReceiptCodeLikeLine(line: string): boolean {
     /\d{12,}/.test(compactLine) ||
     /\d{2,4}-\d{2,4}-\d{2,4}/.test(compactLine) ||
     /(?:[*＊Xx]{2,}[-ー]?){1,}\d{3,4}$/.test(compactLine)
+  );
+}
+
+function isPhoneNumberLikeLine(line: string): boolean {
+  const compactLine = normalizeText(line).replace(/\s/g, "");
+  return /(?:^|[^\d])0\d{1,3}(?:[-ー－]|[（(])\d{2,4}(?:[-ー－]|[）)])\d{3,4}(?:[^\d]|$)/.test(
+    compactLine,
   );
 }
 
@@ -559,6 +581,7 @@ function shouldSkipLineItemLine(line: string): boolean {
   if (
     LINE_ITEM_PAYMENT_PATTERN.test(normalizedLine) ||
     LINE_ITEM_STAFF_PATTERN.test(normalizedLine) ||
+    isPhoneNumberLikeLine(normalizedLine) ||
     isAddressLikeLineItemLine(normalizedLine)
   ) {
     return true;
@@ -906,11 +929,34 @@ function extractLineItemCandidates(
   let pendingDiscountName: PendingReceiptLineItemName | null = null;
   let suppressNextAmountOnlyLine = false;
   let reachedSummaryBoundary = false;
+  let lineItemSectionStarted = !profile.requiresItemCodeToStart;
 
   lines.forEach((line, index) => {
     const normalizedLine = normalizeText(line);
     if (reachedSummaryBoundary) {
       return;
+    }
+
+    if (!lineItemSectionStarted) {
+      if (!hasReceiptLineItemCode(normalizedLine, profile)) {
+        const nextLine = normalizeText(lines[index + 1] ?? "");
+        const amountMatches = extractLineItemAmountMatchesFromLine(line);
+        const amountMatch = amountMatches.length === 1 ? amountMatches[0] : null;
+        if (
+          amountMatch?.hasMoneySymbol &&
+          amountMatch.amount > 0 &&
+          isLineItemAmountOnlyLine(line, amountMatch) &&
+          hasReceiptLineItemCode(nextLine, profile)
+        ) {
+          association.queueAmount({
+            amount: amountMatch.amount,
+            line: normalizedLine.trim(),
+            confidence: Math.max(0.72, getLineItemConfidence(line, amountMatch) - 0.04),
+          });
+        }
+        return;
+      }
+      lineItemSectionStarted = true;
     }
 
     const structureBoundary = getReceiptStructureBoundary(lines, index);
@@ -937,7 +983,7 @@ function extractLineItemCandidates(
     }
 
     let matches = extractLineItemAmountMatchesFromLine(line).filter(
-      (match) => Math.abs(match.amount) >= 10 && Math.abs(match.amount) <= 1_000_000,
+      (match) => Math.abs(match.amount) >= MIN_LINE_ITEM_AMOUNT && Math.abs(match.amount) <= 1_000_000,
     );
     if (
       LINE_ITEM_DISCOUNT_PATTERN.test(normalizeText(line)) &&
