@@ -18,7 +18,7 @@ describe("receipt quality corpus", () => {
     expect(decisionMismatches).toEqual([]);
     expect(excludedAmountLeaks).toEqual([]);
     expect(report.overall).toMatchObject({
-      receiptCount: 15,
+      receiptCount: 16,
       totalAccuracy: 1,
       exactLineItemRate: 1,
       lineItemPrecision: 1,
@@ -48,6 +48,11 @@ describe("receipt quality corpus", () => {
       "partial-ocr",
     ]);
     expect(report.structures.every((structure) => structure.excludedAmountLeakCount === 0)).toBe(true);
+    const highRiskStructureCounts = new Map(
+      report.structures.map(({ structureFeature, receiptCount }) => [structureFeature, receiptCount]),
+    );
+    expect(highRiskStructureCounts.get("split-payable-total")).toBeGreaterThanOrEqual(2);
+    expect(highRiskStructureCounts.get("stored-value-balance")).toBeGreaterThanOrEqual(2);
     expect(report.fixtures.filter((fixture) => fixture.falseAutoSave)).toEqual([]);
   });
 
@@ -55,7 +60,7 @@ describe("receipt quality corpus", () => {
     const report = formatReceiptQualityCorpusReport(evaluateReceiptQualityCorpus(RECEIPT_QUALITY_FIXTURES));
 
     expect(report).toBe([
-      "レシート数: 15",
+      "レシート数: 16",
       "構造特徴: 10種",
       "総額一致率: 100.0%",
       "品目完全一致率: 100.0%",

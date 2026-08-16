@@ -586,6 +586,36 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     expectedDecision: "autoSave",
   },
   {
+    id: "generic-split-total-stored-value-balance",
+    name: "分割お買上計と電子マネー残高を含む匿名レシート",
+    layoutFamily: "convenience",
+    structureFeatures: [
+      "item-same-line",
+      "subtotal-tax",
+      "split-payable-total",
+      "payment",
+      "stored-value-balance",
+      "numeric-footer",
+    ],
+    ocrText: `
+      SAMPLE TRANSIT STORE
+      架空改札前店
+      2026年08月16日 (日) 14:00
+      商品B ¥780
+      小計 ¥780
+      お買上
+      計 ¥780
+      交通系マネー ¥780
+      交通系マネー残高は以下の通りです。
+      支払後残高 ¥2,220
+      カードNo SAMPLE-1111
+    `,
+    expectedTotal: 780,
+    expectedLineItems: [["商品B", 780]],
+    expectedExcludedAmounts: [2220, 1111],
+    expectedDecision: "needsReview",
+  },
+  {
     id: "missing-date",
     name: "利用日がない読み取り結果",
     layoutFamily: "partial",

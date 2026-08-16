@@ -1,5 +1,33 @@
 # Development History
 
+## 2026-08-16 Receipt Structure Module Extraction
+
+目的: レシート構造の判定根拠を単一fixtureや巨大なparser実装へ依存させず、一般的な構造境界を独立して検証・改善できるようにする。
+
+主な変更:
+
+- OCR文字列の正規化を `receiptText.ts`、小計・支払総額・支払・預り・決済後・フッター・税内訳の構造判定を `receiptStructure.ts` へ分離
+- `receiptParser.ts` は構造判定を再実装せず、独立モジュールを組み合わせて候補抽出と品目対応を行う構成へ整理
+- 分割された支払総額と電子マネー残高を同時に含む匿名fixtureを追加し、品質コーパスを16件へ拡張
+- 誤認時の影響が大きい `split-payable-total` と `stored-value-balance` について、各2件以上のfixtureを要求する品質ゲートを追加
+- 構造境界、支払額フォールバック、税額と課税対象額の区別、品目照合終端を独立した単体テストで固定
+- Firestore、IndexedDB、支出、要確認Inbox、バックアップ、CSV、Google Sheetsの保存schemaは変更なし。方針変更ではないためADR追加なし
+
+検証結果:
+
+- `npm.cmd run lint`: 成功
+- `npm.cmd run test`: 30ファイル、155件成功
+- `npm.cmd run test:receipt-quality`: 匿名コーパス16件、構造特徴10種、各精度指標100%、決済後数値混入0件、誤High 0件
+- `npm.cmd run build`: 成功。Firebase import構成と約1,020KBのmain chunkに関する既知警告のみ
+- `npm.cmd run test:e2e`: mobile Chromium 12件成功
+- `git diff --check`: 成功
+
+残課題:
+
+- 品目名と金額の対応付け、品目合計の整合性判定、店舗別POS profileは引き続き `receiptParser.ts` に集中している
+- 次は家族が頻繁に利用するスーパー形式から、汎用fallbackを維持したまま品目対応ロジックと最初のPOS profileを分離する
+- 家族利用で新しい誤認構造が確認されたら、既存構造の最低fixture件数を2件より段階的に増やす
+
 ## 2026-08-16 Receipt Structure Coverage Gate
 
 目的: 店舗別の例外追加に依存せず、一般的なレシート構造ごとに解析の適用範囲を測定し、明示合計後の預り金、釣銭、残高、数値フッターが品目・総額候補へ混入する退行をCIで検出する。
