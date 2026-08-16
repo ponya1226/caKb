@@ -7,7 +7,9 @@ import { assessReceiptConfidence } from "../lib/receiptConfidence";
 import { createLineItemsFromCandidates } from "../lib/lineItems";
 import { runReceiptOcr } from "../lib/receiptOcr";
 import { parseReceiptText } from "../lib/receiptParser";
+import { formatReceiptRecognitionReport } from "../lib/receiptRecognitionReport";
 import { toDateInputValue } from "../lib/date";
+import { formatCurrency } from "../lib/format";
 import type {
   Category,
   ExpenseFormValues,
@@ -53,6 +55,11 @@ export function OcrConfirmScreen({
   const suggestedCategory = draft.categorySuggestion
     ? categories.find((category) => category.id === draft.categorySuggestion?.categoryId)
     : undefined;
+  const recognizedLineItems = draft.initialValues.lineItems ?? [];
+  const recognitionReport = formatReceiptRecognitionReport({
+    amount: draft.initialValues.amount,
+    lineItems: recognizedLineItems,
+  });
 
   useEffect(() => {
     setProgress(null);
@@ -197,6 +204,18 @@ export function OcrConfirmScreen({
           このレシートをスキップ
         </button>
       )}
+
+      <section className="content-section recognition-copy-section">
+        <div className="section-title-row">
+          <div>
+            <h2>認識した品目と合計</h2>
+            <p>
+              合計 {formatCurrency(draft.initialValues.amount)} / 品目 {recognizedLineItems.length}件
+            </p>
+          </div>
+          <CopyTextButton text={recognitionReport} label="品目・合計をコピー" />
+        </div>
+      </section>
 
       <section className="content-section">
         <div className="section-title-row">

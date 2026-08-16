@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pencil, Plus, RotateCcw, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { ExpenseEditor } from "./ExpenseEditor";
+import { CopyTextButton } from "./CopyTextButton";
 import { currentMonthKey, formatDateLabel, formatMonthLabel, getDaysInMonth, toMonthKey } from "../lib/date";
 import { filterExpenses, parseOptionalAmount } from "../lib/expenseFilters";
 import { formatCurrency } from "../lib/format";
 import { sumExpenseLineItems } from "../lib/lineItems";
+import { formatReceiptRecognitionReport } from "../lib/receiptRecognitionReport";
 import type { Category, Expense, ExpenseFormValues } from "../types";
 
 type ExpenseListScreenProps = {
@@ -319,6 +321,16 @@ export function ExpenseListScreen({
                     <summary>
                       品目 {lineItems.length}件 / {formatCurrency(lineItemTotal)}
                     </summary>
+                    <div className="expense-detail-copy-row">
+                      <span>合計 {formatCurrency(expense.amount)}</span>
+                      <CopyTextButton
+                        text={formatReceiptRecognitionReport({
+                          amount: expense.amount,
+                          lineItems,
+                        })}
+                        label="品目・合計をコピー"
+                      />
+                    </div>
                     <div className="expense-line-items">
                       {lineItems.map((item) => (
                         <div className="expense-line-item" key={item.id}>

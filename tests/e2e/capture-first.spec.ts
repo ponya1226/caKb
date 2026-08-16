@@ -15,12 +15,19 @@ async function uploadFixtureReceipt(page: Page) {
 }
 
 test("確信度が高い単体レシートを確認画面なしで登録し元に戻せる", async ({ page }) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: "http://127.0.0.1:4174",
+  });
   await page.goto("http://127.0.0.1:4174/tests/e2e/harness/?screen=capture-high");
   await uploadFixtureReceipt(page);
 
   await expect(page.getByText("登録しました", { exact: true })).toBeVisible();
   await expect(page.getByText("サンプルストア / ¥500", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "読み取り結果の確認" })).toHaveCount(0);
+  await page.getByRole("button", { name: "品目・合計" }).click();
+  const recognitionReport = await page.evaluate(() => navigator.clipboard.readText());
+  expect(recognitionReport).toContain("合計金額: ￥500");
+  expect(recognitionReport).toContain("サンプル商品 / ￥500");
   await page.getByRole("button", { name: "元に戻す" }).click();
   await expect(page.getByTestId("undo-result")).toHaveText("取り消しました");
   await expectNoHorizontalOverflow(page);
