@@ -108,7 +108,7 @@ export function evaluateReceiptQualityCorpus(
   now = new Date("2026-08-16T00:00:00.000Z"),
 ): ReceiptQualityCorpusReport {
   const fixtureEvaluations = fixtures.map((fixture): ReceiptQualityFixtureEvaluation => {
-    const parseResult = parseReceiptText(fixture.ocrText);
+    const parseResult = parseReceiptText(fixture.ocrText, fixture.ocrBlocks);
     const assessment = assessReceiptConfidence({
       ocrText: fixture.ocrText,
       parseResult,

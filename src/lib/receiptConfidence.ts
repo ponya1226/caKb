@@ -14,7 +14,7 @@ const MAX_AUTOMATIC_TOTAL = 1_000_000;
 const MAX_RECEIPT_AGE_YEARS = 10;
 const MAX_FUTURE_DAYS = 1;
 
-export const RECEIPT_CONFIDENCE_POLICY_VERSION = "receipt-confidence-v4";
+export const RECEIPT_CONFIDENCE_POLICY_VERSION = "receipt-confidence-v5";
 
 type ReceiptConfidenceInput = {
   ocrText: string;

@@ -14,7 +14,7 @@ describe("receipt quality corpus", () => {
 
     expect(decisionMismatches).toEqual([]);
     expect(report.overall).toMatchObject({
-      receiptCount: 11,
+      receiptCount: 12,
       totalAccuracy: 1,
       exactLineItemRate: 1,
       lineItemPrecision: 1,
@@ -27,6 +27,7 @@ describe("receipt quality corpus", () => {
       "supermarket",
       "specialty",
       "grocery",
+      "home-center",
       "partial",
     ]);
     expect(report.fixtures.filter((fixture) => fixture.falseAutoSave)).toEqual([]);
@@ -36,7 +37,7 @@ describe("receipt quality corpus", () => {
     const report = formatReceiptQualityCorpusReport(evaluateReceiptQualityCorpus(RECEIPT_QUALITY_FIXTURES));
 
     expect(report).toBe([
-      "レシート数: 11",
+      "レシート数: 12",
       "総額一致率: 100.0%",
       "品目完全一致率: 100.0%",
       "品目適合率: 100.0%",

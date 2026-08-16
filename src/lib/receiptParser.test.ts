@@ -1,7 +1,36 @@
 import { describe, expect, it } from "vitest";
 import { parseReceiptText, scoreReceiptParseResult } from "./receiptParser";
+import { RECEIPT_QUALITY_FIXTURES } from "./receiptQualityFixtures";
 
 describe("parseReceiptText", () => {
+  it("uses the payable total for a home-center receipt with reordered price and loyalty columns", () => {
+    const fixture = RECEIPT_QUALITY_FIXTURES.find(({ id }) => id === "home-center-column-order");
+    expect(fixture).toBeDefined();
+    if (!fixture) {
+      return;
+    }
+
+    const result = parseReceiptText(fixture.ocrText, fixture.ocrBlocks);
+    const amountValues = result.amountCandidates.map((candidate) => candidate.value);
+
+    expect(result.amountCandidates[0]).toMatchObject({
+      value: 6027,
+      confidence: 0.98,
+    });
+    expect(result.amountCandidates[0]?.line).toContain("現計");
+    expect(amountValues).not.toEqual(expect.arrayContaining([10100, 4073, 39478]));
+    expect(result.riskSignals.taxAmounts).toEqual([538, 7]);
+
+    const textOnlyResult = parseReceiptText(fixture.ocrText);
+    expect(textOnlyResult.amountCandidates[0]?.value).toBe(6027);
+    expect(textOnlyResult.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual(
+      fixture.expectedLineItems,
+    );
+    expect(textOnlyResult.lineItemCandidates.slice(-3).every(
+      (candidate) => candidate.extractionMethod === "ambiguous_pair",
+    )).toBe(true);
+  });
+
   it("extracts date, shop name, and total amount near keywords", () => {
     const result = parseReceiptText(`
       サンプルスーパー
