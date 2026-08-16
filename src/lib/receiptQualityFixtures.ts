@@ -2,14 +2,31 @@ import type { OcrTextBlock } from "../types";
 
 export type ReceiptQualityFixtureLineItem = readonly [name: string, amount: number];
 
+export const RECEIPT_STRUCTURE_FEATURES = [
+  "item-same-line",
+  "item-split-line",
+  "subtotal-tax",
+  "split-payable-total",
+  "payment",
+  "change",
+  "stored-value-balance",
+  "numeric-footer",
+  "column-reordered",
+  "partial-ocr",
+] as const;
+
+export type ReceiptStructureFeature = typeof RECEIPT_STRUCTURE_FEATURES[number];
+
 export type ReceiptQualityFixture = {
   id: string;
   name: string;
   layoutFamily: "convenience" | "supermarket" | "specialty" | "grocery" | "home-center" | "partial";
+  structureFeatures: readonly ReceiptStructureFeature[];
   ocrText: string;
   ocrBlocks?: OcrTextBlock[];
   expectedTotal: number | null;
   expectedLineItems: readonly ReceiptQualityFixtureLineItem[];
+  expectedExcludedAmounts?: readonly number[];
   expectedDecision: "autoSave" | "needsReview";
 };
 
@@ -39,6 +56,13 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     id: "convenience-balance",
     name: "電子マネー残高を含む単品コンビニ",
     layoutFamily: "convenience",
+    structureFeatures: [
+      "item-same-line",
+      "subtotal-tax",
+      "payment",
+      "stored-value-balance",
+      "numeric-footer",
+    ],
     ocrText: `
       SAMPLE CONVENIENCE
       サンプル駅店
@@ -77,12 +101,14 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     `,
     expectedTotal: 348,
     expectedLineItems: [["やわらかロングタオルブルー", 348]],
+    expectedExcludedAmounts: [1494, 999],
     expectedDecision: "needsReview",
   },
   {
     id: "convenience-standard",
     name: "商品と金額が別行のコンビニ",
     layoutFamily: "convenience",
+    structureFeatures: ["item-split-line", "subtotal-tax", "payment", "numeric-footer"],
     ocrText: `
       SAMPLE CONVENIENCE
       サンプルコンビニ
@@ -118,6 +144,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     id: "supermarket-tax-exclusive",
     name: "外税と釣銭を含むスーパー",
     layoutFamily: "supermarket",
+    structureFeatures: ["item-same-line", "subtotal-tax", "payment", "change", "numeric-footer"],
     ocrText: `
       SAMPLE MARKET
       サンプル団地店
@@ -138,12 +165,14 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     `,
     expectedTotal: 170,
     expectedLineItems: [["ベーキングパウダー", 158]],
+    expectedExcludedAmounts: [1020, 850],
     expectedDecision: "autoSave",
   },
   {
     id: "specialty-tax-summary",
     name: "販促日付と税区分を含む専門店",
     layoutFamily: "specialty",
+    structureFeatures: ["item-same-line", "subtotal-tax", "payment", "change"],
     ocrText: `
       SAMPLE TEA
       架空新都心店
@@ -170,6 +199,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     id: "grocery-split-discount",
     name: "改行商品と割引を含む食品スーパー",
     layoutFamily: "grocery",
+    structureFeatures: ["item-split-line", "subtotal-tax", "payment", "change", "numeric-footer"],
     ocrText: `
       SAMPLE GROCERY
       架空店
@@ -203,12 +233,14 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
       ["国産若鶏むね肉 2枚", 741],
       ["生ハム 110g", 299],
     ],
+    expectedExcludedAmounts: [2000, 254],
     expectedDecision: "autoSave",
   },
   {
     id: "grocery-long",
     name: "25品目の長い食品スーパー",
     layoutFamily: "grocery",
+    structureFeatures: ["item-same-line", "subtotal-tax"],
     ocrText: `
       SAMPLE GROCERY
       架空店
@@ -225,6 +257,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     id: "grocery-subtotal-residual",
     name: "小計差分で1品を補完する食品スーパー",
     layoutFamily: "grocery",
+    structureFeatures: ["item-same-line", "subtotal-tax"],
     ocrText: `
       SAMPLE GROCERY
       架空店
@@ -246,6 +279,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     id: "grocery-ambiguous-pair",
     name: "複数商品と複数金額が分離した食品スーパー",
     layoutFamily: "grocery",
+    structureFeatures: ["item-split-line", "subtotal-tax", "column-reordered"],
     ocrText: `
       SAMPLE GROCERY
       架空店
@@ -269,6 +303,14 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     id: "home-center-column-order",
     name: "商品金額列と会員情報が本文末尾へ移動したホームセンター",
     layoutFamily: "home-center",
+    structureFeatures: [
+      "item-same-line",
+      "subtotal-tax",
+      "payment",
+      "change",
+      "numeric-footer",
+      "column-reordered",
+    ],
     ocrText: `
       SAMPLE HOME
       ホームセンター サンプル
@@ -363,12 +405,21 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
       ["エリエール18R", 928],
       ["リステリンCMO", 1180],
     ],
+    expectedExcludedAmounts: [10100, 4073, 39478],
     expectedDecision: "needsReview",
   },
   {
     id: "home-center-split-prices-partial-layout",
     name: "品目金額が別行と小計後へ分離したホームセンター",
     layoutFamily: "home-center",
+    structureFeatures: [
+      "item-split-line",
+      "subtotal-tax",
+      "payment",
+      "change",
+      "numeric-footer",
+      "column-reordered",
+    ],
     ocrText: `
       SAMPLE HOME
       ホームセンター サンプル
@@ -470,12 +521,75 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
       ["エリエール18R", 928],
       ["リステリンCMO", 1180],
     ],
+    expectedExcludedAmounts: [10100, 4073, 39478],
     expectedDecision: "needsReview",
+  },
+  {
+    id: "generic-split-total-payment-footer",
+    name: "分割合計と決済後の数値フッターを含む匿名レシート",
+    layoutFamily: "supermarket",
+    structureFeatures: [
+      "item-same-line",
+      "subtotal-tax",
+      "split-payable-total",
+      "payment",
+      "change",
+      "numeric-footer",
+    ],
+    ocrText: `
+      SAMPLE MARKET
+      架空中央店
+      2026年08月16日 (日) 12:00
+      商品A ¥300
+      小計 ¥300
+      合
+      計
+      ¥300
+      現金 ¥500
+      お釣り ¥200
+      会員ランク
+      レギュラー
+      次ランクまであと
+      ¥10,000
+    `,
+    expectedTotal: 300,
+    expectedLineItems: [["商品A", 300]],
+    expectedExcludedAmounts: [500, 200, 10000],
+    expectedDecision: "autoSave",
+  },
+  {
+    id: "generic-tax-total-card-footer",
+    name: "税込合計とカード決済後のポイント金額を含む匿名レシート",
+    layoutFamily: "specialty",
+    structureFeatures: ["item-same-line", "subtotal-tax", "payment", "numeric-footer"],
+    ocrText: `
+      SAMPLE SHOP
+      架空駅前店
+      2026年08月16日 (日) 13:00
+      商品A ¥800
+      商品B ¥200
+      小計 ¥1,000
+      消費税 ¥100
+      税込金額合計 ¥1,100
+      クレジット ¥1,100
+      カードNo SAMPLE-0000
+      ポイント対象金額 ¥1,000
+      今回ポイント 10P
+      次ランクまであと ¥9,000
+    `,
+    expectedTotal: 1100,
+    expectedLineItems: [
+      ["商品A", 800],
+      ["商品B", 200],
+    ],
+    expectedExcludedAmounts: [9000],
+    expectedDecision: "autoSave",
   },
   {
     id: "missing-date",
     name: "利用日がない読み取り結果",
     layoutFamily: "partial",
+    structureFeatures: ["item-same-line", "partial-ocr"],
     ocrText: `
       SAMPLE STORE
       商品A ¥500
@@ -489,6 +603,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     id: "missing-merchant",
     name: "店舗名がない読み取り結果",
     layoutFamily: "partial",
+    structureFeatures: ["subtotal-tax", "partial-ocr"],
     ocrText: `
       2026年08月08日
       合計 ¥500
@@ -501,6 +616,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     id: "partial-ocr",
     name: "文字が不足した読み取り結果",
     layoutFamily: "partial",
+    structureFeatures: ["partial-ocr"],
     ocrText: "合計",
     expectedTotal: null,
     expectedLineItems: [],

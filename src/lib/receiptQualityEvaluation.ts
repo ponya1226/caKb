@@ -1,11 +1,17 @@
 import type { ReceiptCategorySuggestion, ReceiptConfidenceReasonCode } from "../types";
 import { assessReceiptConfidence } from "./receiptConfidence";
 import { parseReceiptText } from "./receiptParser";
-import type { ReceiptQualityFixture, ReceiptQualityFixtureLineItem } from "./receiptQualityFixtures";
+import {
+  RECEIPT_STRUCTURE_FEATURES,
+  type ReceiptQualityFixture,
+  type ReceiptQualityFixtureLineItem,
+  type ReceiptStructureFeature,
+} from "./receiptQualityFixtures";
 
 export type ReceiptQualityFixtureEvaluation = {
   id: string;
   layoutFamily: ReceiptQualityFixture["layoutFamily"];
+  structureFeatures: readonly ReceiptStructureFeature[];
   totalMatched: boolean;
   lineItemsExact: boolean;
   expectedLineItemCount: number;
@@ -14,6 +20,7 @@ export type ReceiptQualityFixtureEvaluation = {
   expectedDecision: ReceiptQualityFixture["expectedDecision"];
   actualDecision: ReceiptQualityFixture["expectedDecision"];
   reasonCodes: ReceiptConfidenceReasonCode[];
+  excludedAmountLeaks: number[];
   falseAutoSave: boolean;
   unexpectedReview: boolean;
 };
@@ -29,6 +36,7 @@ export type ReceiptQualityAggregate = {
   matchedLineItemCount: number;
   lineItemPrecision: number;
   lineItemRecall: number;
+  excludedAmountLeakCount: number;
   falseAutoSaveCount: number;
   unexpectedReviewCount: number;
 };
@@ -36,6 +44,7 @@ export type ReceiptQualityAggregate = {
 export type ReceiptQualityCorpusReport = {
   overall: ReceiptQualityAggregate;
   layouts: Array<ReceiptQualityAggregate & { layoutFamily: ReceiptQualityFixture["layoutFamily"] }>;
+  structures: Array<ReceiptQualityAggregate & { structureFeature: ReceiptStructureFeature }>;
   fixtures: ReceiptQualityFixtureEvaluation[];
 };
 
@@ -98,6 +107,10 @@ function aggregateEvaluations(evaluations: readonly ReceiptQualityFixtureEvaluat
     matchedLineItemCount,
     lineItemPrecision: divideOrPerfect(matchedLineItemCount, actualLineItemCount),
     lineItemRecall: divideOrPerfect(matchedLineItemCount, expectedLineItemCount),
+    excludedAmountLeakCount: evaluations.reduce(
+      (sum, evaluation) => sum + evaluation.excludedAmountLeaks.length,
+      0,
+    ),
     falseAutoSaveCount: evaluations.filter((evaluation) => evaluation.falseAutoSave).length,
     unexpectedReviewCount: evaluations.filter((evaluation) => evaluation.unexpectedReview).length,
   };
@@ -118,10 +131,18 @@ export function evaluateReceiptQualityCorpus(
     const actualLineItems = parseResult.lineItemCandidates.map(
       (candidate) => [candidate.name, candidate.amount] as const,
     );
+    const extractedAmounts = new Set([
+      ...parseResult.amountCandidates.map((candidate) => candidate.value),
+      ...parseResult.lineItemCandidates.map((candidate) => candidate.amount),
+    ]);
+    const excludedAmountLeaks = (fixture.expectedExcludedAmounts ?? []).filter(
+      (amount) => extractedAmounts.has(amount),
+    );
 
     return {
       id: fixture.id,
       layoutFamily: fixture.layoutFamily,
+      structureFeatures: fixture.structureFeatures,
       totalMatched: (parseResult.amountCandidates[0]?.value ?? null) === fixture.expectedTotal,
       lineItemsExact: lineItemsMatchExactly(fixture.expectedLineItems, actualLineItems),
       expectedLineItemCount: fixture.expectedLineItems.length,
@@ -130,6 +151,7 @@ export function evaluateReceiptQualityCorpus(
       expectedDecision: fixture.expectedDecision,
       actualDecision: assessment.decision,
       reasonCodes: assessment.reasons.map((reason) => reason.code),
+      excludedAmountLeaks,
       falseAutoSave: fixture.expectedDecision === "needsReview" && assessment.decision === "autoSave",
       unexpectedReview: fixture.expectedDecision === "autoSave" && assessment.decision === "needsReview",
     };
@@ -142,6 +164,14 @@ export function evaluateReceiptQualityCorpus(
       layoutFamily,
       ...aggregateEvaluations(fixtureEvaluations.filter((fixture) => fixture.layoutFamily === layoutFamily)),
     })),
+    structures: RECEIPT_STRUCTURE_FEATURES
+      .filter((structureFeature) => fixtures.some((fixture) => fixture.structureFeatures.includes(structureFeature)))
+      .map((structureFeature) => ({
+        structureFeature,
+        ...aggregateEvaluations(
+          fixtureEvaluations.filter((fixture) => fixture.structureFeatures.includes(structureFeature)),
+        ),
+      })),
     fixtures: fixtureEvaluations,
   };
 }
@@ -154,10 +184,12 @@ export function formatReceiptQualityCorpusReport(report: ReceiptQualityCorpusRep
   const { overall } = report;
   return [
     `レシート数: ${overall.receiptCount}`,
+    `構造特徴: ${report.structures.length}種`,
     `総額一致率: ${formatPercent(overall.totalAccuracy)}`,
     `品目完全一致率: ${formatPercent(overall.exactLineItemRate)}`,
     `品目適合率: ${formatPercent(overall.lineItemPrecision)}`,
     `品目再現率: ${formatPercent(overall.lineItemRecall)}`,
+    `決済後数値混入: ${overall.excludedAmountLeakCount}`,
     `誤High: ${overall.falseAutoSaveCount}`,
     `不要な要確認: ${overall.unexpectedReviewCount}`,
   ].join("\n");

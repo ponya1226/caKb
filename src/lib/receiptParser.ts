@@ -24,7 +24,9 @@ const RECEIPT_SUBTOTAL_BOUNDARY_PATTERN = /^\s*小\s*計(?:\s|¥|$)/i;
 const RECEIPT_PAYABLE_TOTAL_BOUNDARY_PATTERN =
   /^\s*(?:合\s*計|総\s*合\s*計|総\s*計|総\s*額|現\s*計|税\s*込\s*金\s*額\s*合\s*計|お\s*買\s*(?:い\s*)?上\s*(?:げ\s*)?計|お\s*会\s*計|ご?\s*請\s*求\s*額|お?\s*支\s*払(?:い)?\s*額|決\s*済\s*額)(?:\s|[:：¥]|$)/i;
 const RECEIPT_PAYMENT_BOUNDARY_PATTERN =
-  /^\s*(?:支\s*払(?:\s*額)?|お\s*支\s*払(?:\s*額)?|現\s*金|お\s*預(?:かり|り)?(?:\s*計)?|預\s*り(?:\s*計)?|交通\s*系\s*マネー|電子\s*マネー|電子\s*決済|クレジット(?:\s*カード)?|カード\s*支払|Pay\s*Pay|QUIC\s*Pay|Suica|PASMO)(?:\s|[:：¥]|$)/i;
+  /^\s*(?:支\s*払(?:\s*額)?|お\s*支\s*払(?:\s*額)?|交通\s*系\s*マネー|電子\s*マネー|電子\s*決済|クレジット(?:\s*カード)?|カード\s*支払|Pay\s*Pay|QUIC\s*Pay|Suica|PASMO)(?:\s|[:：¥]|$)/i;
+const RECEIPT_TENDERED_BOUNDARY_PATTERN =
+  /^\s*(?:現\s*金|お\s*預(?:かり|り)?(?:\s*計)?|預\s*り(?:\s*計)?)(?:\s|[:：¥]|$)/i;
 const RECEIPT_POST_PAYMENT_BOUNDARY_PATTERN =
   /^\s*(?:お\s*釣(?:り)?|おつり|釣\s*り|釣銭|支\s*払\s*後\s*残\s*高|残\s*高|利用\s*可能\s*額)(?:\s|[:：¥]|は|$)/i;
 const RECEIPT_FOOTER_BOUNDARY_PATTERN =
@@ -71,6 +73,7 @@ type ReceiptStructureBoundary =
   | "tax"
   | "payableTotal"
   | "payment"
+  | "tendered"
   | "postPayment"
   | "footer";
 
@@ -128,6 +131,10 @@ function getReceiptStructureBoundary(lines: string[], index: number): ReceiptStr
     return "postPayment";
   }
 
+  if (RECEIPT_TENDERED_BOUNDARY_PATTERN.test(line)) {
+    return "tendered";
+  }
+
   if (RECEIPT_PAYMENT_BOUNDARY_PATTERN.test(line)) {
     return "payment";
   }
@@ -137,10 +144,31 @@ function getReceiptStructureBoundary(lines: string[], index: number): ReceiptStr
 
 function findAmountCandidateEndIndex(lines: string[]): number {
   let transactionSummarySeen = false;
+  let payableTotalSeen = false;
 
   for (let index = 0; index < lines.length; index += 1) {
     const boundary = getReceiptStructureBoundary(lines, index);
-    if (boundary === "subtotal" || boundary === "tax" || boundary === "payableTotal" || boundary === "payment") {
+    if (boundary === "payableTotal") {
+      transactionSummarySeen = true;
+      payableTotalSeen = true;
+      continue;
+    }
+
+    if (boundary === "tendered") {
+      if (payableTotalSeen) {
+        return index;
+      }
+
+      transactionSummarySeen = true;
+      continue;
+    }
+
+    if (boundary === "payment") {
+      transactionSummarySeen = true;
+      continue;
+    }
+
+    if (boundary === "subtotal" || boundary === "tax") {
       transactionSummarySeen = true;
       continue;
     }
@@ -817,7 +845,13 @@ function reconcileColumnOrderedLineItems(
     }
 
     const boundary = getReceiptStructureBoundary(lines, index);
-    return boundary === "payableTotal" || boundary === "payment" || boundary === "postPayment" || boundary === "footer";
+    return (
+      boundary === "payableTotal" ||
+      boundary === "payment" ||
+      boundary === "tendered" ||
+      boundary === "postPayment" ||
+      boundary === "footer"
+    );
   });
   const reconciliationLines = lines.slice(
     subtotalIndex + 1,
