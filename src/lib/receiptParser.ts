@@ -29,6 +29,10 @@ const BALANCE_AMOUNT_KEYWORD_PATTERN = /(残\s*高|利用\s*可能\s*額)/;
 const LOYALTY_AMOUNT_KEYWORD_PATTERN =
   /(ポイント\s*対象\s*金\s*額|今回\s*獲得|獲得\s*総\s*ポイント|累計\s*ポイント|次\s*ランク\s*まで|会員\s*ランク|ランク\s*保証)/i;
 const SHOP_EXCLUDE_PATTERN = /(領収|レシート|明細|登録番号|TEL|電話|合計|税込|小計|現計|釣|お預|クレジット|ポイント)/i;
+const SHOP_GREETING_PATTERN =
+  /^(?:(?:毎度|いつも).*(?:ありがとう|有難う)|(?:ご来店|ご利用|お買い上げ|お買上げ).*(?:ありがとう|有難う))(?:ござい(?:ます|ました))?[。.!！]*$/i;
+const SHOP_PHONE_SUFFIX_PATTERN =
+  /\s*(?:(?:TEL|電話)\s*[:：]?\s*)?0\d{1,3}\s*(?:[-ー－]|[（(])\s*\d{2,4}\s*(?:[-ー－]|[）)])\s*\d{3,4}\s*$/i;
 const MONEY_AMOUNT_PATTERN = /¥\s*[%A-Za-z]*\s*[\dOo〇○Cc¢][\dOo〇○Cc¢,\s.．()[\]（）]{0,14}(?:円)?/g;
 const PLAIN_AMOUNT_PATTERN = /[\d][\d,\s]{1,12}(?:円)?/g;
 const LINE_ITEM_EXCLUDE_PATTERN =
@@ -1087,7 +1091,10 @@ function normalizeShopNameCandidate(line: string): { value: string; confidenceBo
 }
 
 function cleanShopNameLine(line: string): string {
-  return line.replace(/^[\s\d\-ー―—‐|*/._]+/, "").trim();
+  return line
+    .replace(/^[\s\d\-ー―—‐|*/._]+/, "")
+    .replace(SHOP_PHONE_SUFFIX_PATTERN, "")
+    .trim();
 }
 
 function isAddressLikeShopLine(line: string): boolean {
@@ -1207,6 +1214,7 @@ function extractShopNameCandidates(lines: string[]): Array<ReceiptCandidate<stri
     .filter((shopLine) => shopLine.value.length >= 2)
     .filter((shopLine) => shopLine.value.length <= 32)
     .filter((shopLine) => !SHOP_EXCLUDE_PATTERN.test(shopLine.value))
+    .filter((shopLine) => !SHOP_GREETING_PATTERN.test(shopLine.value))
     .filter((shopLine) => !/\d{1,4}\s*(?:[\/\-.年])\s*\d{1,2}/.test(shopLine.value))
     .filter((shopLine) => extractAmountsFromLine(shopLine.value).length === 0)
     .filter((shopLine) => canUseShopLine(shopLine.value));
