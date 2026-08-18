@@ -33,7 +33,7 @@ public/             PWA manifest、service worker、アイコン
 - UIは `hooks` と `lib` を使う。
 - `lib` はReactに依存しない。
 - IndexedDBの詳細は `src/lib/db.ts` に閉じ込める。
-- OCR文字正規化は `src/lib/receiptText.ts`、レシート構造境界は `src/lib/receiptStructure.ts`、POS profileは `src/lib/receiptLineItemProfiles.ts`、品目名と金額の対応状態は `src/lib/receiptLineItemAssociation.ts`、候補選択は `src/lib/receiptLineItemSelection.ts`、残る候補抽出は `src/lib/receiptParser.ts` に閉じ込め、画面に正規表現を散らさない。
+- OCR文字正規化は `src/lib/receiptText.ts`、レシート構造境界は `src/lib/receiptStructure.ts`、店舗候補は `src/lib/receiptShop.ts`、POS profileは `src/lib/receiptLineItemProfiles.ts`、品目名と金額の対応状態は `src/lib/receiptLineItemAssociation.ts`、候補選択は `src/lib/receiptLineItemSelection.ts` に閉じ込め、`src/lib/receiptParser.ts` はこれらを合成する。画面に正規表現を散らさない。
 - 自動保存可否はReactに依存しないConfidence判定へ閉じ込め、UIで独自判定しない。
 
 ## Setup Commands

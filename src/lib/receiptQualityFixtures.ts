@@ -25,6 +25,7 @@ export type ReceiptQualityFixture = {
   ocrText: string;
   ocrBlocks?: OcrTextBlock[];
   expectedTotal: number | null;
+  expectedShopName?: string | null;
   expectedLineItems: readonly ReceiptQualityFixtureLineItem[];
   expectedExcludedAmounts?: readonly number[];
   expectedDecision: "autoSave" | "needsReview";
@@ -100,6 +101,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
       ¥999
     `,
     expectedTotal: 348,
+    expectedShopName: "SAMPLE CONVENIENCE サンプル駅店",
     expectedLineItems: [["やわらかロングタオルブルー", 348]],
     expectedExcludedAmounts: [1494, 999],
     expectedDecision: "needsReview",
@@ -134,6 +136,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
       ポテトチップス サンプル味
     `,
     expectedTotal: 481,
+    expectedShopName: "サンプルコンビニ 架空1丁目店",
     expectedLineItems: [
       ["ポテトチップス うすしお味", 168],
       ["長芋わさび醤油仕立て", 278],
@@ -164,6 +167,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
       ポイント会員募集中
     `,
     expectedTotal: 170,
+    expectedShopName: "SAMPLE MARKET サンプル団地店",
     expectedLineItems: [["ベーキングパウダー", 158]],
     expectedExcludedAmounts: [1020, 850],
     expectedDecision: "autoSave",
@@ -192,6 +196,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
       登録番号 T0000000000000
     `,
     expectedTotal: 1000,
+    expectedShopName: "SAMPLE TEA 架空新都心店",
     expectedLineItems: [["DECAF SAMPLE TB10", 1000]],
     expectedDecision: "autoSave",
   },
@@ -225,6 +230,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
       56P
     `,
     expectedTotal: 1746,
+    expectedShopName: "SAMPLE GROCERY 架空店",
     expectedLineItems: [
       ["きゃべつ", 159],
       ["レタス", 119],
@@ -377,6 +383,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
       ¥431
     `,
     expectedTotal: 2393,
+    expectedShopName: "文化サンプル 架空店",
     expectedLineItems: [
       ["商品A", 498],
       ["商品B", 298],
@@ -716,6 +723,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
       合計 ¥500
     `,
     expectedTotal: 500,
+    expectedShopName: "SAMPLE STORE",
     expectedLineItems: [["商品A", 500]],
     expectedDecision: "needsReview",
   },
@@ -729,6 +737,7 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
       合計 ¥500
     `,
     expectedTotal: 500,
+    expectedShopName: null,
     expectedLineItems: [],
     expectedDecision: "needsReview",
   },
