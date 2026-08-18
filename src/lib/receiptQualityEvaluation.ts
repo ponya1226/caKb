@@ -13,6 +13,7 @@ export type ReceiptQualityFixtureEvaluation = {
   layoutFamily: ReceiptQualityFixture["layoutFamily"];
   structureFeatures: readonly ReceiptStructureFeature[];
   totalMatched: boolean;
+  shopNameMatched: boolean | null;
   lineItemsExact: boolean;
   expectedLineItemCount: number;
   actualLineItemCount: number;
@@ -29,6 +30,9 @@ export type ReceiptQualityAggregate = {
   receiptCount: number;
   totalMatchedReceipts: number;
   totalAccuracy: number;
+  shopNameFixtureCount: number;
+  shopNameMatchedReceipts: number;
+  shopNameAccuracy: number;
   exactLineItemReceipts: number;
   exactLineItemRate: number;
   expectedLineItemCount: number;
@@ -91,6 +95,13 @@ function divideOrPerfect(numerator: number, denominator: number): number {
 function aggregateEvaluations(evaluations: readonly ReceiptQualityFixtureEvaluation[]): ReceiptQualityAggregate {
   const receiptCount = evaluations.length;
   const totalMatchedReceipts = evaluations.filter((evaluation) => evaluation.totalMatched).length;
+  const shopNameEvaluations = evaluations.filter(
+    (evaluation): evaluation is ReceiptQualityFixtureEvaluation & { shopNameMatched: boolean } =>
+      evaluation.shopNameMatched !== null,
+  );
+  const shopNameMatchedReceipts = shopNameEvaluations.filter(
+    (evaluation) => evaluation.shopNameMatched,
+  ).length;
   const exactLineItemReceipts = evaluations.filter((evaluation) => evaluation.lineItemsExact).length;
   const expectedLineItemCount = evaluations.reduce((sum, evaluation) => sum + evaluation.expectedLineItemCount, 0);
   const actualLineItemCount = evaluations.reduce((sum, evaluation) => sum + evaluation.actualLineItemCount, 0);
@@ -100,6 +111,9 @@ function aggregateEvaluations(evaluations: readonly ReceiptQualityFixtureEvaluat
     receiptCount,
     totalMatchedReceipts,
     totalAccuracy: divideOrPerfect(totalMatchedReceipts, receiptCount),
+    shopNameFixtureCount: shopNameEvaluations.length,
+    shopNameMatchedReceipts,
+    shopNameAccuracy: divideOrPerfect(shopNameMatchedReceipts, shopNameEvaluations.length),
     exactLineItemReceipts,
     exactLineItemRate: divideOrPerfect(exactLineItemReceipts, receiptCount),
     expectedLineItemCount,
@@ -138,12 +152,16 @@ export function evaluateReceiptQualityCorpus(
     const excludedAmountLeaks = (fixture.expectedExcludedAmounts ?? []).filter(
       (amount) => extractedAmounts.has(amount),
     );
+    const shopNameMatched = fixture.expectedShopName === undefined
+      ? null
+      : (parseResult.shopNameCandidates[0]?.value ?? null) === fixture.expectedShopName;
 
     return {
       id: fixture.id,
       layoutFamily: fixture.layoutFamily,
       structureFeatures: fixture.structureFeatures,
       totalMatched: (parseResult.amountCandidates[0]?.value ?? null) === fixture.expectedTotal,
+      shopNameMatched,
       lineItemsExact: lineItemsMatchExactly(fixture.expectedLineItems, actualLineItems),
       expectedLineItemCount: fixture.expectedLineItems.length,
       actualLineItemCount: actualLineItems.length,
@@ -186,6 +204,7 @@ export function formatReceiptQualityCorpusReport(report: ReceiptQualityCorpusRep
     `レシート数: ${overall.receiptCount}`,
     `構造特徴: ${report.structures.length}種`,
     `総額一致率: ${formatPercent(overall.totalAccuracy)}`,
+    `店名一致率: ${formatPercent(overall.shopNameAccuracy)}`,
     `品目完全一致率: ${formatPercent(overall.exactLineItemRate)}`,
     `品目適合率: ${formatPercent(overall.lineItemPrecision)}`,
     `品目再現率: ${formatPercent(overall.lineItemRecall)}`,

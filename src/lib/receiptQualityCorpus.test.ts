@@ -11,15 +11,21 @@ describe("receipt quality corpus", () => {
     const decisionMismatches = report.fixtures.filter(
       (fixture) => fixture.expectedDecision !== fixture.actualDecision,
     );
+    const shopNameMismatches = report.fixtures.filter(
+      (fixture) => fixture.shopNameMatched === false,
+    );
     const excludedAmountLeaks = report.fixtures
       .filter((fixture) => fixture.excludedAmountLeaks.length > 0)
       .map(({ id, excludedAmountLeaks: amounts }) => ({ id, amounts }));
 
     expect(decisionMismatches).toEqual([]);
+    expect(shopNameMismatches).toEqual([]);
     expect(excludedAmountLeaks).toEqual([]);
     expect(report.overall).toMatchObject({
       receiptCount: 18,
       totalAccuracy: 1,
+      shopNameFixtureCount: 8,
+      shopNameAccuracy: 1,
       exactLineItemRate: 1,
       lineItemPrecision: 1,
       lineItemRecall: 1,
@@ -63,6 +69,7 @@ describe("receipt quality corpus", () => {
       "レシート数: 18",
       "構造特徴: 10種",
       "総額一致率: 100.0%",
+      "店名一致率: 100.0%",
       "品目完全一致率: 100.0%",
       "品目適合率: 100.0%",
       "品目再現率: 100.0%",

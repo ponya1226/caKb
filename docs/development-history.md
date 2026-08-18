@@ -1,5 +1,31 @@
 # Development History
 
+## 2026-08-18 Receipt Shop Candidate Module And Quality Gate
+
+目的: 店舗名候補の改善を総額・品目解析から独立して安全に継続できるようにし、既知の店舗ヘッダー構造を共有品質ゲートで固定する。
+
+主な変更:
+
+- 店舗候補の除外、電話番号除去、ブランド・支店結合、正規化、順位付けを `receiptShop.ts` へ分離
+- `receiptParser.ts` は既存の金額行検出を店舗候補モジュールへ注入し、従来の金額解析挙動を維持
+- 来店挨拶、英字ブランド、日本語ブランド、電話番号付き支店、店舗欠落を独立単体テストで検証
+- 18件の匿名共有コーパスのうち8件へ期待店舗名を追加し、店名一致率を品質レポートとリリースゲートへ追加
+- 保存schema、Confidence方針、外部サービスは変更していないためADR追加なし
+
+検証結果:
+
+- `npm.cmd run lint`: 成功
+- `npm.cmd run test`: 34ファイル、169件成功
+- `npm.cmd run test:receipt-quality`: 匿名コーパス18件、期待店名8件、総額・店名・品目各精度100%、決済後数値混入0件、誤High 0件
+- `npm.cmd run build`: 成功。Firebase import構成と約1,020KBのmain chunkに関する既知警告のみ
+- `npm.cmd run test:e2e`: mobile Chromium 12件成功
+- `git diff --check`: 成功
+
+残課題:
+
+- 家族利用で新しい店舗ヘッダー構造が見つかった場合だけ、実店舗名を含まないfixtureを追加する
+- `receiptParser.ts` に残る品目行分類と小計差分・列順補完を次の責務分離候補とする
+
 ## 2026-08-16 Receipt Greeting Shop Name Parsing
 
 目的: レシート冒頭の来店お礼文を店舗名として登録せず、電話番号と同じ行に印字された支店名をブランド名と組み合わせる。
