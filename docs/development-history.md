@@ -1,5 +1,31 @@
 # Development History
 
+## 2026-08-22 Receipt Line Item Reconciliation Module
+
+目的: 小計差分と列順による品目補完をOCR行分類から分離し、誤った品目金額を作らないための算術条件を直接検証できるようにする。
+
+主な変更:
+
+- 抽出済み品目、未対応の商品名、印字点数、小計、後続金額列を証拠として受け取る `receiptLineItemReconciliation.ts` を追加
+- 列順補完は印字点数と「既存品目 + 補完金額 = 後続小計 = 抽出済み小計」が一致する場合だけ適用
+- 小計差分補完は商品コード付き未対応品目が1件で、残差が10円以上100万円以下の整数の場合だけ適用
+- 割引を商品点数には含めず、小計の算術整合性には含める既存挙動を独立単体テスト化
+- 抽出結果、Confidence方針、保存schema、外部サービスは変更していないためADR追加なし
+
+検証結果:
+
+- `npm.cmd run lint`: 成功
+- `npm.cmd run test`: 36ファイル、194件成功
+- `npm.cmd run test:receipt-quality`: 匿名コーパス19件、総額・店舗名・品目・Confidence期待値を維持
+- `npm.cmd run build`: 成功。Firebase import構成と約1,020KBのmain chunkに関する既知警告のみ
+- `npm.cmd run test:e2e`: mobile Chromium 12件成功
+- `git diff --check`: 成功
+
+残課題:
+
+- 総額・品目金額で共有する数値トークン抽出と、整合性補完へ渡す印字証拠生成は `receiptParser.ts` に残る
+- 実利用では `receipt-confidence-v5` の補完理由件数と要確認率を継続確認する
+
 ## 2026-08-22 Receipt Line Item Classification Module
 
 目的: POS形式追加時の品目行判定変更が、総額抽出や品目対応処理へ波及しにくい構造へ整理する。

@@ -98,6 +98,8 @@ Firebase client configは `VITE_FIREBASE_*` 環境変数から読み取ります
 
 ## レシート読み取り
 
+`receiptLineItemReconciliation.ts` は、抽出済み品目、未対応の商品名、印字点数、小計、後続金額列を証拠として受け取り、列順補完と小計差分補完の可否を純粋関数で判定します。点数または算術整合性が不足する場合は補完せず、店舗・OCR行分類・Reactには依存しません。
+
 レシート読み取りは `receiptOcr.ts` を通して実行し、Google Visionと画像全体に固定します。
 
 - `receiptOcr.ts`: 利用画面向けの単一入口、進捗表示、設定有無の判定

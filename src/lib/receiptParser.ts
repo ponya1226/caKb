@@ -20,6 +20,10 @@ import {
   hasReceiptLineItemCode,
   type ReceiptLineItemProfile,
 } from "./receiptLineItemProfiles";
+import {
+  reconcileReceiptLineItems,
+  type ReceiptLineItemReconciliationAmount,
+} from "./receiptLineItemReconciliation";
 import { selectReceiptLineItemCandidates } from "./receiptLineItemSelection";
 import { extractShopNameCandidates } from "./receiptShop";
 import {
@@ -578,31 +582,12 @@ function findLineItemSubtotal(lines: string[]): number | null {
   return null;
 }
 
-function reconcileColumnOrderedLineItems(
-  candidates: ReceiptLineItemCandidate[],
-  unmatchedNames: PendingReceiptLineItemName[],
+function extractColumnOrderedLineItemAmounts(
   lines: string[],
-  profile: ReceiptLineItemProfile,
-): ReceiptLineItemCandidate[] {
-  const unmatchedProducts = unmatchedNames.filter((item) => item.hasItemCode && !item.isDiscount);
-  if (
-    unmatchedProducts.length < profile.columnReconciliationMinItems ||
-    unmatchedProducts.length > profile.columnReconciliationMaxItems
-  ) {
-    return candidates;
-  }
-
-  const receiptItemCount = findReceiptItemCount(lines);
-  const extractedProductCount = candidates.filter(
-    (candidate) => candidate.amount > 0 && !isReceiptLineItemDiscount(candidate.name),
-  ).length;
-  if (receiptItemCount !== extractedProductCount + unmatchedProducts.length) {
-    return candidates;
-  }
-
+): ReceiptLineItemReconciliationAmount[] {
   const subtotalIndex = lines.findIndex((line) => /小\s*計/.test(normalizeText(line)));
   if (subtotalIndex < 0) {
-    return candidates;
+    return [];
   }
 
   const reconciliationEndIndex = lines.findIndex((line, index) => {
@@ -617,7 +602,7 @@ function reconcileColumnOrderedLineItems(
     reconciliationEndIndex < 0 ? lines.length : reconciliationEndIndex,
   );
 
-  const trailingAmounts = reconciliationLines
+  return reconciliationLines
     .flatMap((line) => {
       const matches = extractLineItemAmountMatchesFromLine(line).filter((match) => (
         match.amount > 0 && isLineItemAmountOnlyLine(line, match)
@@ -633,58 +618,6 @@ function reconcileColumnOrderedLineItems(
       }];
     })
     .slice(0, 20);
-  const currentTotal = candidates.reduce((sum, candidate) => sum + candidate.amount, 0);
-
-  for (let start = 0; start + unmatchedProducts.length < trailingAmounts.length; start += 1) {
-    const itemAmounts = trailingAmounts.slice(start, start + unmatchedProducts.length);
-    const subtotalAmount = trailingAmounts[start + unmatchedProducts.length]?.amount;
-    const inferredSubtotal = currentTotal + itemAmounts.reduce((sum, item) => sum + item.amount, 0);
-    if (subtotalAmount !== inferredSubtotal) {
-      continue;
-    }
-
-    return [
-      ...candidates,
-      ...unmatchedProducts.map((item, index): ReceiptLineItemCandidate => ({
-        name: item.name,
-        amount: itemAmounts[index].amount,
-        line: `${item.line} / ${itemAmounts[index].line} / 小計一致`,
-        confidence: itemAmounts[index].confidence,
-        extractionMethod: "ambiguous_pair",
-      })),
-    ];
-  }
-
-  return candidates;
-}
-
-function reconcileUnmatchedLineItem(
-  candidates: ReceiptLineItemCandidate[],
-  unmatchedNames: PendingReceiptLineItemName[],
-  lines: string[],
-): ReceiptLineItemCandidate[] {
-  const subtotal = findLineItemSubtotal(lines);
-  const unmatchedProducts = unmatchedNames.filter((item) => item.hasItemCode && !item.isDiscount);
-  if (!subtotal || unmatchedProducts.length !== 1) {
-    return candidates;
-  }
-
-  const currentTotal = candidates.reduce((sum, candidate) => sum + candidate.amount, 0);
-  const residual = subtotal - currentTotal;
-  if (!Number.isInteger(residual) || residual < 10 || residual > 1_000_000) {
-    return candidates;
-  }
-
-  return [
-    ...candidates,
-    {
-      name: unmatchedProducts[0].name,
-      amount: residual,
-      line: `${unmatchedProducts[0].line} / 小計差分`,
-      confidence: 0.52,
-      extractionMethod: "subtotal_residual",
-    },
-  ];
 }
 
 function findReceiptItemCount(lines: string[]): number | null {
@@ -903,8 +836,16 @@ function extractLineItemCandidates(
 
   const candidates = association.getCandidates();
   const unmatchedNames = association.getUnmatchedNames();
-  const columnReconciledCandidates = reconcileColumnOrderedLineItems(candidates, unmatchedNames, lines, profile);
-  const reconciledCandidates = reconcileUnmatchedLineItem(columnReconciledCandidates, unmatchedNames, lines);
+  const reconciledCandidates = reconcileReceiptLineItems({
+    candidates,
+    unmatchedNames,
+    profile,
+    evidence: {
+      declaredItemCount: findReceiptItemCount(lines),
+      subtotal: findLineItemSubtotal(lines),
+      columnOrderedAmounts: extractColumnOrderedLineItemAmounts(lines),
+    },
+  });
   return inferSingleReceiptLineItem(reconciledCandidates, lines, profile, totalAmount)
     .slice(0, MAX_LINE_ITEM_CANDIDATES);
 }
