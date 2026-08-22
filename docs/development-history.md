@@ -1,5 +1,30 @@
 # Development History
 
+## 2026-08-22 Receipt Line Item Classification Module
+
+目的: POS形式追加時の品目行判定変更が、総額抽出や品目対応処理へ波及しにくい構造へ整理する。
+
+主な変更:
+
+- 品目名正規化と商品・数量・税・決済・住所・コード・割引・集計ラベルの判定を `receiptLineItemClassification.ts` へ分離
+- 記号付き部門コード、税区分前置コード、括弧付き商品属性、数量、電話、住所、日付、決済、割引の分類を独立単体テスト化
+- `receiptParser.ts` は分類結果を利用して金額抽出、品目対応、小計補完、候補選択を合成する構成へ縮小
+- 抽出結果、Confidence方針、保存schema、外部サービスは変更していないためADR追加なし
+
+検証結果:
+
+- `npm.cmd run lint`: 成功
+- `npm.cmd run test`: 35ファイル、184件成功
+- `npm.cmd run test:receipt-quality`: 匿名コーパス19件、総額・店舗名・品目・Confidence期待値を維持
+- `npm.cmd run build`: 成功。Firebase import構成と約1,020KBのmain chunkに関する既知警告のみ
+- `npm.cmd run test:e2e`: mobile Chromium 12件成功
+- `git diff --check`: 成功
+
+残課題:
+
+- `receiptParser.ts` に残る小計差分補完と列順補完を、分類・対応付けとは独立した整合性補完モジュールへ分離する
+- 実利用で新しい分類規則が必要になった場合は、匿名fixtureと分類単体テストを先に追加する
+
 ## 2026-08-22 Tax-Marked Department Code Parsing
 
 目的: 食品スーパーの商品行で、2桁部門コード直後の税率記号を少額の品目金額と誤認し、後続商品の金額対応がずれる問題を解消する。
