@@ -1,5 +1,32 @@
 # Development History
 
+## 2026-08-22 Tax-Marked Department Code Parsing
+
+目的: 食品スーパーの商品行で、2桁部門コード直後の税率記号を少額の品目金額と誤認し、後続商品の金額対応がずれる問題を解消する。
+
+主な変更:
+
+- `03* 商品名`、`03※ 商品名`、`03★ 商品名`を既存の食品スーパーprofileの商品コード行として認識
+- 商品行先頭の記号付き部門コードを品目金額候補から除外し、次行の通貨記号付き金額と対応
+- `(冷凍)`など先頭の括弧付き商品属性を品目名として保持
+- 17品目、税率別税額、預り金、釣銭を含む匿名fixtureを追加し、共有品質コーパスを19件へ拡張
+- 保存schema、Confidence方針、外部サービスは変更していないためADR追加なし
+
+検証結果:
+
+- `npm.cmd run lint`: 成功
+- `npm.cmd run test`: 34ファイル、172件成功
+- `npm.cmd run test:receipt-quality`: 匿名コーパス19件、期待店名9件、総額・店名・品目各精度100%、決済後数値混入0件、誤High 0件
+- `npm.cmd run build`: 成功。Firebase import構成と約1,020KBのmain chunkに関する既知警告のみ
+- `npm.cmd run test:e2e`: mobile Chromium 12件成功
+- `git diff --check`: 成功
+- 匿名fixtureで品目合計5,175円、税額416円、支払総額5,591円が整合
+
+残課題:
+
+- 実端末で同型レシートを再読取し、17品目の金額と品目合計を確認する
+- 新しいPOS形式は店舗名による例外ではなく、匿名化した構造fixtureを先に追加して評価する
+
 ## 2026-08-18 Receipt Shop Candidate Module And Quality Gate
 
 目的: 店舗名候補の改善を総額・品目解析から独立して安全に継続できるようにし、既知の店舗ヘッダー構造を共有品質ゲートで固定する。

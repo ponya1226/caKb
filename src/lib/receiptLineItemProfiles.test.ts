@@ -68,4 +68,16 @@ describe("receipt line item profiles", () => {
       "買上点数 3点",
     ]).id).toBe("generic");
   });
+
+  it("detects department codes followed by a tax marker", () => {
+    expect(detectReceiptLineItemProfile([
+      "01 *商品A",
+      "03* (冷凍) 商品B",
+      "05 商品C",
+      "小計 3点 ¥600",
+    ])).toMatchObject({
+      id: "department-coded-grocery",
+      maxPendingNames: 4,
+    });
+  });
 });

@@ -22,9 +22,9 @@ describe("receipt quality corpus", () => {
     expect(shopNameMismatches).toEqual([]);
     expect(excludedAmountLeaks).toEqual([]);
     expect(report.overall).toMatchObject({
-      receiptCount: 18,
+      receiptCount: 19,
       totalAccuracy: 1,
-      shopNameFixtureCount: 8,
+      shopNameFixtureCount: 9,
       shopNameAccuracy: 1,
       exactLineItemRate: 1,
       lineItemPrecision: 1,
@@ -66,7 +66,7 @@ describe("receipt quality corpus", () => {
     const report = formatReceiptQualityCorpusReport(evaluateReceiptQualityCorpus(RECEIPT_QUALITY_FIXTURES));
 
     expect(report).toBe([
-      "レシート数: 18",
+      "レシート数: 19",
       "構造特徴: 10種",
       "総額一致率: 100.0%",
       "店名一致率: 100.0%",

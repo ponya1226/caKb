@@ -267,7 +267,7 @@ function isPlainAmountMatchSkippable(line: string, match: RegExpMatchArray): boo
   const before = line[index - 1] ?? "";
   const after = line[index + token.length] ?? "";
   const beforeToken = line.slice(0, index).trim();
-  const isLeadingItemCode = /^#?\d{1,4}\s+\S/.test(line) && /^#?$/.test(beforeToken);
+  const isLeadingItemCode = /^#?\d{1,4}[*※★]?\s+\S/.test(line) && /^#?$/.test(beforeToken);
   const nearbyText = line
     .slice(Math.max(0, index - 3), Math.min(line.length, index + token.length + 4))
     .replace(/\s/g, "");
@@ -523,7 +523,7 @@ function normalizeLineItemName(value: string): string {
     .replace(/[|｜{}]/g, " ")
     .replace(/^\s*(?:外|内)\s*(?:8|10)\s+#?\d{1,4}\s+/, "")
     .replace(/^\s*\d{1,2}\s+/, "")
-    .replace(/^[\s\-_=・:：,.、。()（）[\]【】「」'"#]+/, "")
+    .replace(/^[\s\-_=・:：,.、。[\]【】「」'"#]+/, "")
     .replace(/^\s*\d{1,4}\s+/, "")
     .replace(/[\s\-_=・:：,.、。[\]【】「」'"#]+$/, "")
     .replace(/\s{2,}/g, " ")
