@@ -4,6 +4,18 @@ import {
   type PendingReceiptLineItemName,
 } from "./receiptLineItemAssociation";
 import {
+  createPendingReceiptDiscountName,
+  createPendingReceiptLineItemName,
+  isPotentialReceiptLineItemNameLine,
+  isReceiptAmountSectionLabel,
+  isReceiptLineItemDiscount,
+  isReceiptLineItemDiscountMarker,
+  isReceiptMarkerLine,
+  isUsableReceiptLineItemName,
+  normalizeReceiptLineItemName,
+  shouldSkipReceiptLineItemLine,
+} from "./receiptLineItemClassification";
+import {
   detectReceiptLineItemProfile,
   hasReceiptLineItemCode,
   type ReceiptLineItemProfile,
@@ -31,16 +43,6 @@ const LOYALTY_AMOUNT_KEYWORD_PATTERN =
   /(ポイント\s*対象\s*金\s*額|今回\s*獲得|獲得\s*総\s*ポイント|累計\s*ポイント|次\s*ランク\s*まで|会員\s*ランク|ランク\s*保証)/i;
 const MONEY_AMOUNT_PATTERN = /¥\s*[%A-Za-z]*\s*[\dOo〇○Cc¢][\dOo〇○Cc¢,\s.．()[\]（）]{0,14}(?:円)?/g;
 const PLAIN_AMOUNT_PATTERN = /[\d][\d,\s]{1,12}(?:円)?/g;
-const LINE_ITEM_EXCLUDE_PATTERN =
-  /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|残\s*高|利用\s*可能\s*額|領収|明細|登録番号|TEL|電話|レジ|伝票|No\.?|WAON|POINT|ポイント|会員\s*ランク|ランク\s*保証|次\s*ランク|今回\s*獲得|クーポン|http|https|お買上|マーク|軽減税率|株式会社|収いたしました|満足宣言)/i;
-const LINE_ITEM_PAYMENT_PATTERN =
-  /(交通\s*系\s*マネー|電子\s*マネー|電子\s*決済|クレジット|カード|QUIC\s*Pay|Suica|PASMO)/i;
-const LINE_ITEM_STAFF_PATTERN = /(?:担当|責|貴|係員|スタッフ)\s*[:：]/i;
-const RECEIPT_MARKER_PATTERN = /(領\s*収\s*[証書]|レシート)/i;
-const LINE_ITEM_NAME_EXCLUDE_PATTERN = /^[\s\-_=*※¥\d,.()（）[\]【】「」'"#]+$/;
-const AMOUNT_SECTION_LABEL_PATTERN =
-  /(合\s*計|現\s*計|小\s*計|税\s*込|消\s*費\s*税|外\s*税|内\s*税|税率|対象|支\s*払|現\s*金|お\s*預|預\s*り|お\s*釣|おつり|釣\s*り|釣銭|残\s*高|利用\s*可能\s*額|お\s*買\s*上\s*計|交通\s*系\s*マネー|電子\s*マネー|クレジット|カード)/i;
-const LINE_ITEM_DISCOUNT_PATTERN = /(割\s*引|値\s*引)/i;
 const QUANTITY_AMOUNT_CONTEXT_PATTERN = /(g|ｇ|kg|㎏|ml|mL|ＭＬ|枚|個|本|点|袋|パック|連|P|ｐ)$/i;
 const MAX_LINE_ITEM_CANDIDATES = 50;
 const MIN_LINE_ITEM_AMOUNT = 1;
@@ -339,7 +341,7 @@ function extractAmountMatchesFromLine(line: string, minimumAmount = 10): AmountM
 function extractLineItemAmountMatchesFromLine(line: string): AmountMatch[] {
   const normalizedLine = normalizeText(line);
   const unsignedMatches = extractAmountMatchesFromLine(normalizedLine, MIN_LINE_ITEM_AMOUNT);
-  const discountMatches = LINE_ITEM_DISCOUNT_PATTERN.test(normalizedLine) || /^\s*-/.test(normalizedLine)
+  const discountMatches = isReceiptLineItemDiscount(normalizedLine) || /^\s*-/.test(normalizedLine)
     ? Array.from(normalizedLine.matchAll(/-\s*[\dOo〇○Cc¢][\dOo〇○Cc¢,\s.．()[\]（）]{0,14}(?:円)?/g))
         .map((match) => {
           const unsignedAmount = parseAmountValue(match[0]);
@@ -516,125 +518,8 @@ function removeAmountToken(line: string, match: AmountMatch): string {
   return `${line.slice(0, match.index)} ${line.slice(match.index + match.raw.length)}`;
 }
 
-function normalizeLineItemName(value: string): string {
-  return normalizeText(value)
-    .replace(/[¥￥]/g, "")
-    .replace(/[*※★]/g, "")
-    .replace(/[|｜{}]/g, " ")
-    .replace(/^\s*(?:外|内)\s*(?:8|10)\s+#?\d{1,4}\s+/, "")
-    .replace(/^\s*\d{1,2}\s+/, "")
-    .replace(/^[\s\-_=・:：,.、。[\]【】「」'"#]+/, "")
-    .replace(/^\s*\d{1,4}\s+/, "")
-    .replace(/[\s\-_=・:：,.、。[\]【】「」'"#]+$/, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
-
 function cleanLineItemName(line: string, match: AmountMatch): string {
-  return normalizeLineItemName(removeAmountToken(normalizeText(line), match));
-}
-
-function isReceiptCodeLikeLine(line: string): boolean {
-  const compactLine = normalizeText(line).replace(/\s/g, "");
-  return (
-    /\d{12,}/.test(compactLine) ||
-    /\d{2,4}-\d{2,4}-\d{2,4}/.test(compactLine) ||
-    /(?:[*＊Xx]{2,}[-ー]?){1,}\d{3,4}$/.test(compactLine)
-  );
-}
-
-function isPhoneNumberLikeLine(line: string): boolean {
-  const compactLine = normalizeText(line).replace(/\s/g, "");
-  return /(?:^|[^\d])0\d{1,3}(?:[-ー－]|[（(])\d{2,4}(?:[-ー－]|[）)])\d{3,4}(?:[^\d]|$)/.test(
-    compactLine,
-  );
-}
-
-function isAddressLikeLineItemLine(line: string): boolean {
-  const normalizedLine = normalizeText(line);
-  return (
-    /(都|道|府|県).*(市|区|郡|町|村)/.test(normalizedLine) ||
-    /(?:市|区|郡|町|村|丁目|番地).*(?:\d+\s*[-ー－]\s*\d+|\d+\s+\d+)/.test(normalizedLine)
-  );
-}
-
-function shouldSkipLineItemLine(line: string): boolean {
-  const normalizedLine = normalizeText(line);
-  if (isReceiptTaxSummaryLine(normalizedLine)) {
-    return true;
-  }
-
-  if (/\(?\d+\s*×\s*\d+\s*(?:個|点|本|枚|袋|パック|連)/.test(normalizedLine)) {
-    return true;
-  }
-
-  if (LINE_ITEM_EXCLUDE_PATTERN.test(normalizedLine)) {
-    return true;
-  }
-
-  if (
-    LINE_ITEM_PAYMENT_PATTERN.test(normalizedLine) ||
-    LINE_ITEM_STAFF_PATTERN.test(normalizedLine) ||
-    isPhoneNumberLikeLine(normalizedLine) ||
-    isAddressLikeLineItemLine(normalizedLine)
-  ) {
-    return true;
-  }
-
-  if (isReceiptCodeLikeLine(normalizedLine)) {
-    return true;
-  }
-
-  return (
-    /\d{1,4}\s*(?:年|\/|-|\.)\s*\d{1,2}/.test(normalizedLine) ||
-    /\d{1,2}\s*月\s*\d{1,2}\s*日/.test(normalizedLine) ||
-    /^\d{1,2}:\d{2}(?::\d{2})?$/.test(normalizedLine)
-  );
-}
-
-function isUsableLineItemName(name: string): boolean {
-  if (name.length < 2 || name.length > 48) {
-    return false;
-  }
-
-  if (LINE_ITEM_NAME_EXCLUDE_PATTERN.test(name)) {
-    return false;
-  }
-
-  const digitCount = name.match(/\d/g)?.length ?? 0;
-  return digitCount / name.length < 0.55;
-}
-
-function isPotentialSplitLineItemNameLine(line: string, profile: ReceiptLineItemProfile): boolean {
-  const normalizedLine = normalizeText(line);
-  const name = normalizeLineItemName(normalizedLine);
-  if (hasReceiptLineItemCode(normalizedLine, profile)) {
-    return isUsableLineItemName(name);
-  }
-
-  if (!/[一-龯ぁ-んァ-ヶA-Za-z]/.test(name)) {
-    return false;
-  }
-
-  return isUsableLineItemName(name);
-}
-
-function createPendingLineItemName(
-  line: string,
-  profile: ReceiptLineItemProfile,
-): PendingReceiptLineItemName | null {
-  const normalizedLine = normalizeText(line);
-  const name = normalizeLineItemName(line);
-  if (!isUsableLineItemName(name)) {
-    return null;
-  }
-
-  return {
-    name,
-    line: normalizedLine.trim(),
-    hasItemCode: hasReceiptLineItemCode(normalizedLine, profile),
-    isDiscount: isDiscountLineItemName(name),
-  };
+  return normalizeReceiptLineItemName(removeAmountToken(normalizeText(line), match));
 }
 
 function isLineItemAmountOnlyLine(line: string, match: AmountMatch): boolean {
@@ -646,44 +531,8 @@ function isLineItemAmountOnlyLine(line: string, match: AmountMatch): boolean {
   return residualName.length === 0 || /^(?:特|特価)$/.test(residualName);
 }
 
-function isDiscountLineItemName(name: string): boolean {
-  return LINE_ITEM_DISCOUNT_PATTERN.test(normalizeText(name));
-}
-
 function isDiscountAmountOnlyLine(line: string, match: AmountMatch): boolean {
   return match.amount < 0 && cleanLineItemName(line, match).length === 0;
-}
-
-function isDiscountMarkerLine(line: string): boolean {
-  const normalizedLine = normalizeText(line);
-  if (!/%/.test(normalizedLine) || /-\s*\d/.test(normalizedLine)) {
-    return false;
-  }
-
-  return (
-    LINE_ITEM_DISCOUNT_PATTERN.test(normalizedLine) ||
-    (/[★*※]/.test(normalizedLine) && /\(?\s*\d{1,2}\s*%\s*\)?/.test(normalizedLine))
-  );
-}
-
-function createPendingDiscountName(line: string): PendingReceiptLineItemName {
-  const normalizedLine = normalizeText(line).trim();
-  const normalizedName = normalizeLineItemName(normalizedLine);
-  const rate = normalizedLine.match(/(\d{1,2})\s*%/)?.[1];
-  const name = LINE_ITEM_DISCOUNT_PATTERN.test(normalizedName)
-    ? normalizedName
-    : `割引${rate ? `(${rate}%)` : ""}`;
-
-  return {
-    name,
-    line: normalizedLine,
-    hasItemCode: false,
-    isDiscount: true,
-  };
-}
-
-function shouldSuppressNextAmountOnlyLine(line: string): boolean {
-  return AMOUNT_SECTION_LABEL_PATTERN.test(normalizeText(line));
 }
 
 function shouldSkipSuppressedAmountLine(line: string, match: AmountMatch): boolean {
@@ -717,7 +566,7 @@ function findLineItemSubtotal(lines: string[]): number | null {
     const amounts = extractAmountsFromLine(line);
     const nextLine = normalizeText(lines[index + 1] ?? "");
     const nextAmounts =
-      nextLine && !isReceiptTaxSummaryLine(nextLine) && !AMOUNT_SECTION_LABEL_PATTERN.test(nextLine)
+      nextLine && !isReceiptTaxSummaryLine(nextLine) && !isReceiptAmountSectionLabel(nextLine)
         ? extractAmountsFromLine(nextLine)
         : [];
     const candidate = [...amounts, ...nextAmounts].sort((a, b) => b - a)[0];
@@ -745,7 +594,7 @@ function reconcileColumnOrderedLineItems(
 
   const receiptItemCount = findReceiptItemCount(lines);
   const extractedProductCount = candidates.filter(
-    (candidate) => candidate.amount > 0 && !isDiscountLineItemName(candidate.name),
+    (candidate) => candidate.amount > 0 && !isReceiptLineItemDiscount(candidate.name),
   ).length;
   if (receiptItemCount !== extractedProductCount + unmatchedProducts.length) {
     return candidates;
@@ -849,7 +698,7 @@ function findSingleReceiptProductName(
   lines: string[],
   profile: ReceiptLineItemProfile,
 ): { name: string; line: string } | null {
-  const receiptMarkerIndex = lines.findIndex((line) => RECEIPT_MARKER_PATTERN.test(normalizeText(line)));
+  const receiptMarkerIndex = lines.findIndex((line) => isReceiptMarkerLine(line));
   if (receiptMarkerIndex < 0) {
     return null;
   }
@@ -868,17 +717,17 @@ function findSingleReceiptProductName(
 
   const productLines = lines
     .slice(receiptMarkerIndex + 1, summaryIndex)
-    .filter((line) => !shouldSkipLineItemLine(line))
+    .filter((line) => !shouldSkipReceiptLineItemLine(line))
     .filter((line) => extractLineItemAmountMatchesFromLine(line).length === 0)
-    .filter((line) => isPotentialSplitLineItemNameLine(line, profile))
-    .map((line) => normalizeLineItemName(line));
+    .filter((line) => isPotentialReceiptLineItemNameLine(line, profile))
+    .map((line) => normalizeReceiptLineItemName(line));
 
   if (productLines.length === 0 || productLines.length > 2) {
     return null;
   }
 
-  const name = normalizeLineItemName(productLines.join(" "));
-  if (!isUsableLineItemName(name)) {
+  const name = normalizeReceiptLineItemName(productLines.join(" "));
+  if (!isUsableReceiptLineItemName(name)) {
     return null;
   }
 
@@ -963,15 +812,15 @@ function extractLineItemCandidates(
       return;
     }
 
-    if (shouldSkipLineItemLine(line)) {
+    if (shouldSkipReceiptLineItemLine(line)) {
       association.resetPending();
       pendingDiscountName = null;
-      suppressNextAmountOnlyLine = shouldSuppressNextAmountOnlyLine(line);
+      suppressNextAmountOnlyLine = isReceiptAmountSectionLabel(line);
       return;
     }
 
-    if (isDiscountMarkerLine(normalizedLine)) {
-      pendingDiscountName = createPendingDiscountName(line);
+    if (isReceiptLineItemDiscountMarker(normalizedLine)) {
+      pendingDiscountName = createPendingReceiptDiscountName(line);
       suppressNextAmountOnlyLine = false;
       return;
     }
@@ -980,7 +829,7 @@ function extractLineItemCandidates(
       (match) => Math.abs(match.amount) >= MIN_LINE_ITEM_AMOUNT && Math.abs(match.amount) <= 1_000_000,
     );
     if (
-      LINE_ITEM_DISCOUNT_PATTERN.test(normalizeText(line)) &&
+      isReceiptLineItemDiscount(line) &&
       !/^\s*-/.test(normalizeText(line)) &&
       !/[-]\s*\d/.test(normalizeText(line)) &&
       matches.every((match) => match.amount <= 100)
@@ -989,8 +838,8 @@ function extractLineItemCandidates(
     }
     if (matches.length === 0) {
       suppressNextAmountOnlyLine = false;
-      const pendingName = isPotentialSplitLineItemNameLine(line, profile)
-        ? createPendingLineItemName(line, profile)
+      const pendingName = isPotentialReceiptLineItemNameLine(line, profile)
+        ? createPendingReceiptLineItemName(line, profile)
         : null;
       if (pendingName) {
         association.addName(pendingName);
@@ -1009,7 +858,7 @@ function extractLineItemCandidates(
     suppressNextAmountOnlyLine = false;
 
     if (isDiscountAmountOnlyLine(line, match)) {
-      const discountName = pendingDiscountName ?? createPendingDiscountName("割引");
+      const discountName = pendingDiscountName ?? createPendingReceiptDiscountName("割引");
       association.addCandidate({
         name: discountName.name,
         amount: match.amount,
@@ -1039,7 +888,7 @@ function extractLineItemCandidates(
     association.resetPending();
     pendingDiscountName = null;
     const name = cleanLineItemName(line, match);
-    if (!isUsableLineItemName(name)) {
+    if (!isUsableReceiptLineItemName(name)) {
       return;
     }
 
