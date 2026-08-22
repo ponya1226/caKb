@@ -707,6 +707,30 @@ describe("parseReceiptText", () => {
     );
   });
 
+  it("ignores a tax-marked department code before a split item amount", () => {
+    const result = parseReceiptText(`
+      SAMPLE MARKET
+      2026年08月22日 10:21
+      01 *商品A
+      ¥259
+      03* (冷凍) 商品B
+      ¥499
+      05 商品C
+      ¥109
+      小計 3点 ¥867
+      税込金額合計 ¥936
+      8%税額 ¥69
+      お買上計 ¥936
+    `);
+
+    expect(result.lineItemCandidates.map((candidate) => [candidate.name, candidate.amount])).toEqual([
+      ["商品A", 259],
+      ["(冷凍) 商品B", 499],
+      ["商品C", 109],
+    ]);
+    expect(result.lineItemCandidates.map((candidate) => candidate.amount)).not.toContain(3);
+  });
+
   it("does not treat promotional month-day text as a line item amount", () => {
     const result = parseReceiptText(`
       SAMPLE TEA

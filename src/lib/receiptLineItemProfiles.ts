@@ -13,7 +13,7 @@ export type ReceiptLineItemProfile = {
 
 const GENERIC_PROFILE: ReceiptLineItemProfile = {
   id: "generic",
-  itemCodePattern: /^\s*#?\d{1,4}\s+\S/,
+  itemCodePattern: /^\s*#?\d{1,4}[*※★]?\s+\S/,
   requiresItemCodeToStart: false,
   maxPendingNames: 4,
   columnReconciliationMinItems: 2,
@@ -22,7 +22,7 @@ const GENERIC_PROFILE: ReceiptLineItemProfile = {
 
 const DEPARTMENT_CODED_GROCERY_PROFILE: ReceiptLineItemProfile = {
   id: "department-coded-grocery",
-  itemCodePattern: /^\s*(?:\d{2}|(?:外|内)\s*(?:8|10)\s+#?\d{2,4}[*※★]?)\s+\S/,
+  itemCodePattern: /^\s*(?:\d{2}[*※★]?|(?:外|内)\s*(?:8|10)\s+#?\d{2,4}[*※★]?)\s+\S/,
   requiresItemCodeToStart: true,
   maxPendingNames: 12,
   columnReconciliationMinItems: 2,

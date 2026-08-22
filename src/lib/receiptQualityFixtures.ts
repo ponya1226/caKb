@@ -397,6 +397,78 @@ export const RECEIPT_QUALITY_FIXTURES: readonly ReceiptQualityFixture[] = [
     expectedDecision: "needsReview",
   },
   {
+    id: "grocery-tax-marked-department-code",
+    name: "記号付き部門コードと改行金額を含む食品スーパー",
+    layoutFamily: "grocery",
+    structureFeatures: ["item-split-line", "item-same-line", "subtotal-tax", "payment", "change"],
+    ocrText: `
+      SAMPLE GROCERY
+      架空新田店
+      000-0000-0000
+      2026年08月16日 (日) 10:21
+      店: 0000 レジ No:0000
+      01 *商品A
+      ¥259
+      01 *商品B
+      ¥259
+      01 *商品C
+      ¥398
+      (@199 x 2個)
+      03* (冷凍) 商品D
+      ¥499
+      05 商品E
+      ¥109
+      05 *商品F ¥799
+      05 商品G ¥209
+      05 *商品H ¥399
+      06 商品I ¥269
+      06 商品J
+      ¥199
+      07 商品K 特 ¥252
+      (084 x 3個)
+      07 商品L 特 ¥478
+      07 *商品M ¥199
+      07 商品N ¥399
+      07 商品O ¥229
+      13 *商品P ¥119
+      13 商品Q 特 ¥100
+      20点 ¥5,175
+      小計
+      税込金額合計
+      ¥5,591
+      10%税抜対象額 ¥100
+      10%税額 ¥10
+      8%税抜対象額 ¥5,075
+      8%税額 ¥406
+      お買上計 ¥5,591
+      お預り計 ¥10,141
+      お釣り ¥4,550
+    `,
+    expectedTotal: 5591,
+    expectedShopName: "SAMPLE GROCERY 架空新田店",
+    expectedLineItems: [
+      ["商品A", 259],
+      ["商品B", 259],
+      ["商品C", 398],
+      ["(冷凍) 商品D", 499],
+      ["商品E", 109],
+      ["商品F", 799],
+      ["商品G", 209],
+      ["商品H", 399],
+      ["商品I", 269],
+      ["商品J", 199],
+      ["商品K 特", 252],
+      ["商品L 特", 478],
+      ["商品M", 199],
+      ["商品N", 399],
+      ["商品O", 229],
+      ["商品P", 119],
+      ["商品Q 特", 100],
+    ],
+    expectedExcludedAmounts: [3, 10141, 4550],
+    expectedDecision: "autoSave",
+  },
+  {
     id: "home-center-column-order",
     name: "商品金額列と会員情報が本文末尾へ移動したホームセンター",
     layoutFamily: "home-center",
