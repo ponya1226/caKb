@@ -1,5 +1,30 @@
 # Development History
 
+## 2026-08-24 Receipt Amount And Evidence Modules
+
+目的: 総額と品目で共有する数値トークン解析、および品目整合性補完へ渡す印字証拠を独立して検証し、POS形式追加時の影響範囲を限定する。
+
+主な変更:
+
+- OCR数字補正、通貨記号、時刻・税率・商品コード・数量の除外、少額商品、割引符号、品目名との分離を `receiptAmounts.ts` へ集約
+- 印字点数、小計、小計後へ分離した金額列の生成を `receiptLineItemEvidence.ts` へ分離
+- `receiptParser.ts` は共通金額解析と証拠生成を再実装せず、既存の候補抽出・対応・補完モジュールを合成する構成へ縮小
+- 金額解析と証拠生成の直接単体テストを追加し、既存の匿名fixture結果、Confidence方針、保存schema、外部サービスを変更していないためADR追加なし
+
+検証結果:
+
+- `npm.cmd run lint`: 成功
+- `npm.cmd run test`: 38ファイル、213件成功
+- `npm.cmd run test:receipt-quality`: 匿名コーパス19件、総額・店舗名・品目・Confidence期待値を維持
+- `npm.cmd run build`: 成功。Firebase import構成と約1,020KBのmain chunkに関する既知警告のみ
+- `npm.cmd run test:e2e`: mobile Chromium 12件成功
+- `git diff --check`: 成功
+
+残課題:
+
+- 追加の内部分割より `receipt-confidence-v5` の実利用結果を優先し、具体的な誤認が確認された場合だけ直接単体テストと匿名fixtureから修正する
+- `receiptParser.ts` に残る座標行復元、日付、総額順位付け、品目解析の合成は、実際の退行リスクが確認された責務から段階的に見直す
+
 ## 2026-08-22 Receipt Line Item Reconciliation Module
 
 目的: 小計差分と列順による品目補完をOCR行分類から分離し、誤った品目金額を作らないための算術条件を直接検証できるようにする。

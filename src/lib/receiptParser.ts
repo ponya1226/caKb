@@ -4,6 +4,16 @@ import {
   type PendingReceiptLineItemName,
 } from "./receiptLineItemAssociation";
 import {
+  cleanLineItemName,
+  extractAmountsFromLine,
+  extractLineItemAmountMatchesFromLine,
+  getLineItemConfidence,
+  isDiscountAmountOnlyLine,
+  isLineItemAmountOnlyLine,
+  MIN_RECEIPT_LINE_ITEM_AMOUNT,
+  shouldSkipSuppressedAmountLine,
+} from "./receiptAmounts";
+import {
   createPendingReceiptDiscountName,
   createPendingReceiptLineItemName,
   isPotentialReceiptLineItemNameLine,
@@ -21,18 +31,18 @@ import {
   type ReceiptLineItemProfile,
 } from "./receiptLineItemProfiles";
 import {
-  reconcileReceiptLineItems,
-  type ReceiptLineItemReconciliationAmount,
-} from "./receiptLineItemReconciliation";
+  createReceiptLineItemReconciliationEvidence,
+  findLineItemSubtotal,
+  findReceiptItemCount,
+} from "./receiptLineItemEvidence";
+import { reconcileReceiptLineItems } from "./receiptLineItemReconciliation";
 import { selectReceiptLineItemCandidates } from "./receiptLineItemSelection";
 import { extractShopNameCandidates } from "./receiptShop";
 import {
   findAmountCandidateEndIndex,
   getReceiptStructureBoundary,
-  isLineItemReconciliationBoundary,
   isReceiptTaxAmountLine,
   isReceiptTaxBaseAmountLine,
-  isReceiptTaxSummaryLine,
   isReceiptTaxTotalLine,
 } from "./receiptStructure";
 import { normalizeReceiptText as normalizeText } from "./receiptText";
@@ -45,18 +55,7 @@ const CHANGE_AMOUNT_KEYWORD_PATTERN = /(お\s*釣|おつり|釣\s*り|釣銭)/;
 const BALANCE_AMOUNT_KEYWORD_PATTERN = /(残\s*高|利用\s*可能\s*額)/;
 const LOYALTY_AMOUNT_KEYWORD_PATTERN =
   /(ポイント\s*対象\s*金\s*額|今回\s*獲得|獲得\s*総\s*ポイント|累計\s*ポイント|次\s*ランク\s*まで|会員\s*ランク|ランク\s*保証)/i;
-const MONEY_AMOUNT_PATTERN = /¥\s*[%A-Za-z]*\s*[\dOo〇○Cc¢][\dOo〇○Cc¢,\s.．()[\]（）]{0,14}(?:円)?/g;
-const PLAIN_AMOUNT_PATTERN = /[\d][\d,\s]{1,12}(?:円)?/g;
-const QUANTITY_AMOUNT_CONTEXT_PATTERN = /(g|ｇ|kg|㎏|ml|mL|ＭＬ|枚|個|本|点|袋|パック|連|P|ｐ)$/i;
 const MAX_LINE_ITEM_CANDIDATES = 50;
-const MIN_LINE_ITEM_AMOUNT = 1;
-
-type AmountMatch = {
-  amount: number;
-  raw: string;
-  index: number;
-  hasMoneySymbol: boolean;
-};
 
 type PositionedOcrWord = {
   text: string;
@@ -169,13 +168,6 @@ function reconstructSpatialTextLines(blocks: OcrTextBlock[] | undefined): string
     .filter(Boolean);
 }
 
-function normalizeAmountText(value: string): string {
-  return normalizeText(value)
-    .replace(/[Oo〇○Cc¢]/g, "0")
-    .replace(/[．]/g, ".")
-    .replace(/[（）]/g, (char) => (char === "（" ? "(" : ")"));
-}
-
 function uniqueCandidates<T>(candidates: Array<ReceiptCandidate<T>>): Array<ReceiptCandidate<T>> {
   const seen = new Set<string>();
   return candidates.filter((candidate) => {
@@ -246,134 +238,6 @@ function extractDateCandidates(lines: string[]): Array<ReceiptCandidate<string>>
   });
 
   return uniqueCandidates(candidates).slice(0, 5);
-}
-
-function parseAmountValue(value: string): number | null {
-  const amountText = normalizeAmountText(value);
-  const commaMatch = amountText.match(/(\d{1,3})\s*,\s*([\d()[\]]{1,3})/);
-  const normalized = commaMatch
-    ? `${commaMatch[1]}${commaMatch[2].replace(/[^\d]/g, "").padEnd(3, "0")}`
-    : amountText.replace(/[^\d]/g, "");
-
-  if (!normalized) {
-    return null;
-  }
-
-  const amount = Number(normalized);
-  if (!Number.isInteger(amount) || amount <= 0 || amount > 10_000_000) {
-    return null;
-  }
-
-  return amount;
-}
-
-function isPlainAmountMatchSkippable(line: string, match: RegExpMatchArray): boolean {
-  const index = match.index ?? 0;
-  const token = match[0];
-  const before = line[index - 1] ?? "";
-  const after = line[index + token.length] ?? "";
-  const beforeToken = line.slice(0, index).trim();
-  const isLeadingItemCode = /^#?\d{1,4}[*※★]?\s+\S/.test(line) && /^#?$/.test(beforeToken);
-  const nearbyText = line
-    .slice(Math.max(0, index - 3), Math.min(line.length, index + token.length + 4))
-    .replace(/\s/g, "");
-  const compactToken = token.replace(/[,\s]/g, "");
-  const isTimeToken = /\d{1,2}:\d{2}(?::\d{2})?/.test(nearbyText);
-  const isTaxCategoryMarker = /^(?:外|内)$/.test(beforeToken) && /^\s*\d{2,4}/.test(line.slice(index + token.length));
-  const isTaxPrefixedItemCode = /^(?:外|内)\s*(?:8|10)$/.test(beforeToken);
-  const isCombinedTaxPrefixedItemCode =
-    /^(?:外|内)$/.test(beforeToken) && /^(?:8|10)\d{2,4}$/.test(compactToken);
-
-  return (
-    isTimeToken ||
-    isTaxCategoryMarker ||
-    isTaxPrefixedItemCode ||
-    isCombinedTaxPrefixedItemCode ||
-    after === "%" ||
-    /[A-Za-z]/.test(before) ||
-    /[A-Za-z]/.test(after) ||
-    QUANTITY_AMOUNT_CONTEXT_PATTERN.test(beforeToken) ||
-    QUANTITY_AMOUNT_CONTEXT_PATTERN.test(after.trimStart().slice(0, 2)) ||
-    isLeadingItemCode
-  );
-}
-
-function uniqueAmountMatches(matches: AmountMatch[]): AmountMatch[] {
-  const seen = new Set<number>();
-  return matches.filter((match) => {
-    if (seen.has(match.amount)) {
-      return false;
-    }
-    seen.add(match.amount);
-    return true;
-  });
-}
-
-function extractAmountMatchesFromLine(line: string, minimumAmount = 10): AmountMatch[] {
-  const normalizedLine = normalizeText(line);
-  const moneyMatches = Array.from(normalizedLine.matchAll(MONEY_AMOUNT_PATTERN)).map((match) => ({
-    match,
-    hasMoneySymbol: true,
-  }));
-  const plainMatches = Array.from(normalizedLine.matchAll(PLAIN_AMOUNT_PATTERN))
-    .filter((match) => !isPlainAmountMatchSkippable(normalizedLine, match))
-    .map((match) => ({
-      match,
-      hasMoneySymbol: false,
-    }));
-
-  return uniqueAmountMatches(
-    [...moneyMatches, ...plainMatches]
-      .map(({ match, hasMoneySymbol }) => {
-        const amount = parseAmountValue(match[0]);
-        if (amount === null) {
-          return null;
-        }
-
-        return {
-          amount,
-          raw: match[0],
-          index: match.index ?? 0,
-          hasMoneySymbol,
-        };
-      })
-      .filter((match): match is AmountMatch => match !== null)
-      .sort((a, b) => a.index - b.index),
-  ).filter((match) => match.amount >= minimumAmount);
-}
-
-function extractLineItemAmountMatchesFromLine(line: string): AmountMatch[] {
-  const normalizedLine = normalizeText(line);
-  const unsignedMatches = extractAmountMatchesFromLine(normalizedLine, MIN_LINE_ITEM_AMOUNT);
-  const discountMatches = isReceiptLineItemDiscount(normalizedLine) || /^\s*-/.test(normalizedLine)
-    ? Array.from(normalizedLine.matchAll(/-\s*[\dOo〇○Cc¢][\dOo〇○Cc¢,\s.．()[\]（）]{0,14}(?:円)?/g))
-        .map((match) => {
-          const unsignedAmount = parseAmountValue(match[0]);
-          const amount = unsignedAmount === null ? null : -unsignedAmount;
-          if (amount === null) {
-            return null;
-          }
-
-          return {
-            amount,
-            raw: match[0],
-            index: match.index ?? 0,
-            hasMoneySymbol: /¥/.test(match[0]),
-          };
-        })
-        .filter((match): match is AmountMatch => match !== null)
-    : [];
-
-  return uniqueAmountMatches([...unsignedMatches, ...discountMatches].sort((a, b) => a.index - b.index)).filter(
-    (match) => Math.abs(match.amount) >= MIN_LINE_ITEM_AMOUNT,
-  );
-}
-
-function extractAmountsFromLine(line: string, minimumAmount = 10): number[] {
-  return extractAmountMatchesFromLine(line, minimumAmount)
-    .map((match) => match.amount)
-    .filter((amount) => amount >= minimumAmount)
-    .filter((amount, index, amounts) => amounts.indexOf(amount) === index);
 }
 
 function getAmountConfidence(line: string): number {
@@ -518,115 +382,6 @@ function extractTaxAmounts(lines: string[]): number[] {
   return amounts.filter((amount, index) => amounts.indexOf(amount) === index);
 }
 
-function removeAmountToken(line: string, match: AmountMatch): string {
-  return `${line.slice(0, match.index)} ${line.slice(match.index + match.raw.length)}`;
-}
-
-function cleanLineItemName(line: string, match: AmountMatch): string {
-  return normalizeReceiptLineItemName(removeAmountToken(normalizeText(line), match));
-}
-
-function isLineItemAmountOnlyLine(line: string, match: AmountMatch): boolean {
-  if (/^\s*-/.test(normalizeText(line))) {
-    return false;
-  }
-
-  const residualName = cleanLineItemName(line, match);
-  return residualName.length === 0 || /^(?:特|特価)$/.test(residualName);
-}
-
-function isDiscountAmountOnlyLine(line: string, match: AmountMatch): boolean {
-  return match.amount < 0 && cleanLineItemName(line, match).length === 0;
-}
-
-function shouldSkipSuppressedAmountLine(line: string, match: AmountMatch): boolean {
-  const normalizedLine = normalizeText(line).trim();
-  const residualName = cleanLineItemName(line, match);
-
-  return normalizedLine.startsWith("¥") || residualName.length <= 3;
-}
-
-function getLineItemConfidence(line: string, match: AmountMatch): number {
-  let confidence = match.hasMoneySymbol ? 0.78 : 0.6;
-
-  if (/[*※]/.test(line)) {
-    confidence += 0.08;
-  }
-
-  if (match.index > line.length * 0.45) {
-    confidence += 0.08;
-  }
-
-  return Math.min(confidence, 0.94);
-}
-
-function findLineItemSubtotal(lines: string[]): number | null {
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = normalizeText(lines[index]);
-    if (!/小\s*計/.test(line)) {
-      continue;
-    }
-
-    const amounts = extractAmountsFromLine(line);
-    const nextLine = normalizeText(lines[index + 1] ?? "");
-    const nextAmounts =
-      nextLine && !isReceiptTaxSummaryLine(nextLine) && !isReceiptAmountSectionLabel(nextLine)
-        ? extractAmountsFromLine(nextLine)
-        : [];
-    const candidate = [...amounts, ...nextAmounts].sort((a, b) => b - a)[0];
-    if (candidate) {
-      return candidate;
-    }
-  }
-
-  return null;
-}
-
-function extractColumnOrderedLineItemAmounts(
-  lines: string[],
-): ReceiptLineItemReconciliationAmount[] {
-  const subtotalIndex = lines.findIndex((line) => /小\s*計/.test(normalizeText(line)));
-  if (subtotalIndex < 0) {
-    return [];
-  }
-
-  const reconciliationEndIndex = lines.findIndex((line, index) => {
-    if (index <= subtotalIndex) {
-      return false;
-    }
-
-    return isLineItemReconciliationBoundary(getReceiptStructureBoundary(lines, index));
-  });
-  const reconciliationLines = lines.slice(
-    subtotalIndex + 1,
-    reconciliationEndIndex < 0 ? lines.length : reconciliationEndIndex,
-  );
-
-  return reconciliationLines
-    .flatMap((line) => {
-      const matches = extractLineItemAmountMatchesFromLine(line).filter((match) => (
-        match.amount > 0 && isLineItemAmountOnlyLine(line, match)
-      ));
-      if (matches.length !== 1) {
-        return [];
-      }
-
-      return [{
-        amount: matches[0].amount,
-        line: normalizeText(line).trim(),
-        confidence: Math.max(0.68, getLineItemConfidence(line, matches[0]) - 0.1),
-      }];
-    })
-    .slice(0, 20);
-}
-
-function findReceiptItemCount(lines: string[]): number | null {
-  const compactText = normalizeText(lines.join(" ")).replace(/\s/g, "");
-  const countMatch = compactText.match(/(?:点+数|お買上商品数|商品数)[:：]?(\d+)(?:個|点)?|(?:(\d+)点買)|小計(\d+)点/);
-  const count = Number(countMatch?.[1] ?? countMatch?.[2] ?? countMatch?.[3]);
-  return Number.isInteger(count) && count > 0 ? count : null;
-}
-
 function findSingleReceiptProductName(
   lines: string[],
   profile: ReceiptLineItemProfile,
@@ -759,7 +514,7 @@ function extractLineItemCandidates(
     }
 
     let matches = extractLineItemAmountMatchesFromLine(line).filter(
-      (match) => Math.abs(match.amount) >= MIN_LINE_ITEM_AMOUNT && Math.abs(match.amount) <= 1_000_000,
+      (match) => Math.abs(match.amount) >= MIN_RECEIPT_LINE_ITEM_AMOUNT && Math.abs(match.amount) <= 1_000_000,
     );
     if (
       isReceiptLineItemDiscount(line) &&
@@ -840,11 +595,7 @@ function extractLineItemCandidates(
     candidates,
     unmatchedNames,
     profile,
-    evidence: {
-      declaredItemCount: findReceiptItemCount(lines),
-      subtotal: findLineItemSubtotal(lines),
-      columnOrderedAmounts: extractColumnOrderedLineItemAmounts(lines),
-    },
+    evidence: createReceiptLineItemReconciliationEvidence(lines),
   });
   return inferSingleReceiptLineItem(reconciledCandidates, lines, profile, totalAmount)
     .slice(0, MAX_LINE_ITEM_CANDIDATES);
